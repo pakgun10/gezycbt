@@ -11,6 +11,7 @@ import type {
   DatabasePort,
   DatabaseResult,
 } from "@gezycbt/database";
+import { ScheduleAccessCodeConflictError } from "./access-code";
 import {
   type NormalizedCreateScheduleInput,
   type NormalizedUpdateScheduleInput,
@@ -41,6 +42,18 @@ export interface ScheduleRepository {
     targetStatus: ScheduleTransition,
     expectedUpdatedAt: UtcTimestamp,
     options?: ScheduleTransitionOptions,
+  ): Promise<Schedule | null>;
+}
+
+export type ScheduleAccessField = "PRACTICE_TOKEN" | "MAIN_ACCESS_CODE";
+
+export interface ScheduleAccessRepository {
+  updateAccessCode(
+    id: Id,
+    field: ScheduleAccessField,
+    digest: Uint8Array,
+    hint: string,
+    expectedUpdatedAt: UtcTimestamp,
   ): Promise<Schedule | null>;
 }
 
@@ -187,6 +200,60 @@ export class SqlScheduleRepository implements ScheduleRepository {
       }
       return readSchedule(connection, id);
     });
+  }
+
+  async updateAccessCode(
+    id: Id,
+    field: ScheduleAccessField,
+    digest: Uint8Array,
+    hint: string,
+    expectedUpdatedAt: UtcTimestamp,
+  ): Promise<Schedule | null> {
+    try {
+      return await this.database.transaction(async (connection) => {
+        const current = await readSchedule(connection, id, true);
+        if (!current) return null;
+        if (
+          current.status !== "DRAFT" &&
+          current.status !== "READY" &&
+          current.status !== "OPEN"
+        )
+          throw new ScheduleImmutableError(
+            "Access code cannot be changed after a schedule is closed",
+          );
+        if (!sameTimestamp(current.updatedAt, expectedUpdatedAt))
+          throw new ScheduleVersionConflictError();
+        const column =
+          field === "PRACTICE_TOKEN"
+            ? "practice_token_hash"
+            : field === "MAIN_ACCESS_CODE"
+              ? "main_access_code_hash"
+              : null;
+        const hintColumn =
+          field === "PRACTICE_TOKEN"
+            ? "practice_token_hint"
+            : field === "MAIN_ACCESS_CODE"
+              ? "main_access_code_hint"
+              : null;
+        if (!column || !hintColumn)
+          throw new ScheduleValidationError(
+            "Access code field is invalid",
+            "INVALID_ACCESS_CODE_FIELD",
+          );
+        const result = await connection.execute(
+          `UPDATE exam_schedules SET ${column} = ?, ${hintColumn} = ?,
+             updated_at = UTC_TIMESTAMP(6)
+           WHERE id = ? AND updated_at = ?`,
+          [digest, hint, id, toDatabaseTimestamp(expectedUpdatedAt)],
+        );
+        if (affectedRows(result) !== 1)
+          throw new ScheduleVersionConflictError();
+        return readSchedule(connection, id);
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) throw new ScheduleAccessCodeConflictError();
+      throw error;
+    }
   }
 
   async transitionSchedule(
@@ -587,4 +654,10 @@ function canonicalDatabaseTimestamp(value: UtcTimestamp): UtcTimestamp {
 
 function placeholders(count: number): string {
   return Array.from({ length: count }, () => "?").join(", ");
+}
+
+function isUniqueViolation(error: unknown): boolean {
+  const candidate = error as { code?: unknown; errno?: unknown } | null;
+  const code = String(candidate?.code ?? candidate?.errno ?? "");
+  return code === "ER_DUP_ENTRY" || code === "1062";
 }

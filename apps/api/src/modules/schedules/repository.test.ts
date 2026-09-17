@@ -77,6 +77,28 @@ describe("SqlScheduleRepository", () => {
     ).toBe(false);
   });
 
+  test("updates an access digest and hint with optimistic locking", async () => {
+    const database = new FakeScheduleDatabase();
+    const digest = new Uint8Array(32).fill(4);
+    const result = await new SqlScheduleRepository(database).updateAccessCode(
+      SCHEDULE,
+      "PRACTICE_TOKEN",
+      digest,
+      "•••-DE",
+      VERSION,
+    );
+
+    expect(result?.hasPracticeToken).toBe(true);
+    expect(result?.practiceTokenHint).toBe("•••-DE");
+    expect(database.transactionCount).toBe(1);
+    expect(
+      database.statements.some((sql) =>
+        sql.includes("practice_token_hash = ?"),
+      ),
+    ).toBe(true);
+    expect(database.parameters.some(([value]) => value === digest)).toBe(true);
+  });
+
   test("stores staff close reason and timestamp through the database clock", async () => {
     const database = new FakeScheduleDatabase();
     database.scheduleRow = { ...database.scheduleRow, status: "READY" };
@@ -97,6 +119,7 @@ describe("SqlScheduleRepository", () => {
 
 class FakeScheduleDatabase implements DatabasePort {
   readonly statements: string[] = [];
+  readonly parameters: unknown[][] = [];
   transactionCount = 0;
   scheduleRow: Record<string, unknown> = {
     id: 40n,
@@ -133,8 +156,10 @@ class FakeScheduleDatabase implements DatabasePort {
 
   async query<T extends Record<string, unknown>>(
     sql: string,
+    parameters: readonly unknown[] = [],
   ): Promise<readonly T[]> {
     this.statements.push(sql);
+    this.parameters.push([...parameters]);
     if (sql.includes("FROM exam_schedules"))
       return [this.scheduleRow] as unknown as readonly T[];
     if (sql.includes("FROM exam_schedule_classes"))
@@ -150,10 +175,21 @@ class FakeScheduleDatabase implements DatabasePort {
 
   async execute(
     sql: string,
+    parameters: readonly unknown[] = [],
   ): Promise<{ affectedRows: number; insertId?: bigint }> {
     this.statements.push(sql);
+    this.parameters.push([...parameters]);
     if (sql.startsWith("INSERT INTO exam_schedules"))
       return { affectedRows: 1, insertId: 40n };
+    if (sql.includes("practice_token_hash = ?")) {
+      this.scheduleRow = {
+        ...this.scheduleRow,
+        practice_token_hash: parameters[0],
+        practice_token_hint: parameters[1],
+        has_practice_token: 1,
+        updated_at: "2026-09-17 00:00:01.000000",
+      };
+    }
     if (sql.includes("SET status = 'CLOSED'")) {
       this.scheduleRow = {
         ...this.scheduleRow,

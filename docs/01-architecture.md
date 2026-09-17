@@ -794,6 +794,8 @@ Kode akses melekat pada schedule, bukan pada akun peserta. `MAIN` tetap memerluk
 
 Format kode baseline untuk MAIN dan PRACTICE sama: tepat lima karakter canonical dari alfabet `ABCDEFGHJKMNPQRSTUVWXYZ23456789` (huruf kapital dan angka tanpa `I`, `L`, `O`, `0`, atau `1`). Input lowercase dinormalisasi ke uppercase; hyphen yang hanya dipakai sebagai pemisah tampilan diabaikan sebelum validasi; contoh tampilan canonical adalah `ABCDE`. Generator server memakai CSPRNG. Guru yang berwenang pada scope schedule boleh mengusulkan kode saat membuat atau mengubah schedule, dan admin dapat melakukan operasi yang sama; server tetap menormalisasi, memvalidasi, menolak collision pada schedule aktif, dan menyimpan digest saja.
 
+Implementasi access-code memakai application service khusus. Setelah draft schedule dibuat, guru/admin dapat mengusulkan kode atau meminta generator server; operasi yang sama dapat dipakai untuk rotasi pada draft atau schedule yang sedang berjalan. Kode usulan dan kode hasil generator melewati normalisasi yang sama; generator menggunakan `crypto.getRandomValues` dengan alfabet 32 karakter sehingga setiap karakter memiliki distribusi seragam. Sebelum disimpan, service menghitung HMAC-SHA-256 dengan namespace berdasarkan mode (`PRACTICE_TOKEN` atau `MAIN_ACCESS_CODE`); plaintext dan digest tidak pernah ditulis ke log atau DTO schedule. Mutation mengembalikan plaintext tepat satu kali bersama hint tersamarkan `•••-DE`, sedangkan pembacaan schedule berikutnya hanya mengembalikan `has*` dan hint. Collision kode usulan dikembalikan sebagai conflict generik; collision kode generator diulang secara bounded (maksimum lima percobaan baseline), lalu gagal dengan error generation. Rotasi memakai `expectedUpdatedAt`, hanya menerima schedule `DRAFT`, `READY`, atau `OPEN`, dan mengubah kode yang berlaku untuk session baru tanpa membatalkan session yang sudah dibuat.
+
 Lima karakter adalah convenience access code dengan entropy sekitar 25 bit, bukan secret berentropy tinggi. Karena itu server wajib menerapkan window schedule, generic error, rate limit per IP dan schedule, audit mutation, serta rotasi. Kode yang dibuat atau dirotasi ditampilkan plaintext hanya pada confirmation saat itu; setelahnya UI menampilkan hint. Rotasi membuat kode lama tidak dapat memulai session baru, tetapi tidak membatalkan practice cookie atau exam session yang sudah dibuat.
 
 Schedule mempunyai dua jenis target:
@@ -1547,7 +1549,7 @@ memiliki nilai null.
 | `allow_late_start` | BOOLEAN | Baseline true selama belum ends_at |
 | `result_release_policy` | VARCHAR(30) | `MAIN=MANUAL`, `PRACTICE=IMMEDIATE_SCORE` |
 | `practice_token_hash` | BINARY(32) | Nullable, unique untuk practice |
-| `practice_token_hint` | VARCHAR(20) | Petunjuk tersamarkan untuk UI guru/admin, misalnya `••••-AB7K`; bukan credential |
+| `practice_token_hint` | VARCHAR(20) | Petunjuk tersamarkan untuk UI guru/admin, misalnya `•••-DE`; bukan credential |
 | `main_access_code_hash` | BINARY(32) | Nullable, unique untuk MAIN |
 | `main_access_code_hint` | VARCHAR(20) | Petunjuk tersamarkan untuk UI guru/admin; bukan credential |
 | `identity_fields_json` | JSON | Config field practice yang diizinkan |
@@ -1556,7 +1558,7 @@ memiliki nilai null.
 | `close_reason` | VARCHAR(500) | Nullable; wajib untuk penutupan manual |
 | timestamps | DATETIME(6) | Wajib |
 
-Kode plaintext hanya tampil saat dibuat/dirotasi. Setelah itu UI hanya menerima hint, waktu rotasi, dan status kode. Hint dibentuk server dari sebagian kecil kode dan tidak pernah dipakai untuk autentikasi atau lookup. Normalisasi kode harus konsisten sebelum digest lookup.
+Kode plaintext hanya tampil saat dibuat/dirotasi. Setelah itu UI hanya menerima hint, waktu rotasi, dan status kode. Hint dibentuk server dari dua karakter terakhir (contoh `•••-DE`) dan tidak pernah dipakai untuk autentikasi atau lookup. Normalisasi kode harus konsisten sebelum digest lookup. Digest menggunakan HMAC secret aplikasi yang panjangnya minimal 32 byte; secret tidak disimpan di tabel schedule. Request rotasi membawa `expectedUpdatedAt` dan idempotency key sehingga retry tidak boleh menimpa perubahan versi lain secara diam-diam.
 
 #### Target schedule
 
