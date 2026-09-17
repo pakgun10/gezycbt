@@ -6,7 +6,6 @@ import {
   type QuestionDraft,
   type QuestionDraftContent,
   QuestionForeignReferenceError,
-  QuestionImmutableError,
   QuestionValidationError,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
@@ -87,7 +86,7 @@ describe("QuestionDraftService", () => {
     ).rejects.toBeInstanceOf(QuestionValidationError);
   });
 
-  test("does not edit a published revision", async () => {
+  test("edits a published revision by creating a new draft revision", async () => {
     const repository = new FakeQuestionRepository();
     repository.revision = {
       ...repository.revision,
@@ -98,9 +97,19 @@ describe("QuestionDraftService", () => {
       repository,
       new FakeAuthorization(),
     );
-    await expect(
-      service.updateDraft(ACTOR, repository.revision.id, choiceContent()),
-    ).rejects.toBeInstanceOf(QuestionImmutableError);
+    const sourceId = repository.revision.id;
+    const publishedSource = repository.revision;
+    const result = await service.updateDraft(
+      ACTOR,
+      sourceId,
+      choiceContent(),
+      NOW,
+    );
+    expect(result.status).toBe("DRAFT");
+    expect(result.revisionNo).toBe(2);
+    expect(result.id).not.toBe(sourceId);
+    expect(publishedSource.status).toBe("PUBLISHED");
+    expect(repository.createdFromPublished).toBe(true);
   });
 
   test("authorizes before rejecting an archived bank", async () => {
@@ -207,6 +216,26 @@ class FakeQuestionRepository implements QuestionDraftRepository {
   }
 
   async updateDraft(): Promise<QuestionDraft> {
+    return this.revision;
+  }
+
+  createdFromPublished = false;
+
+  async createDraftRevision(
+    _sourceRevisionId: Id,
+    input: QuestionDraftContent & { readonly contentHash: Uint8Array },
+    _expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<QuestionDraft> {
+    this.createdFromPublished = true;
+    const source = this.revision;
+    this.revision = {
+      ...source,
+      ...input,
+      id: "42" as Id,
+      revisionNo: source.revisionNo + 1,
+      status: "DRAFT",
+      publishedAt: null,
+    };
     return this.revision;
   }
 }

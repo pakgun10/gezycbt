@@ -33,6 +33,20 @@ export interface QuestionDraftRepository {
     input: QuestionDraftContent & { readonly contentHash: Uint8Array },
     expectedUpdatedAt?: UtcTimestamp,
   ): Promise<QuestionDraft | null>;
+  createDraftRevision(
+    sourceRevisionId: Id,
+    input: QuestionDraftContent & { readonly contentHash: Uint8Array },
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<QuestionDraft | null>;
+}
+
+/** Persistence operations used by the publish/edit-revision use cases. */
+export interface QuestionPublishRepository extends QuestionDraftRepository {
+  /** Atomically transitions a draft to PUBLISHED and freezes its content. */
+  publishRevision(
+    id: Id,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<QuestionDraft | null>;
 }
 
 type BankRow = Record<string, unknown> & {
@@ -89,7 +103,7 @@ const REVISION_COLUMNS = `
   JOIN questions q ON q.id = qr.question_id
   JOIN question_banks qb ON qb.id = q.question_bank_id`;
 
-export class SqlQuestionDraftRepository implements QuestionDraftRepository {
+export class SqlQuestionDraftRepository implements QuestionPublishRepository {
   constructor(private readonly database: DatabasePort) {}
 
   async findQuestionBank(id: Id): Promise<QuestionBankSummary | null> {
@@ -177,6 +191,85 @@ export class SqlQuestionDraftRepository implements QuestionDraftRepository {
       );
       await syncChildren(connection, id, content);
       return readRevision(connection, id);
+    });
+  }
+
+  async createDraftRevision(
+    sourceRevisionId: Id,
+    input: QuestionDraftContent & { readonly contentHash: Uint8Array },
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<QuestionDraft | null> {
+    const content = validateQuestionContent(input);
+    return this.database.transaction(async (connection) => {
+      const source = await readRevision(connection, sourceRevisionId, true);
+      if (!source) return null;
+      if (source.status !== "PUBLISHED") throw new QuestionImmutableError();
+      if (expectedUpdatedAt && source.updatedAt !== expectedUpdatedAt)
+        throw new QuestionVersionConflictError();
+
+      // The source row lock serializes revision number allocation for this
+      // logical question while this transaction creates the replacement draft.
+      const latestRows = await connection.query<{ revision_no: unknown }>(
+        `SELECT revision_no
+         FROM question_revisions
+         WHERE question_id = ?
+         ORDER BY revision_no DESC
+         LIMIT 1 FOR UPDATE`,
+        [source.questionId],
+      );
+      const latestRevisionNo = Number(latestRows[0]?.revision_no);
+      if (!Number.isSafeInteger(latestRevisionNo) || latestRevisionNo < 1)
+        throw new Error("Database returned invalid latest question revision");
+      const revision = await connection.execute(
+        `INSERT INTO question_revisions
+           (question_id, revision_no, \`type\`, status, stimulus_html,
+            prompt_html, explanation_html, content_hash)
+         VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?)`,
+        [
+          source.questionId,
+          latestRevisionNo + 1,
+          content.type,
+          content.stimulusHtml,
+          content.promptHtml,
+          content.explanationHtml,
+          input.contentHash,
+        ],
+      );
+      if (revision.insertId === undefined)
+        throw new Error("Question revision insert did not return an ID");
+      const revisionId = formatId(revision.insertId);
+      await insertChildren(connection, revisionId, content);
+      const created = await readRevision(connection, revisionId);
+      if (!created)
+        throw new Error("Question draft revision could not be read");
+      return created;
+    });
+  }
+
+  async publishRevision(
+    id: Id,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<QuestionDraft | null> {
+    return this.database.transaction(async (connection) => {
+      // Lock the revision before checking its state. This serializes publish,
+      // update, and any future state transition for the same revision.
+      const current = await readRevision(connection, id, true);
+      if (!current) return null;
+      if (current.status !== "DRAFT") throw new QuestionImmutableError();
+      if (expectedUpdatedAt && current.updatedAt !== expectedUpdatedAt)
+        throw new QuestionVersionConflictError();
+
+      const result = await connection.execute(
+        `UPDATE question_revisions
+         SET status = 'PUBLISHED', published_at = UTC_TIMESTAMP(6),
+             updated_at = UTC_TIMESTAMP(6)
+         WHERE id = ? AND status = 'DRAFT'`,
+        [id],
+      );
+      if (result.affectedRows !== 1) throw new QuestionVersionConflictError();
+      const published = await readRevision(connection, id);
+      if (!published) throw new Error("Published revision could not be read");
+      return published;
     });
   }
 }

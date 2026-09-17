@@ -10,7 +10,6 @@ import {
   type QuestionDraft,
   type QuestionDraftContent,
   QuestionForeignReferenceError,
-  QuestionImmutableError,
   QuestionNotFoundError,
   QuestionValidationError,
   validateQuestionContent,
@@ -79,13 +78,20 @@ export class QuestionDraftService {
       context.actor,
       current.questionBank,
     );
-    if (current.status !== "DRAFT") throw new QuestionImmutableError();
     const content = validateQuestionContent(input);
-    const updated = await this.repository.updateDraft(
-      revisionId,
-      { ...content, contentHash: await hashQuestionContent(content) },
-      expectedUpdatedAt,
-    );
+    const contentHash = await hashQuestionContent(content);
+    const updated =
+      current.status === "PUBLISHED"
+        ? await this.repository.createDraftRevision(
+            revisionId,
+            { ...content, contentHash },
+            expectedUpdatedAt,
+          )
+        : await this.repository.updateDraft(
+            revisionId,
+            { ...content, contentHash },
+            expectedUpdatedAt,
+          );
     if (!updated) throw new QuestionNotFoundError();
     return updated;
   }

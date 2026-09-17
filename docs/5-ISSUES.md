@@ -95,8 +95,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-041` | `DONE` | Migration `question_options` dan `true_false_statements` tersedia dengan posisi unik dan bounded (1–10 untuk choice, 1–3 untuk TRUE/FALSE), answer key server-side, foreign key `RESTRICT`, index revision/key, serta integration coverage migration. |
 | `ISS-042` | `DONE` | `QuestionDraftService` dan `SqlQuestionDraftRepository` mendukung draft discriminated untuk tiga tipe soal, normalisasi/hash konten, teacher ownership + subject scope, optimistic update, immutable published revision, serta rejection foreign child ID dan child type mismatch. Unit API lulus. |
 | `ISS-043` | `DONE` | `QuestionReadinessService` menghasilkan report deterministik dengan severity ERROR/WARNING, stable code, entity ID, field path, safe message, remediation hint, dan validasi publish untuk tiga tipe soal, jumlah child, posisi, key, serta konten wajib. Unit API lulus. |
+| `ISS-044` | `DONE` | Publish service dan repository memvalidasi readiness, melakukan transisi DRAFT → PUBLISHED secara atomic dengan expected version, menjaga published revision/children immutable, dan membuat draft revision baru saat published revision diedit. Retry dengan versi lama ditolak secara aman. Unit API lulus. |
 
-Gate Fase 0 sampai `ISS-043` telah selesai. Issue berikutnya adalah `ISS-044` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-044` telah selesai. Issue berikutnya adalah `ISS-045` sesuai urutan backlog.
 
 ---
 
@@ -623,7 +624,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-39. `ISS-044` — implement publish dan immutable revision.
+39. `ISS-044` — implement publish dan immutable revision (selesai).
+
+Langkah berikutnya:
+
+40. `ISS-045` — implement exact-match scoring engine.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
