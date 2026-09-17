@@ -1,0 +1,61 @@
+import type { Migration } from "../migration-runner";
+
+export const questionBanksMigration: Migration = {
+  id: "0008_question_banks",
+  statements: [
+    `CREATE TABLE question_banks (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      subject_id BIGINT UNSIGNED NOT NULL,
+      owner_teacher_id BIGINT UNSIGNED NOT NULL,
+      name VARCHAR(200) NOT NULL,
+      description TEXT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      CONSTRAINT pk_question_banks PRIMARY KEY (id),
+      CONSTRAINT fk_question_banks_subject FOREIGN KEY (subject_id) REFERENCES subjects (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT fk_question_banks_owner FOREIGN KEY (owner_teacher_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT chk_question_banks_name_length CHECK (CHAR_LENGTH(name) BETWEEN 1 AND 200),
+      CONSTRAINT chk_question_banks_status CHECK (status IN ('ACTIVE', 'ARCHIVED')),
+      INDEX idx_question_banks_owner_scope (owner_teacher_id, subject_id, status),
+      INDEX idx_question_banks_subject_status (subject_id, status, name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE questions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      question_bank_id BIGINT UNSIGNED NOT NULL,
+      created_by BIGINT UNSIGNED NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      CONSTRAINT pk_questions PRIMARY KEY (id),
+      CONSTRAINT fk_questions_bank FOREIGN KEY (question_bank_id) REFERENCES question_banks (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT fk_questions_created_by FOREIGN KEY (created_by) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT chk_questions_status CHECK (status IN ('ACTIVE', 'ARCHIVED')),
+      INDEX idx_questions_bank_status (question_bank_id, status, created_at, id),
+      INDEX idx_questions_created_by (created_by, created_at, id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE question_revisions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      question_id BIGINT UNSIGNED NOT NULL,
+      revision_no INT UNSIGNED NOT NULL,
+      \`type\` VARCHAR(30) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
+      stimulus_html LONGTEXT NOT NULL,
+      prompt_html LONGTEXT NULL,
+      explanation_html LONGTEXT NULL,
+      content_hash BINARY(32) NOT NULL,
+      published_at DATETIME(6) NULL,
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      CONSTRAINT pk_question_revisions PRIMARY KEY (id),
+      CONSTRAINT uq_question_revisions_number UNIQUE (question_id, revision_no),
+      CONSTRAINT fk_question_revisions_question FOREIGN KEY (question_id) REFERENCES questions (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT chk_question_revisions_type CHECK (\`type\` IN ('SINGLE_CHOICE', 'MULTIPLE_RESPONSE', 'TRUE_FALSE')),
+      CONSTRAINT chk_question_revisions_status CHECK (status IN ('DRAFT', 'PUBLISHED')),
+      CONSTRAINT chk_question_revisions_revision_no CHECK (revision_no > 0),
+      CONSTRAINT chk_question_revisions_publish_time CHECK ((status = 'DRAFT' AND published_at IS NULL) OR (status = 'PUBLISHED' AND published_at IS NOT NULL)),
+      INDEX idx_question_revisions_question_status (question_id, status, revision_no),
+      INDEX idx_question_revisions_type_status (\`type\`, status, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  ],
+};

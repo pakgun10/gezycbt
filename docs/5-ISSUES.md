@@ -91,8 +91,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-036` | `DONE` | Auth expiry contract membedakan cookie hilang vs session expired, mengembalikan `AUTH_SESSION_EXPIRED`, mempertahankan resume context opaque berumur pendek, dan mewajibkan ownership check peserta setelah login ulang. Test expiry, route-bound context, ownership, dan final deadline behavior lulus. API typecheck serta 66 test lulus (3 integration test MariaDB ter-skip tanpa database). |
 
 | `ISS-037` | `DONE` | `auth_throttles` MariaDB migration dan `SqlLoginFailureLimiter` menyimpan bucket kegagalan account/IP berbasis SHA-256, memakai row lock transaction, bertahan restart, mengembalikan `Retry-After`, membersihkan bucket lama secara bounded, serta mempertahankan in-memory limiter untuk fallback. Unit API lulus. |
+| `ISS-040` | `DONE` | Migration `question_banks`, `questions`, dan `question_revisions` tersedia dengan ownership subject/teacher, status/lifecycle checks, tiga question type, content hash, revision numbering, published timestamp invariant, foreign key `RESTRICT`, dan query indexes. Migration registry serta integration coverage diperbarui. |
 
-Gate Fase 0 sampai `ISS-037` telah selesai. Issue berikutnya adalah `ISS-038` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-040` telah selesai. Issue berikutnya adalah `ISS-041` sesuai urutan backlog.
 
 ---
 
@@ -603,6 +604,11 @@ Langkah berikutnya:
 Langkah berikutnya:
 
 34. `ISS-037` — throttling persistence dan cleanup (selesai).
+35. `ISS-040` — migration question bank dan question revisions (selesai).
+
+Langkah berikutnya:
+
+36. `ISS-041` — migration options dan true/false statements.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

@@ -11,6 +11,7 @@ import { systemLocksMigration } from "./migrations/0004_system_locks";
 import { userImportPreviewsMigration } from "./migrations/0005_user_import_previews";
 import { importCommitMigration } from "./migrations/0006_import_commit";
 import { authThrottlesMigration } from "./migrations/0007_auth_throttles";
+import { questionBanksMigration } from "./migrations/0008_question_banks";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -31,6 +32,9 @@ integration("migration runner with MariaDB", () => {
   afterAll(async () => {
     await database.execute("DROP TABLE IF EXISTS audit_logs");
     await database.execute("DROP TABLE IF EXISTS auth_throttles");
+    await database.execute("DROP TABLE IF EXISTS question_revisions");
+    await database.execute("DROP TABLE IF EXISTS questions");
+    await database.execute("DROP TABLE IF EXISTS question_banks");
     await database.execute(
       "DROP TABLE IF EXISTS user_import_credential_artifacts",
     );
@@ -92,6 +96,7 @@ integration("migration runner with MariaDB", () => {
         userImportPreviewsMigration,
         importCommitMigration,
         authThrottlesMigration,
+        questionBanksMigration,
       ],
       options,
     );
@@ -142,6 +147,14 @@ integration("migration runner with MariaDB", () => {
     );
     expect(throttleTables.map((row) => row.table_name)).toEqual([
       "auth_throttles",
+    ]);
+    const questionTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('question_banks', 'questions', 'question_revisions')",
+    );
+    expect(questionTables.map((row) => row.table_name).sort()).toEqual([
+      "question_banks",
+      "question_revisions",
+      "questions",
     ]);
   });
 });
