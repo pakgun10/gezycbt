@@ -2163,6 +2163,13 @@ sudah diterapkan tidak diubah checksum-nya.
 | `GET /api/v1/participant/exam-sessions/:id` | Resume dan manifest | Owner session atau practice credential | Read only |
 | `POST /api/v1/participant/exam-sessions/:id/answers` | Batch autosave | Owner + CSRF/Origin | Answer version |
 | `POST /api/v1/participant/exam-sessions/:id/submit` | Finalize | Owner + CSRF/Origin | Session final state |
+| `GET /api/v1/participant/exam-sessions/:id/result` | Aggregate result participant-safe | Owner session atau practice credential; MAIN wajib released | Read only |
+
+Dashboard schedule response dibatasi pada card fields (`id`, title/subject, mode/status,
+window/duration, attempt usage, active/result session ID, release/reset state, dan
+safe main-code hint). Ia tidak memuat target peserta lain, access digest, answer,
+atau data authoring. Query adapter wajib memfilter eligibility participant dan
+class membership di server serta membatasi page maksimum 200 item.
 
 ### E.11 Error codes exam runtime
 

@@ -5,6 +5,7 @@ import type { AppError } from "../../http/app-error";
 import { normalizeScheduleAccessCode } from "../schedules/access-code";
 import {
   ExamSessionError,
+  type ParticipantScheduleSummary,
   participantStartResponse,
   participantSubmitResponse,
 } from "./domain";
@@ -28,7 +29,10 @@ export interface ExamSessionRoutesOptions {
     | "startPracticeWithCredential"
   >;
   readonly answerService: Pick<ExamAnswerService, "save">;
-  readonly queryService: Pick<ExamSessionQueryService, "getParticipantSession">;
+  readonly queryService: Pick<
+    ExamSessionQueryService,
+    "getParticipantSession" | "getParticipantResult"
+  >;
   readonly submissionService: Pick<ExamSubmissionService, "submit">;
   readonly participantContext: (
     request: Request,
@@ -42,6 +46,11 @@ export interface ExamSessionRoutesOptions {
     readonly identityExtra?: Readonly<Record<string, string>>;
   }>;
   readonly participantClassIds?: (participantId: Id) => Promise<readonly Id[]>;
+  /** Dashboard query kept outside the runtime store so it can use indexed SQL. */
+  readonly participantSchedules?: (input: {
+    readonly participantId: Id;
+    readonly classIds: readonly Id[];
+  }) => Promise<readonly ParticipantScheduleSummary[]>;
   readonly mainAccessCodeDigest: (code: string) => Promise<Uint8Array>;
   readonly practiceTokenDigest: (token: string) => Promise<Uint8Array>;
 }
@@ -49,6 +58,51 @@ export interface ExamSessionRoutesOptions {
 /** Participant runtime routes; authentication/session middleware is injected by the host. */
 export function createExamSessionRoutes(options: ExamSessionRoutesOptions) {
   return new Elysia({ name: "gezycbt-exam-session-routes" })
+    .get("/api/v1/participant/schedules", async ({ request }) => {
+      try {
+        const context = await options.participantContext(
+          request,
+          request.headers.get("x-request-id") ?? crypto.randomUUID(),
+        );
+        const participantId = context.actor.userId;
+        if (
+          context.actor.actorType !== "HUMAN" ||
+          context.actor.role !== "PARTICIPANT" ||
+          !participantId
+        )
+          throw new ExamSessionError(
+            "AUTHENTICATION_REQUIRED",
+            "Silakan masuk untuk melanjutkan.",
+            401,
+          );
+        if (!options.participantSchedules)
+          throw new ExamSessionError(
+            "SERVICE_BUSY",
+            "Dashboard ujian belum tersedia.",
+            503,
+          );
+        const classIds = options.participantClassIds
+          ? await options.participantClassIds(participantId)
+          : [];
+        const items = await options.participantSchedules({
+          participantId,
+          classIds,
+        });
+        if (items.length > 200)
+          throw new ExamSessionError(
+            "SERVICE_BUSY",
+            "Dashboard memiliki terlalu banyak jadwal.",
+            503,
+          );
+        return {
+          data: {
+            items,
+          },
+        };
+      } catch (error) {
+        throw mapError(error);
+      }
+    })
     .post(
       "/api/v1/participant/schedules/:id/sessions",
       async ({ params, body, request, set }) => {
@@ -108,7 +162,6 @@ export function createExamSessionRoutes(options: ExamSessionRoutesOptions) {
       try {
         return {
           data: await options.startService.resolvePractice({
-            scheduleId: String(payload.scheduleId) as Id,
             practiceTokenDigest: await options.practiceTokenDigest(
               normalizeCode(String(payload.token ?? "")),
             ),
@@ -205,6 +258,27 @@ export function createExamSessionRoutes(options: ExamSessionRoutesOptions) {
               String((params as Record<string, unknown>).id) as Id,
               items as readonly import("./domain").SessionAnswerItem[],
               undefined,
+              practiceCredential,
+            ),
+          };
+        } catch (error) {
+          throw mapError(error);
+        }
+      },
+    )
+    .get(
+      "/api/v1/participant/exam-sessions/:id/result",
+      async ({ params, request }) => {
+        try {
+          const raw = readPracticeCredential(request.headers.get("cookie"));
+          const practiceCredential = raw
+            ? await digestPracticeCredential(raw)
+            : undefined;
+          const context = await resolveParticipantContext(options, request);
+          return {
+            data: await options.queryService.getParticipantResult(
+              context,
+              String((params as Record<string, unknown>).id) as Id,
               practiceCredential,
             ),
           };

@@ -84,7 +84,6 @@ const startPracticeBody = t.Object(
 );
 const resolvePracticeBody = t.Object(
   {
-    scheduleId: id,
     token: t.String({ minLength: 5, maxLength: 20 }),
   },
   { additionalProperties: false },
@@ -115,6 +114,27 @@ export const examSessionApiSchemas = {
     },
     { additionalProperties: false },
   ),
+  participantResultResponse: t.Object(
+    {
+      data: t.Object({
+        result: t.Any(),
+        canRetry: t.Boolean(),
+        canRetryReason: t.Union([
+          t.Literal("SCHEDULE_CLOSED"),
+          t.Literal("ATTEMPT_LIMIT_REACHED"),
+          t.Literal("TOKEN_INVALID_OR_EXPIRED"),
+          t.Null(),
+        ]),
+      }),
+    },
+    { additionalProperties: false },
+  ),
+  participantScheduleResponse: t.Object(
+    {
+      data: t.Object({ items: t.Array(t.Any(), { maxItems: 200 }) }),
+    },
+    { additionalProperties: false },
+  ),
   errorResponse: t.Any(),
 } as const;
 
@@ -131,6 +151,13 @@ export interface ExamSessionApiRouteContract {
 }
 
 export const examSessionApiRoutes: readonly ExamSessionApiRouteContract[] = [
+  {
+    method: "GET",
+    path: "/api/v1/participant/schedules",
+    operationId: "listParticipantSchedules",
+    security: [{ participantCookie: [] }],
+    request: {},
+  },
   {
     method: "POST",
     path: "/api/v1/participant/schedules/:id/sessions",
@@ -173,6 +200,13 @@ export const examSessionApiRoutes: readonly ExamSessionApiRouteContract[] = [
       headers: mutationHeaders,
       body: examSessionApiSchemas.answerBatchBody,
     },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/participant/exam-sessions/:id/result",
+    operationId: "getParticipantResult",
+    security: [{ participantCookie: [] }, { practiceCookie: [] }],
+    request: { params: sessionParams },
   },
   {
     method: "POST",

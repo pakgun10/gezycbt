@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** Backlog awal sebelum implementation  
+**Status:** ISS-001–ISS-074 dan ISS-080–ISS-092 selesai pada baseline ini; issue setelah ISS-092 tetap backlog
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 17 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -14,7 +14,7 @@ Dokumen ini menerjemahkan PRD dan arsitektur menjadi backlog pekerjaan yang dapa
 
 ### 1.1 Urutan kerja
 
-1. Selesaikan seluruh issue dengan label **Gate Fase 0**.
+1. Selesaikan seluruh issue pada gate fase yang sedang dikerjakan sebelum masuk fase berikutnya.
 2. Mulai coding dari Fase 1 hanya setelah `ISS-004` menetapkan database connector.
 3. Kerjakan issue berdasarkan dependency, bukan nomor semata.
 4. Jangan memulai UI fitur bila kontrak, domain rule, dan API dependency-nya belum Ready.
@@ -125,8 +125,21 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-072` | `DONE` | Reset attempt mempertahankan histori, membuat satu pending grant, mengonsumsi grant atomik saat replacement start, dan menolak grant kedua yang belum terpakai. Unit concurrency test lulus. |
 | `ISS-073` | `DONE` | Runtime concurrency suite mencakup start race, answer baseVersion race, submit retry, reset grant race, dan invariant tidak ada duplicate active attempt. Test lulus. |
 | `ISS-074` | `DONE` | Participant runtime error mapper menetapkan status/code stabil untuk auth, state conflict, invalid shape, rate limit, service busy, dan hanya mengirim safe finalization reason tanpa note administratif. Unit test lulus. |
+| `ISS-080` | `DONE` | Participant web login dan dashboard tersedia dengan state eligibility, active session/resume, released result, dan reset-attempt badge; route test peserta lulus. |
+| `ISS-081` | `DONE` | Practice token dua tahap dan identity form tersedia tanpa meminta ID jadwal; server meresolve schedule dari token unik, token dinormalisasi uppercase/strip hyphen, identity tervalidasi inline, dan data token/identity hanya berada di memory frontend. |
+| `ISS-082` | `DONE` | Pre-exam menampilkan detail schedule, kode tambahan MAIN bila diperlukan, disable double-start, stage 3 detik, dan retry/status check 15 detik dengan start key yang sama. |
+| `ISS-083` | `DONE` | Exam shell responsive untuk mobile/tablet/desktop menyediakan palette, navigation, timer server, save state, offline banner, submit dialog, dan touch target. |
+| `ISS-084` | `DONE` | Renderer semantic untuk SINGLE_CHOICE, MULTIPLE_RESPONSE, dan TRUE_FALSE tersedia dengan instruksi exact-match, media alt policy, serta keyboard/touch controls. |
+| `ISS-085` | `DONE` | IndexedDB outbox/snapshot dan memory fallback tersedia; pending mutation latest-per-question, ack removal, reload persistence, dan credential exclusion diuji. |
+| `ISS-086` | `DONE` | Autosave/reconnect/conflict UI tersedia dengan state machine truthful, conflict resolution server/local, retry-safe outbox, dan batch maksimal 20. |
+| `ISS-087` | `DONE` | Timer memakai server offset, threshold announcement dideduplicate per sesi, offline/deadline state terlihat, dan reduced-motion CSS tersedia. |
+| `ISS-088` | `DONE` | Submit memakai finalAnswers dan idempotency, mencegah double submit, menangani network/409/503/deadline, serta mengarahkan ke result sesuai mode. |
+| `ISS-089` | `DONE` | Auth-expired overlay meminta login ulang, memperbarui CSRF, resume session yang sama, dan mempertahankan outbox lokal. |
+| `ISS-090` | `DONE` | Result view mengambil session + participant-safe result, menampilkan aggregate, release gate MAIN, canRetry practice, dan tidak menampilkan answer key/print claim. |
+| `ISS-091` | `DONE` | BroadcastChannel memberi advisory antar-tab, focus heading/modal trigger dikelola, dan conflict/finalization state mencegah submit ganda. |
+| `ISS-092` | `DONE` | Matriks acceptance E2E 23 skenario pada viewport 360/390/768/1366, light/dark/reduced motion, reliability, privacy, dan accessibility tersedia di [`participant-e2e-matrix.md`](./participant-e2e-matrix.md); controller/API/router tests lulus. |
 
-Gate Fase 0 sampai `ISS-074` telah selesai. Issue berikutnya adalah `ISS-080` sesuai urutan backlog.
+Gate Fase 7 sampai `ISS-092` telah selesai. Issue berikutnya adalah `ISS-100` sesuai urutan backlog.
 
 ---
 
@@ -565,169 +578,21 @@ Jika salah satu dipromosikan, buat PRD delta dan ADR/migration analysis sebelum 
 
 ## 22. Urutan issue yang sudah dijalankan dan langkah berikutnya
 
-Urutan yang sudah dijalankan:
-
-1. `ISS-001` — review/freeze PRD dan traceability.
-2. `ISS-002` — tentukan kandidat versi compatibility matrix.
-3. `ISS-003` — tulis dan jalankan Bun.SQL compatibility spike.
-4. `ISS-004` — terima ADR-003 berdasarkan bukti spike.
-5. `ISS-005` — finalisasi ADR minimum.
-6. `ISS-006` sampai `ISS-008` — baseline browser/perangkat, content, dan operasi.
-
-Langkah berikutnya:
-
-7. `ISS-010` — repository skeleton dan root configuration (selesai).
-
-Langkah berikutnya:
-
-8. `ISS-011` — shared contracts package (selesai).
-9. `ISS-012` — Elysia app factory dan bootstrap (selesai).
-10. `ISS-013` — error envelope, request ID, dan structured logging (selesai).
-11. `ISS-014` — Vue/Vite route-group shell (selesai).
-12. `ISS-015` — migration runner forward-only (selesai).
-13. `ISS-016` — local/CI MariaDB disposable environment (selesai).
-14. `ISS-017` — CI foundation (selesai).
-15. `ISS-018` — health, readiness, dan metrics foundation (selesai).
-16. `ISS-019` — application-service dan actor-context conventions (selesai).
-17. Database adapter/repository conventions — selesai sebagai infrastructure foundation.
-18. `ISS-020` — migration school settings, users, dan auth sessions (selesai).
-19. `ISS-021` — migration academic years, classes, dan memberships (selesai).
-20. `ISS-022` — migration subjects dan teacher scopes (selesai).
-21. `ISS-023` — user application service dan repository (selesai).
-22. `ISS-024` — academic master services (selesai).
-23. `ISS-025` — one-time admin bootstrap CLI (selesai).
-
-Langkah berikutnya:
-
-24. `ISS-026` — import preview pipeline (selesai).
-
-Langkah berikutnya:
-
-25. `ISS-027` — import commit dan credential artifact (selesai).
-
-Langkah berikutnya:
-
-26. `ISS-028` — representative fixture generator (selesai).
-
-Langkah berikutnya:
-
-27. `ISS-030` — password policy dan Argon2id service (selesai).
-
-Langkah berikutnya:
-
-28. `ISS-031` — opaque auth sessions (selesai).
-
-Langkah berikutnya:
-
-29. `ISS-032` — CSRF dan Origin protection (selesai).
-30. `ISS-033` — staff/participant login policies (selesai).
-
-Langkah berikutnya:
-
-31. `ISS-034` — resource authorization policies (selesai).
-
-Langkah berikutnya:
-
-32. `ISS-035` — password change/reset dan session revoke (selesai).
-
-Langkah berikutnya:
-
-33. `ISS-036` — auth expiry dan participant re-login contract (selesai).
-
-Langkah berikutnya:
-
-34. `ISS-037` — throttling persistence dan cleanup (selesai).
-35. `ISS-040` — migration question bank dan question revisions (selesai).
-
-Langkah berikutnya:
-
-36. `ISS-041` — migration options dan true/false statements (selesai).
-
-Langkah berikutnya:
-
-37. `ISS-042` — implement question draft service (selesai).
-
-Langkah berikutnya:
-
-38. `ISS-043` — implement question readiness validator (selesai).
-
-Langkah berikutnya:
-
-39. `ISS-044` — implement publish dan immutable revision (selesai).
-
-Langkah berikutnya:
-
-40. `ISS-045` — implement exact-match scoring engine (selesai).
-
-Langkah berikutnya:
-
-41. `ISS-046` — implement secure media pipeline (selesai).
-
-Langkah berikutnya:
-
-42. `ISS-047` — implement media relation dan alt policy (selesai).
-
-Langkah berikutnya:
-
-43. `ISS-048` — implement participant-safe question presenter (selesai).
-
-Langkah berikutnya:
-
-44. `ISS-049` — implement question API contract dan OpenAPI (selesai).
-
-Langkah berikutnya:
-
-45. `ISS-050` — migration exams, revisions, dan exam questions (selesai).
-
-Langkah berikutnya:
-
-46. `ISS-051` — implement exam draft service (selesai).
-
-Langkah berikutnya:
-
-47. `ISS-052` — implement exam readiness dan publish (selesai).
-
-Langkah berikutnya:
-
-48. `ISS-053` — migration schedules dan targets (selesai).
-
-Langkah berikutnya:
-
-49. `ISS-054` — implement schedule service dan lifecycle (selesai).
-
-Langkah berikutnya:
-
-50. `ISS-055` — implement schedule access code lifecycle (selesai).
-
-Langkah berikutnya:
-
-51. `ISS-056` — implement identity field configuration (selesai).
-
-Langkah berikutnya:
-
-52. `ISS-057` — implement lifecycle reconciler (selesai).
-
-Langkah berikutnya:
-
-53. `ISS-058` — implement authoring/schedule API contracts (selesai).
-
-Langkah berikutnya:
-
-54. `ISS-060` — migration exam sessions dan session questions (selesai).
-
-Langkah berikutnya:
-
-55. `ISS-061` — migration answers dan results (selesai).
-
-Langkah berikutnya:
-
-56. `ISS-062` — migration attempt grants (selesai).
-
-Langkah berikutnya:
-
-57. `ISS-063` — implement main session start.
-
-**Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
+Issue sampai `ISS-092` telah dikerjakan berurutan sesuai dependency, termasuk
+runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`.
+
+Gate berikutnya adalah review hasil Fase 7 dan persiapan Fase 8:
+
+1. `ISS-100` — import preview UI.
+2. `ISS-101` — import commit UI dan artifact download.
+3. `ISS-102` — menu × role dan shell admin/guru.
+4. `ISS-103` — authoring bank soal UI.
+5. `ISS-104` — exam authoring UI.
+6. `ISS-105` — monitoring ujian dan operasi session.
+7. `ISS-106` — result release dan export UI.
+
+Setiap issue berikutnya tetap harus memperbarui evidence pada tabel status dan
+menjalankan gate repository sebelum dinyatakan `DONE`.
 
 ---
 

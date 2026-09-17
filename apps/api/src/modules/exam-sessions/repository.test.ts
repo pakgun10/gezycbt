@@ -119,6 +119,11 @@ describe("in-memory exam runtime", () => {
         now,
       }),
     ).rejects.toMatchObject({ code: "PRACTICE_ACCESS_INVALID", status: 401 });
+    const resolvedByToken = await start.resolvePractice({
+      practiceTokenDigest: new Uint8Array([9, 9, 9]),
+      now,
+    });
+    expect(resolvedByToken.scheduleId).toBe(id(101));
     const started = await start.startPracticeWithCredential({
       scheduleId: id(101),
       practiceTokenDigest: new Uint8Array([9, 9, 9]),
@@ -393,5 +398,42 @@ describe("in-memory exam runtime", () => {
       },
     );
     expect(grant.grantedAttemptNo).toBe(2);
+  });
+
+  test("participant result respects the main release policy", async () => {
+    const runtime = setup();
+    const started = await runtime.start.startMainWithEligibility(
+      context(participant, "start-key-result-0001"),
+      {
+        scheduleId: id(100),
+        participantName: "Siswa",
+        mainAccessCodeDigest: new Uint8Array([1, 2, 3]),
+        startIdempotencyKey: "55555555-5555-4555-8555-555555555555",
+        now,
+      },
+      [id(7)],
+    );
+    const questionId = started.manifest[0]?.sessionQuestionId;
+    if (!questionId) throw new Error("Expected manifest question");
+    await runtime.submit.submit(
+      context(participant, "result-submit-000001"),
+      started.session.id,
+      [
+        {
+          sessionQuestionId: questionId,
+          baseVersion: 0,
+          response: { selectedOptionId: id(10) },
+        },
+      ],
+      now,
+    );
+    await expect(
+      runtime.query.getParticipantResult(
+        context(participant, "result-read-000001"),
+        started.session.id,
+        undefined,
+        now,
+      ),
+    ).rejects.toMatchObject({ code: "RESULT_NOT_RELEASED", status: 409 });
   });
 });

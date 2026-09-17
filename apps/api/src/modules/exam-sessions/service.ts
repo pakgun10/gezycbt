@@ -14,6 +14,7 @@ import {
   type BatchAnswerResult,
   ExamSessionError,
   type FinalAnswerItem,
+  type ParticipantResultView,
   type ParticipantSessionView,
   type RuntimeSession,
   type SessionAnswerItem,
@@ -136,15 +137,21 @@ export class ExamSessionStartService {
   }
 
   async resolvePractice(input: {
-    readonly scheduleId: Id;
+    readonly scheduleId?: Id;
     readonly practiceTokenDigest: Uint8Array;
     readonly now?: UtcTimestamp;
   }): Promise<PracticeResolveResult> {
-    const schedule = await this.store.resolvePractice(
-      input.scheduleId,
-      input.practiceTokenDigest,
-      input.now,
-    );
+    const schedule =
+      input.scheduleId === undefined
+        ? await this.store.resolvePracticeByToken(
+            input.practiceTokenDigest,
+            input.now,
+          )
+        : await this.store.resolvePractice(
+            input.scheduleId,
+            input.practiceTokenDigest,
+            input.now,
+          );
     if (!schedule)
       throw new ExamSessionError(
         "PRACTICE_ACCESS_INVALID",
@@ -248,6 +255,44 @@ export class ExamSessionQueryService {
       practiceCredential,
       now,
     );
+  }
+
+  async getParticipantResult(
+    context: UseCaseContext,
+    sessionId: Id,
+    practiceCredential?: Uint8Array,
+    now?: UtcTimestamp,
+  ): Promise<ParticipantResultView> {
+    const session = await this.getParticipantSession(
+      context,
+      sessionId,
+      practiceCredential,
+      now,
+    );
+    const result = await this.store.getResult(sessionId);
+    if (!result)
+      throw new ExamSessionError(
+        "SERVICE_BUSY",
+        "Hasil ujian belum tersedia.",
+        503,
+      );
+    if (session.session.participantId !== null && result.releasedAt === null)
+      throw new ExamSessionError(
+        "RESULT_NOT_RELEASED",
+        "Hasil ujian belum dirilis.",
+        409,
+      );
+    const practice = session.session.participantId === null;
+    const canRetryReason = practice
+      ? session.session.finalizationReason === "SCHEDULE_CLOSE"
+        ? ("SCHEDULE_CLOSED" as const)
+        : null
+      : ("ATTEMPT_LIMIT_REACHED" as const);
+    return {
+      result,
+      canRetry: practice && canRetryReason === null,
+      canRetryReason,
+    };
   }
 }
 

@@ -106,6 +106,25 @@ function appWith(options: {
         });
         return { ...safe, answers: [] };
       },
+      async getParticipantResult() {
+        return {
+          result: {
+            sessionId: "1000" as Id,
+            scheduleId: "100" as Id,
+            participantId,
+            correctCount: 1,
+            incorrectCount: 0,
+            unansweredCount: 0,
+            earnedScore: "1.00",
+            maxScore: "1.00",
+            percentage: "100.00",
+            scoredAt: now,
+            releasedAt: now,
+          },
+          canRetry: false,
+          canRetryReason: "ATTEMPT_LIMIT_REACHED" as const,
+        };
+      },
     },
     submissionService: {
       async submit() {
@@ -146,6 +165,26 @@ function appWith(options: {
     async participantSnapshot() {
       return { participantName: "Server Name" };
     },
+    async participantSchedules({ participantId }) {
+      expect(participantId).toBe("50" as Id);
+      return [
+        {
+          id: "100" as Id,
+          title: "Ujian Peserta",
+          mode: "MAIN" as const,
+          status: "OPEN" as const,
+          startsAt: "2026-01-01T10:00:00.000Z" as UtcTimestamp,
+          endsAt: "2026-01-01T11:00:00.000Z" as UtcTimestamp,
+          durationSeconds: 3600,
+          maxAttempts: 1,
+          attemptsUsed: 0,
+          activeSessionId: null,
+          resultSessionId: null,
+          resultReleased: false,
+          attemptResetAvailable: false,
+        },
+      ];
+    },
     async mainAccessCodeDigest(value) {
       expect(value).toBe("ABCDE");
       return new Uint8Array([1]);
@@ -163,6 +202,13 @@ function appWith(options: {
 
 test("participant runtime routes use server identity and sanitize submit", async () => {
   const app = appWith({});
+  const schedulesResponse = await app.handle(
+    new Request("https://cbt.example.test/api/v1/participant/schedules"),
+  );
+  expect(schedulesResponse.status).toBe(200);
+  expect(await schedulesResponse.json()).toMatchObject({
+    data: { items: [{ id: "100", mode: "MAIN" }] },
+  });
   const startResponse = await app.handle(
     new Request(
       "https://cbt.example.test/api/v1/participant/schedules/100/sessions",
@@ -182,6 +228,21 @@ test("participant runtime routes use server identity and sanitize submit", async
     (await startResponse.json()).data.session.participantNameSnapshot,
   ).toBe("Server Name");
 
+  const resolveResponse = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/participant/practice/resolve",
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ token: "abc-de" }),
+      },
+    ),
+  );
+  expect(resolveResponse.status).toBe(200);
+  expect(await resolveResponse.json()).toMatchObject({
+    data: { scheduleId: "101", title: "Latihan" },
+  });
+
   const submitResponse = await app.handle(
     new Request(
       "https://cbt.example.test/api/v1/participant/exam-sessions/1000/submit",
@@ -199,6 +260,19 @@ test("participant runtime routes use server identity and sanitize submit", async
   expect(submitResponse.status).toBe(200);
   expect(body).not.toContain("randomSeed");
   expect(body).not.toContain("internal note");
+
+  const resultResponse = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/participant/exam-sessions/1000/result",
+    ),
+  );
+  expect(resultResponse.status).toBe(200);
+  expect(await resultResponse.json()).toMatchObject({
+    data: {
+      canRetry: false,
+      canRetryReason: "ATTEMPT_LIMIT_REACHED",
+    },
+  });
 });
 
 test("practice start sets the isolated credential cookie", async () => {

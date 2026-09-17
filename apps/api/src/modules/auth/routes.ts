@@ -1,4 +1,6 @@
+import type { Id } from "@gezycbt/contracts";
 import { AppError } from "../../http/app-error";
+import type { UserRole } from "../users/domain";
 import { createCsrfGuard } from "./csrf";
 import {
   type AuthLoginService,
@@ -6,14 +8,25 @@ import {
   LoginRateLimitedError,
 } from "./login";
 import { PasswordBusyError } from "./password";
-import type { AuthSessionService } from "./session";
+import { type AuthSessionService, readAuthCookie } from "./session";
+
+export interface AuthCurrentUser {
+  readonly id: Id;
+  readonly username: string;
+  readonly displayName: string;
+  readonly role: UserRole;
+  readonly forcePasswordChange: boolean;
+}
 
 export interface AuthRoutesOptions {
   readonly loginService: AuthLoginService;
   readonly sessionService: Pick<
     AuthSessionService,
     "resolve" | "verifyCsrfSecret"
-  >;
+  > & {
+    readonly rotate?: AuthSessionService["rotate"];
+  };
+  readonly currentUser?: (userId: Id) => Promise<AuthCurrentUser | null>;
   readonly expectedOrigin: URL | string;
   /** Resolve the peer/proxy address only from a trusted server adapter. */
   readonly getClientIp?: (request: Request) => string | undefined;
@@ -49,6 +62,43 @@ export function createAuthRoutes(options: AuthRoutesOptions) {
       );
       set.headers["set-cookie"] = result.session.cookie;
       return loginResponse(result);
+    })
+    .get("/api/v1/auth/me", async ({ request, set }) => {
+      const token = readAuthCookie(request.headers.get("cookie"));
+      if (!token || !options.sessionService.rotate)
+        throw new AppError(
+          401,
+          "AUTH_SESSION_EXPIRED",
+          "Sesi login tidak tersedia.",
+        );
+      const result = await options.sessionService.rotate(token);
+      if (!result)
+        throw new AppError(
+          401,
+          "AUTH_SESSION_EXPIRED",
+          "Sesi login telah berakhir.",
+        );
+      const user = options.currentUser
+        ? await options.currentUser(result.session.userId)
+        : {
+            id: result.session.userId,
+            username: String(result.session.userId),
+            displayName: "Peserta",
+            role: result.session.role,
+            forcePasswordChange: false,
+          };
+      if (!user)
+        throw new AppError(
+          401,
+          "AUTH_SESSION_EXPIRED",
+          "Sesi login tidak tersedia.",
+        );
+      set.headers["set-cookie"] = result.cookie;
+      return {
+        user,
+        csrfToken: result.csrfSecret,
+        expiresAt: result.session.absoluteExpiresAt,
+      };
     });
 }
 

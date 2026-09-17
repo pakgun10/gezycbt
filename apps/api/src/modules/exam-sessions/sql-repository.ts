@@ -190,6 +190,29 @@ export class SqlExamRuntimeStore implements RuntimeStore {
     });
   }
 
+  async resolvePracticeByToken(
+    tokenDigest: Uint8Array,
+    now?: UtcTimestamp,
+  ): Promise<RuntimeScheduleRecord | null> {
+    return this.database.transaction(async (connection) => {
+      const rows = await connection.query<Row>(
+        "SELECT id FROM exam_schedules WHERE mode = 'PRACTICE' AND practice_token_hash = ? LIMIT 1",
+        [tokenDigest],
+      );
+      if (!rows[0]) return null;
+      const schedule = await readSchedule(connection, dbId(rows[0].id), false);
+      const timestamp = now ?? serverNow();
+      if (
+        !schedule ||
+        schedule.mode !== "PRACTICE" ||
+        !isOpen(schedule, timestamp) ||
+        !bytesEqual(tokenDigest, schedule.practiceTokenHash)
+      )
+        return null;
+      return schedule;
+    });
+  }
+
   async startPractice(input: StartPracticeInput): Promise<SessionStartResult> {
     return this.database.transaction(async (connection) => {
       const schedule = await readSchedule(connection, input.scheduleId, false);

@@ -49,6 +49,14 @@ test("auth routes enforce same-origin and set the opaque session cookie", async 
     async verifyCsrfSecret() {
       return false;
     },
+    async rotate() {
+      return {
+        token: "a".repeat(43),
+        csrfSecret: "c".repeat(43),
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        session,
+      };
+    },
   };
   const loginService = new AuthLoginService({
     users: {
@@ -73,6 +81,15 @@ test("auth routes enforce same-origin and set the opaque session cookie", async 
         loginService,
         sessionService,
         expectedOrigin: "https://cbt.example.test",
+        async currentUser() {
+          return {
+            id: USER.id,
+            username: USER.username,
+            displayName: USER.displayName,
+            role: USER.role,
+            forcePasswordChange: USER.forcePasswordChange,
+          };
+        },
       }),
     )
     .onError(({ error, set }) => {
@@ -97,6 +114,17 @@ test("auth routes enforce same-origin and set the opaque session cookie", async 
   expect(response.status).toBe(200);
   expect(response.headers.get("set-cookie")).toContain("__Host-gezycbt-auth=");
   expect((await response.json()).user.role).toBe("TEACHER");
+
+  const me = await app.handle(
+    new Request("https://cbt.example.test/api/v1/auth/me", {
+      headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+    }),
+  );
+  expect(me.status).toBe(200);
+  expect(await me.json()).toMatchObject({
+    user: { id: "1", role: "TEACHER" },
+    csrfToken: "c".repeat(43),
+  });
 
   const rejected = await app.handle(
     new Request("https://cbt.example.test/api/v1/auth/staff/login", {

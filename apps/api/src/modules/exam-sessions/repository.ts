@@ -127,6 +127,10 @@ export interface RuntimeStore {
     tokenDigest: Uint8Array,
     now?: UtcTimestamp,
   ): Promise<RuntimeScheduleRecord | null>;
+  resolvePracticeByToken(
+    tokenDigest: Uint8Array,
+    now?: UtcTimestamp,
+  ): Promise<RuntimeScheduleRecord | null>;
   getParticipantSession(
     sessionId: Id,
     participantId?: Id,
@@ -324,6 +328,22 @@ export class InMemoryExamRuntimeStore implements RuntimeStore {
     )
       return null;
     return schedule;
+  }
+
+  async resolvePracticeByToken(
+    tokenDigest: Uint8Array,
+    now?: UtcTimestamp,
+  ): Promise<RuntimeScheduleRecord | null> {
+    const timestamp = this.timestamp(now);
+    for (const schedule of this.schedules.values()) {
+      if (
+        schedule.mode === "PRACTICE" &&
+        bytesEqual(tokenDigest, schedule.practiceTokenHash) &&
+        this.isWithinWindow(schedule, timestamp)
+      )
+        return schedule;
+    }
+    return null;
   }
 
   async startPractice(input: StartPracticeInput): Promise<SessionStartResult> {

@@ -70,6 +70,11 @@ describe("exam session API contracts", () => {
         startIdempotencyKey: UUID,
       }),
     ).toBe(true);
+    const resolve = TypeCompiler.Compile(
+      examSessionApiSchemas.resolvePracticeBody,
+    );
+    expect(resolve.Check({ token: "ABCDE" })).toBe(true);
+    expect(resolve.Check({ scheduleId: "100", token: "ABCDE" })).toBe(false);
     expect(
       practice.Check({
         scheduleId: "100",
@@ -94,6 +99,12 @@ describe("exam session API contracts", () => {
     expect(
       paths["/api/v1/participant/practice/sessions"]?.post?.security,
     ).toEqual([]);
+    expect(paths["/api/v1/participant/schedules"]?.get?.security).toEqual([
+      { participantCookie: [] },
+    ]);
+    expect(examSessionApiRoutes.map((route) => route.operationId)).toContain(
+      "getParticipantResult",
+    );
     expect(() =>
       JSON.parse(JSON.stringify(examSessionApiOpenApi)),
     ).not.toThrow();

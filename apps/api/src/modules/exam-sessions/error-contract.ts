@@ -65,6 +65,8 @@ function participantMessage(code: string): string {
       return "Terlalu banyak permintaan. Coba lagi nanti.";
     case "SERVICE_BUSY":
       return "Server sedang sibuk. Coba lagi.";
+    case "RESULT_NOT_RELEASED":
+      return "Hasil ujian belum dirilis.";
     case "TIME_EXTENSION_INVALID":
       return "Perpanjangan waktu tidak valid.";
     default:

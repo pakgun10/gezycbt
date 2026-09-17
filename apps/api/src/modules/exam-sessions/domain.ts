@@ -178,6 +178,26 @@ export interface ParticipantSessionView {
   readonly serverNow: UtcTimestamp;
 }
 
+/** Bounded, participant-safe card returned by the dashboard query. */
+export interface ParticipantScheduleSummary {
+  readonly id: Id;
+  readonly title: string;
+  readonly subjectName?: string;
+  readonly mode: "MAIN" | "PRACTICE";
+  readonly status: "DRAFT" | "READY" | "OPEN" | "CLOSED" | "ARCHIVED";
+  readonly startsAt: UtcTimestamp;
+  readonly endsAt: UtcTimestamp;
+  readonly durationSeconds: number;
+  readonly maxAttempts: number;
+  readonly attemptsUsed: number;
+  readonly activeSessionId: Id | null;
+  readonly resultSessionId: Id | null;
+  readonly resultReleased: boolean;
+  readonly attemptResetAvailable: boolean;
+  readonly mainAccessCodeRequired?: boolean;
+  readonly mainAccessCodeHint?: string | null;
+}
+
 export interface SessionAnswerItem {
   readonly sessionQuestionId: Id;
   readonly baseVersion: number;
@@ -231,6 +251,16 @@ export interface SubmitResult {
   readonly replayed: boolean;
 }
 
+export interface ParticipantResultView {
+  readonly result: ExamResult;
+  readonly canRetry: boolean;
+  readonly canRetryReason:
+    | "SCHEDULE_CLOSED"
+    | "ATTEMPT_LIMIT_REACHED"
+    | "TOKEN_INVALID_OR_EXPIRED"
+    | null;
+}
+
 /** Participant-facing submit response; runtime secrets stay server-side. */
 export function participantSubmitResponse(result: SubmitResult): {
   readonly session: ParticipantSessionView["session"];
@@ -267,6 +297,7 @@ export class ExamSessionError extends Error {
       | "PRACTICE_ACCESS_INVALID"
       | "RATE_LIMITED"
       | "SERVICE_BUSY"
+      | "RESULT_NOT_RELEASED"
       | "AUTHENTICATION_REQUIRED"
       | "AUTH_SESSION_EXPIRED"
       | "IDEMPOTENCY_CONFLICT"
