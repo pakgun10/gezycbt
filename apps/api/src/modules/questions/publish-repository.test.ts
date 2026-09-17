@@ -74,6 +74,11 @@ describe("SqlQuestionDraftRepository publish persistence", () => {
         sql.includes("INSERT INTO question_revisions"),
       ),
     ).toBe(true);
+    expect(
+      db.statements.some((sql) =>
+        sql.includes("INSERT INTO question_revision_media"),
+      ),
+    ).toBe(true);
   });
 });
 

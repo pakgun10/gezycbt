@@ -59,6 +59,7 @@ export class MediaUploadService {
         width: decoded.width,
         height: decoded.height,
         createdBy: input.createdBy,
+        status: "READY",
       });
     } catch (error) {
       try {

@@ -98,8 +98,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-044` | `DONE` | Publish service dan repository memvalidasi readiness, melakukan transisi DRAFT → PUBLISHED secara atomic dengan expected version, menjaga published revision/children immutable, dan membuat draft revision baru saat published revision diedit. Retry dengan versi lama ditolak secara aman. Unit API lulus. |
 | `ISS-045` | `DONE` | Exact-match scoring engine server-side untuk SINGLE_CHOICE, MULTIPLE_RESPONSE, dan TRUE_FALSE dengan bobot DECIMAL dua digit, hasil CORRECT/INCORRECT/UNANSWERED, penolakan duplicate/foreign ID, agregat score, dan percentage round-half-up deterministic. Unit API lulus. |
 | `ISS-046` | `DONE` | Secure media pipeline tersedia sebagai port storage/decoder yang memvalidasi magic bytes, MIME, dimensi, batas 2 MiB/2.500px, nama file aman, hash SHA-256, storage key acak, serta cleanup file saat write metadata atau storage gagal. Unit API lulus. |
+| `ISS-047` | `DONE` | Migration `media_assets` dan `question_revision_media`, repository transaksional, serta service relasi media tersedia. Informative alt text wajib, decorative media harus eksplisit, published revision immutable, asset yang masih direferensikan tidak dapat dihapus, dan ownership media diperiksa. Unit API serta SQL contract test lulus. |
 
-Gate Fase 0 sampai `ISS-046` telah selesai. Issue berikutnya adalah `ISS-047` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-047` telah selesai. Issue berikutnya adalah `ISS-048` sesuai urutan backlog.
 
 ---
 
@@ -638,7 +639,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-42. `ISS-047` — implement media relation dan alt policy.
+42. `ISS-047` — implement media relation dan alt policy (selesai).
+
+Langkah berikutnya:
+
+43. `ISS-048` — implement participant-safe question presenter.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

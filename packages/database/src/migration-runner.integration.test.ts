@@ -13,6 +13,7 @@ import { importCommitMigration } from "./migrations/0006_import_commit";
 import { authThrottlesMigration } from "./migrations/0007_auth_throttles";
 import { questionBanksMigration } from "./migrations/0008_question_banks";
 import { questionOptionsMigration } from "./migrations/0009_question_options";
+import { mediaMigration } from "./migrations/0010_media";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -32,6 +33,8 @@ integration("migration runner with MariaDB", () => {
 
   afterAll(async () => {
     await database.execute("DROP TABLE IF EXISTS audit_logs");
+    await database.execute("DROP TABLE IF EXISTS question_revision_media");
+    await database.execute("DROP TABLE IF EXISTS media_assets");
     await database.execute("DROP TABLE IF EXISTS auth_throttles");
     await database.execute("DROP TABLE IF EXISTS true_false_statements");
     await database.execute("DROP TABLE IF EXISTS question_options");
@@ -101,6 +104,7 @@ integration("migration runner with MariaDB", () => {
         authThrottlesMigration,
         questionBanksMigration,
         questionOptionsMigration,
+        mediaMigration,
       ],
       options,
     );
@@ -166,6 +170,13 @@ integration("migration runner with MariaDB", () => {
     expect(optionTables.map((row) => row.table_name).sort()).toEqual([
       "question_options",
       "true_false_statements",
+    ]);
+    const mediaTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('media_assets', 'question_revision_media')",
+    );
+    expect(mediaTables.map((row) => row.table_name).sort()).toEqual([
+      "media_assets",
+      "question_revision_media",
     ]);
   });
 });

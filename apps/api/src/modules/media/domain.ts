@@ -13,6 +13,9 @@ export const MEDIA_MIME_TYPES = [
 ] as const;
 export type MediaMimeType = (typeof MEDIA_MIME_TYPES)[number];
 
+export const MEDIA_ASSET_STATUSES = ["READY", "DELETED"] as const;
+export type MediaAssetStatus = (typeof MEDIA_ASSET_STATUSES)[number];
+
 export interface DecodedImageInfo {
   readonly mimeType: MediaMimeType;
   readonly width: number;
@@ -29,6 +32,7 @@ export interface MediaAsset {
   readonly width: number;
   readonly height: number;
   readonly createdBy: Id;
+  readonly status: MediaAssetStatus;
 }
 
 export interface MediaAssetCreateInput {
@@ -40,6 +44,7 @@ export interface MediaAssetCreateInput {
   readonly width: number;
   readonly height: number;
   readonly createdBy: Id;
+  readonly status: MediaAssetStatus;
 }
 
 export interface MediaAssetRepository {

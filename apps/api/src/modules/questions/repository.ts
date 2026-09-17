@@ -239,6 +239,7 @@ export class SqlQuestionDraftRepository implements QuestionPublishRepository {
         throw new Error("Question revision insert did not return an ID");
       const revisionId = formatId(revision.insertId);
       await insertChildren(connection, revisionId, content);
+      await copyMediaRelations(connection, sourceRevisionId, revisionId);
       const created = await readRevision(connection, revisionId);
       if (!created)
         throw new Error("Question draft revision could not be read");
@@ -272,6 +273,21 @@ export class SqlQuestionDraftRepository implements QuestionPublishRepository {
       return published;
     });
   }
+}
+
+async function copyMediaRelations(
+  connection: DatabaseConnection,
+  sourceRevisionId: Id,
+  targetRevisionId: Id,
+): Promise<void> {
+  await connection.execute(
+    `INSERT INTO question_revision_media
+       (question_revision_id, media_asset_id, \`usage\`, alt_text, is_decorative)
+     SELECT ?, media_asset_id, \`usage\`, alt_text, is_decorative
+     FROM question_revision_media
+     WHERE question_revision_id = ?`,
+    [targetRevisionId, sourceRevisionId],
+  );
 }
 
 async function readRevision(
