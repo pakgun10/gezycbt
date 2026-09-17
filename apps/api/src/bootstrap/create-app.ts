@@ -3,6 +3,7 @@ import type { ApiErrorBody } from "@gezycbt/contracts";
 import { Elysia } from "elysia";
 import { AppError } from "../http/app-error";
 import { type AppLogger, consoleLogger } from "../http/logger";
+import { examSessionApiOpenApi } from "../modules/exam-sessions/openapi";
 import { questionApiOpenApi } from "../modules/questions/openapi";
 import { scheduleApiOpenApi } from "../modules/schedules/openapi";
 import { checkReadiness, type ReadinessCheck } from "../observability/health";
@@ -18,15 +19,21 @@ const apiOpenApi = {
     description:
       "GezyCBT authoring and schedule contracts. Participant payloads remain separate from staff resources.",
   },
-  paths: { ...questionApiOpenApi.paths, ...scheduleApiOpenApi.paths },
+  paths: {
+    ...questionApiOpenApi.paths,
+    ...scheduleApiOpenApi.paths,
+    ...examSessionApiOpenApi.paths,
+  },
   components: {
     schemas: {
       ...questionApiOpenApi.components.schemas,
       ...scheduleApiOpenApi.components.schemas,
+      ...examSessionApiOpenApi.components.schemas,
     },
     securitySchemes: {
       ...questionApiOpenApi.components.securitySchemes,
       ...scheduleApiOpenApi.components.securitySchemes,
+      ...examSessionApiOpenApi.components.securitySchemes,
     },
   },
 };

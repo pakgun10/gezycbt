@@ -1603,6 +1603,7 @@ bukan predicate role atau eligibility lintas tabel.
 | `status` | VARCHAR(30) | `ACTIVE`, `SUBMITTED`, `EXPIRED`, `ENDED`, `SCORED` |
 | `start_idempotency_key` | CHAR(36) ASCII | UUID dari browser, unique dalam schedule |
 | `practice_access_token_hash` | BINARY(32) | Nullable; hanya guest session |
+| `practice_session_credential_hash` | BINARY(32) | Digest credential resume guest yang berbeda dari token schedule; tidak pernah dikirim kembali |
 | `participant_name_snapshot` | VARCHAR(200) | Wajib untuk report |
 | `class_snapshot` | VARCHAR(150) | Nullable |
 | `institution_snapshot` | VARCHAR(200) | Nullable |
@@ -1610,6 +1611,7 @@ bukan predicate role atau eligibility lintas tabel.
 | `random_seed` | BINARY(32) | Dibuat CSPRNG |
 | `started_at`, `deadline_at` | DATETIME(6) | Wajib |
 | `last_seen_at` | DATETIME(6) | Update throttled |
+| `version` | INT UNSIGNED | Optimistic compare-and-swap untuk session mutation |
 | `submitted_at`, `expired_at`, `ended_at`, `scored_at` | DATETIME(6) | Nullable sesuai state |
 | `finalization_reason` | VARCHAR(30) | Nullable saat active; wajib final: `PARTICIPANT_SUBMIT`, `DEADLINE`, `SCHEDULE_CLOSE`, `STAFF_END`, `RESET_ATTEMPT` |
 | `finalized_by_user_id` | BIGINT UNSIGNED | Nullable; staff actor untuk end/reset/close |
@@ -2041,7 +2043,7 @@ Response HTTP 200 memuat status per item: `SAVED`, `UNCHANGED`, atau `CONFLICT`.
 - `SINGLE_CHOICE`: satu option ID milik revision.
 - `MULTIPLE_RESPONSE`: array 1–10 ID unik; server mengurutkan sebelum membandingkan/menyimpan.
 - `TRUE_FALSE`: tepat tiga statement ID unik, masing-masing dengan boolean.
-- Mengosongkan jawaban dilakukan dengan operation eksplisit `clear=true`, bukan bentuk response ambigu.
+- Mengosongkan jawaban menggunakan bentuk kosong yang eksplisit per tipe (`selectedOptionId: null`, `selectedOptionIds: []`, atau `statements: []`); bentuk lain ditolak.
 
 ### E.6 Refresh dan koneksi terputus
 
@@ -2144,19 +2146,23 @@ Label ini tidak menyatakan apakah hasil telah dirilis. Visibility hasil tetap di
 
 `finalization_reason` bersifat write-once setelah session final. Reset terhadap session yang sudah `SUBMITTED`, `EXPIRED`, `ENDED`, atau `SCORED` tidak menimpa alasan awal; operasi reset hanya membuat audit dan attempt grant. `RESET_ATTEMPT` dipakai bila reset itu sendiri harus memfinalisasi session yang masih `ACTIVE`.
 
+Migration `0016_exam_session_credentials` menambahkan digest credential resume
+guest dan counter `version` secara forward-only. Counter ini dipakai oleh save,
+extension, dan operasi staf sebagai optimistic compare-and-swap; migration yang
+sudah diterapkan tidak diubah checksum-nya.
+
 ### E.10 Participant API surface
 
 | Method dan path | Tujuan | Auth | Idempotency |
 |---|---|---|---|
 | `POST /api/v1/auth/participant/login` | Login ujian utama | Username/password | Tidak; rate limited |
 | `GET /api/v1/participant/schedules` | Dashboard eligibility | Participant cookie | Read only |
-| `POST /api/v1/participant/sessions` | Start main session | Participant + CSRF | Start key |
-| `POST /api/v1/practice/resolve` | Resolve token dan form identity | Public, rate limited | Read-like POST |
-| `POST /api/v1/practice/sessions` | Start practice session | Token + identity | Start key |
-| `GET /api/v1/exam-sessions/:id` | Resume dan manifest | Owner session | Read only |
-| `PUT /api/v1/exam-sessions/:id/answers` | Batch autosave | Owner + CSRF | Answer version |
-| `POST /api/v1/exam-sessions/:id/submit` | Finalize | Owner + CSRF | Session final state |
-| `GET /api/v1/exam-sessions/:id/result` | Result bila released | Owner | Read only |
+| `POST /api/v1/participant/schedules/:id/sessions` | Start main session | Participant + CSRF | Start key |
+| `POST /api/v1/participant/practice/resolve` | Resolve token dan daftar identity fields | Public, rate limited | Read-like POST |
+| `POST /api/v1/participant/practice/sessions` | Start practice session dan set credential guest | Token + identity | Start key |
+| `GET /api/v1/participant/exam-sessions/:id` | Resume dan manifest | Owner session atau practice credential | Read only |
+| `POST /api/v1/participant/exam-sessions/:id/answers` | Batch autosave | Owner + CSRF/Origin | Answer version |
+| `POST /api/v1/participant/exam-sessions/:id/submit` | Finalize | Owner + CSRF/Origin | Session final state |
 
 ### E.11 Error codes exam runtime
 

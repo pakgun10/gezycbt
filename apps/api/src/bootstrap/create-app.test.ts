@@ -81,6 +81,9 @@ describe("createApp", () => {
     };
     expect(document.openapi).toBe("3.1.0");
     expect(document.paths["/api/v1/teacher/question-banks"]).toBeDefined();
+    expect(
+      document.paths["/api/v1/participant/exam-sessions/{id}"],
+    ).toBeDefined();
 
     const production = createApp(
       {

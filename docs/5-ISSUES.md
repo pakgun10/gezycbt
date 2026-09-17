@@ -113,8 +113,20 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-060` | `DONE` | Migration `exam_sessions` dan `exam_session_questions` menyediakan attempt/start idempotency uniqueness, participant/practice snapshots, deadline/finalization state constraints, immutable question manifest, FK `RESTRICT`, dan runtime indexes. Migration unit test lulus. |
 | `ISS-061` | `DONE` | Migration `answers` dan `exam_results` menyediakan composite answer key, versioned JSON response, scoring fields, unique result per session, decimal score checks, release timestamp, FK, dan report indexes. Migration unit test lulus. |
 | `ISS-062` | `DONE` | Migration `exam_attempt_grants` menyediakan source/attempt/reset-key uniqueness, nullable one-time consumption dengan unique consumed session, reason/actor audit fields, FK, check constraints, dan pending-grant index. Migration unit test lulus. |
+| `ISS-063` | `DONE` | Exam runtime start reference implementation dan SQL adapter menyediakan eligibility MAIN, optional access-code digest, start idempotency, hard deadline, CSPRNG seed, deterministic shuffle, immutable bulk manifest, dan audit hook. Unit/runtime concurrency test lulus. |
+| `ISS-064` | `DONE` | Practice resolve/start memvalidasi token secara generic, menerapkan konfigurasi identity allowlist, menyimpan snapshot immutable, serta menyediakan credential cookie guest terpisah yang hanya disimpan sebagai digest. Unit test lulus. |
+| `ISS-065` | `DONE` | Batch answer save menerima maksimal 20 item, memvalidasi tiga response shape, memakai baseVersion, dan mengembalikan outcome SAVED/UNCHANGED/CONFLICT per item secara atomik dengan lock. Unit test lulus. |
+| `ISS-066` | `DONE` | Resume participant-safe mengembalikan manifest immutable, urutan/due date yang sama, jawaban authoritative, tanpa seed, answer key, credential, atau finalization note. Unit test leakage lulus. |
+| `ISS-067` | `DONE` | Submit finalAnswers melakukan final sync atomic, menolak duplicate/foreign/conflict sebelum deadline, menilai jawaban committed, membuat satu result, dan mengembalikan replay aman. Unit test lulus. |
+| `ISS-068` | `DONE` | Request-path deadline enforcement dan bounded timeout finalizer tersedia; finalizer idempotent, memakai batch maksimum 100, dan memiliki audit hook untuk observability lag. Unit/runtime test lulus. |
+| `ISS-069` | `DONE` | Time extension menerima menit positif, alasan maksimal 500 karakter, expected session version, membatasi deadline pada hard end, dan menyediakan audit event. Unit test lulus. |
+| `ISS-070` | `DONE` | Akhiri Sesi menargetkan satu session, mengunci state, menilai answer committed, menyimpan STAFF_END serta actor/reason, dan mengikuti release policy normal. Unit test lulus. |
+| `ISS-071` | `DONE` | Tutup Jadwal mengubah boundary schedule secara atomic dan memfinalisasi seluruh session aktif dengan SCHEDULE_CLOSE; berbeda jelas dari Akhiri Sesi individual. Unit test lulus. |
+| `ISS-072` | `DONE` | Reset attempt mempertahankan histori, membuat satu pending grant, mengonsumsi grant atomik saat replacement start, dan menolak grant kedua yang belum terpakai. Unit concurrency test lulus. |
+| `ISS-073` | `DONE` | Runtime concurrency suite mencakup start race, answer baseVersion race, submit retry, reset grant race, dan invariant tidak ada duplicate active attempt. Test lulus. |
+| `ISS-074` | `DONE` | Participant runtime error mapper menetapkan status/code stabil untuk auth, state conflict, invalid shape, rate limit, service busy, dan hanya mengirim safe finalization reason tanpa note administratif. Unit test lulus. |
 
-Gate Fase 0 sampai `ISS-062` telah selesai. Issue berikutnya adalah `ISS-063` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-074` telah selesai. Issue berikutnya adalah `ISS-080` sesuai urutan backlog.
 
 ---
 

@@ -19,6 +19,7 @@ import { schedulesMigration } from "./migrations/0012_schedules";
 import { examSessionsMigration } from "./migrations/0013_exam_sessions";
 import { answersResultsMigration } from "./migrations/0014_answers_results";
 import { attemptGrantsMigration } from "./migrations/0015_attempt_grants";
+import { examSessionCredentialsMigration } from "./migrations/0016_exam_session_credentials";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -130,6 +131,7 @@ integration("migration runner with MariaDB", () => {
         examSessionsMigration,
         answersResultsMigration,
         attemptGrantsMigration,
+        examSessionCredentialsMigration,
       ],
       options,
     );
@@ -228,6 +230,13 @@ integration("migration runner with MariaDB", () => {
       "exam_results",
       "exam_session_questions",
       "exam_sessions",
+    ]);
+    const runtimeColumns = await database.query<{ column_name: string }>(
+      "SELECT COLUMN_NAME AS column_name FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'exam_sessions' AND column_name IN ('practice_session_credential_hash', 'version')",
+    );
+    expect(runtimeColumns.map((row) => row.column_name).sort()).toEqual([
+      "practice_session_credential_hash",
+      "version",
     ]);
   });
 });
