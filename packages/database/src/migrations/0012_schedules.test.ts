@@ -47,8 +47,8 @@ describe("schedules migration", () => {
   });
 
   test("is registered after the exam migration", () => {
-    expect(migrations.at(-1)).toBe(schedulesMigration);
-    expect(migrations.map((migration) => migration.id).slice(-2)).toEqual([
+    expect(migrations.at(-4)).toBe(schedulesMigration);
+    expect(migrations.map((migration) => migration.id).slice(-5, -3)).toEqual([
       "0011_exams",
       "0012_schedules",
     ]);

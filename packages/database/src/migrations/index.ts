@@ -11,6 +11,9 @@ import { questionOptionsMigration } from "./0009_question_options";
 import { mediaMigration } from "./0010_media";
 import { examsMigration } from "./0011_exams";
 import { schedulesMigration } from "./0012_schedules";
+import { examSessionsMigration } from "./0013_exam_sessions";
+import { answersResultsMigration } from "./0014_answers_results";
+import { attemptGrantsMigration } from "./0015_attempt_grants";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -25,4 +28,7 @@ export const migrations: readonly Migration[] = [
   mediaMigration,
   examsMigration,
   schedulesMigration,
+  examSessionsMigration,
+  answersResultsMigration,
+  attemptGrantsMigration,
 ];

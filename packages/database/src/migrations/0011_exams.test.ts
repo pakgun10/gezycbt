@@ -32,7 +32,7 @@ describe("exams migration", () => {
   });
 
   test("is registered after the question and media migrations", () => {
-    expect(migrations.at(-2)).toBe(examsMigration);
+    expect(migrations.at(-5)).toBe(examsMigration);
     expect(migrations.map((migration) => migration.id)).toEqual([
       "0001_identity",
       "0002_academic",
@@ -46,6 +46,9 @@ describe("exams migration", () => {
       "0010_media",
       "0011_exams",
       "0012_schedules",
+      "0013_exam_sessions",
+      "0014_answers_results",
+      "0015_attempt_grants",
     ]);
   });
 });

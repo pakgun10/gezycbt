@@ -16,6 +16,9 @@ import { questionOptionsMigration } from "./migrations/0009_question_options";
 import { mediaMigration } from "./migrations/0010_media";
 import { examsMigration } from "./migrations/0011_exams";
 import { schedulesMigration } from "./migrations/0012_schedules";
+import { examSessionsMigration } from "./migrations/0013_exam_sessions";
+import { answersResultsMigration } from "./migrations/0014_answers_results";
+import { attemptGrantsMigration } from "./migrations/0015_attempt_grants";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -38,6 +41,11 @@ integration("migration runner with MariaDB", () => {
     // checks only for disposable test cleanup; production migrations never do.
     await database.execute("SET FOREIGN_KEY_CHECKS = 0");
     await database.execute("DROP TABLE IF EXISTS audit_logs");
+    await database.execute("DROP TABLE IF EXISTS exam_attempt_grants");
+    await database.execute("DROP TABLE IF EXISTS exam_results");
+    await database.execute("DROP TABLE IF EXISTS answers");
+    await database.execute("DROP TABLE IF EXISTS exam_session_questions");
+    await database.execute("DROP TABLE IF EXISTS exam_sessions");
     await database.execute("DROP TABLE IF EXISTS exam_schedule_participants");
     await database.execute("DROP TABLE IF EXISTS exam_schedule_classes");
     await database.execute("DROP TABLE IF EXISTS exam_schedules");
@@ -119,6 +127,9 @@ integration("migration runner with MariaDB", () => {
         mediaMigration,
         examsMigration,
         schedulesMigration,
+        examSessionsMigration,
+        answersResultsMigration,
+        attemptGrantsMigration,
       ],
       options,
     );
@@ -207,6 +218,16 @@ integration("migration runner with MariaDB", () => {
       "exam_schedule_classes",
       "exam_schedule_participants",
       "exam_schedules",
+    ]);
+    const runtimeTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('exam_sessions', 'exam_session_questions', 'answers', 'exam_results', 'exam_attempt_grants')",
+    );
+    expect(runtimeTables.map((row) => row.table_name).sort()).toEqual([
+      "answers",
+      "exam_attempt_grants",
+      "exam_results",
+      "exam_session_questions",
+      "exam_sessions",
     ]);
   });
 });

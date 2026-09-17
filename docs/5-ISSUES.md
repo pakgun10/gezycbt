@@ -110,8 +110,11 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-056` | `DONE` | `IdentityFieldConfigurationService` menyediakan katalog allowlist (`name`, `institution`, `class`, `student_number`, `department`), validasi konfigurasi practice, `name` wajib, batas panjang per field, allowed values, normalisasi snapshot server-side, penolakan field arbitrer, dan serialisasi deterministik. Unit API lulus. |
 | `ISS-057` | `DONE` | `ScheduleLifecycleReconciler` memproses kandidat READY/OPEN dengan batch bounded, server timestamp, transisi idempotent, delayed-job safety, dan isolasi conflict/not-ready per schedule; repository memakai predicate window terindeks. Unit API lulus. |
 | `ISS-058` | `DONE` | Kontrak Elysia/TypeBox schedule authoring dan lifecycle tersedia dengan schema request/response, optimistic version, CSRF/idempotency headers, pagination, safe access-code response, route inventory, dan OpenAPI gabungan non-production. Unit API lulus. |
+| `ISS-060` | `DONE` | Migration `exam_sessions` dan `exam_session_questions` menyediakan attempt/start idempotency uniqueness, participant/practice snapshots, deadline/finalization state constraints, immutable question manifest, FK `RESTRICT`, dan runtime indexes. Migration unit test lulus. |
+| `ISS-061` | `DONE` | Migration `answers` dan `exam_results` menyediakan composite answer key, versioned JSON response, scoring fields, unique result per session, decimal score checks, release timestamp, FK, dan report indexes. Migration unit test lulus. |
+| `ISS-062` | `DONE` | Migration `exam_attempt_grants` menyediakan source/attempt/reset-key uniqueness, nullable one-time consumption dengan unique consumed session, reason/actor audit fields, FK, check constraints, dan pending-grant index. Migration unit test lulus. |
 
-Gate Fase 0 sampai `ISS-058` telah selesai. Issue berikutnya adalah `ISS-060` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-062` telah selesai. Issue berikutnya adalah `ISS-063` sesuai urutan backlog.
 
 ---
 
@@ -698,7 +701,19 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-54. `ISS-060` — migration exam sessions dan session questions.
+54. `ISS-060` — migration exam sessions dan session questions (selesai).
+
+Langkah berikutnya:
+
+55. `ISS-061` — migration answers dan results (selesai).
+
+Langkah berikutnya:
+
+56. `ISS-062` — migration attempt grants (selesai).
+
+Langkah berikutnya:
+
+57. `ISS-063` — implement main session start.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
