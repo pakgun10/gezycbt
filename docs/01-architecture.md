@@ -704,6 +704,46 @@ Randomisasi tidak mengubah scoring. Final question order dan option order untuk 
 
 Publish readiness exam memakai kontrak issue yang sama dengan question readiness. Report mencakup metadata wajib, jumlah soal, status revision soal, points, duplicate, randomization config, duration, dan total score. Publish endpoint selalu menjalankan validator kembali di server; report lama dari browser tidak menjadi bukti bahwa revision masih valid.
 
+#### Draft service dan question list mutation
+
+Application service `ExamDraftService` menjadi satu-satunya boundary untuk
+authoring draft dari web maupun external agent. Service menerima `ActorContext`
+yang sudah diverifikasi dan idempotency key; route tidak boleh menulis tabel
+exam secara langsung. Guru harus menjadi owner exam dan memiliki scope subject
+yang sesuai. Admin dapat mengelola semua subject, tetapi `owner_teacher_id`
+tetap disimpan sebagai identitas pemilik resource.
+
+Operasi draft yang tersedia pada baseline:
+
+| Operasi | Perilaku |
+|---|---|
+| Create exam | Membuat `exams` dan revision nomor 1 dalam satu transaksi; status keduanya `DRAFT`, `total_points` `0.00` |
+| Create revision | Mengunci logical exam, mengambil nomor revision berikutnya, lalu membuat draft baru tanpa mengubah published pointer |
+| Update metadata | Mengubah title, instructions, duration, dan shuffle flags hanya pada draft dengan `expectedUpdatedAt` |
+| Add question | Hanya menerima question revision `PUBLISHED`, subject harus sama, duplicate ditolak, posisi default append, points disimpan sebagai decimal dua digit |
+| Remove question | Menghapus satu question revision dan merapatkan posisi menjadi 1..N |
+| Reorder questions | Menerima seluruh daftar ID yang sudah dipilih tepat satu kali; daftar yang tidak lengkap, duplicate, atau foreign ditolak |
+
+Setiap mutasi existing revision mengunci revision dan question rows di dalam
+transaksi, kemudian membandingkan `expectedUpdatedAt` dengan timestamp server.
+Versi yang tidak cocok menghasilkan conflict tanpa perubahan parsial. Published
+revision selalu menghasilkan `ExamImmutableError`; service tidak menyediakan
+jalur edit in-place. Saat reorder atau insert, repository memindahkan posisi
+sementara ke rentang yang tidak berbenturan sebelum menetapkan posisi final,
+sehingga unique key `(exam_revision_id, position)` tidak mengalami collision
+transient.
+
+`exam_questions.question_revision_id` hanya menyimpan referensi published yang
+berada pada subject exam. Status published dan kesesuaian subject diperiksa
+ulang oleh readiness/publish service; FK database menjaga referensi row, bukan
+seluruh business invariant. Draft tetap boleh kosong selama authoring, tetapi
+publish harus menolak revision tanpa minimal satu published question.
+
+Error authoring yang dipetakan oleh adapter meliputi invalid metadata/points,
+revision not found, question not found atau tidak published, duplicate question,
+invalid order, immutable revision, authorization denied, dan optimistic version
+conflict. Pesan tidak membocorkan resource lintas scope.
+
 ### C.7 Exam schedules
 
 Schedule menentukan:
