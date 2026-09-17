@@ -40,6 +40,8 @@ const apiOpenApi = {
 
 export interface AppDependencies {
   readonly readinessChecks?: readonly ReadinessCheck[];
+  /** Register concrete route plugins after the base app has been created. */
+  readonly registerRoutes?: (app: Elysia) => unknown;
 }
 
 export function createApp(
@@ -49,7 +51,8 @@ export function createApp(
 ) {
   const metrics = createMetrics();
   const startedAt = Date.now();
-  const app = new Elysia({ name: "gezycbt-api" })
+  const app = new Elysia({ name: "gezycbt-api" });
+  app
     .decorate("config", config)
     .get("/health/live", ({ set }) => {
       set.headers["cache-control"] = "no-store";
@@ -78,7 +81,7 @@ export function createApp(
     });
   }
 
-  return app
+  const configured = app
     .derive(({ request, set }) => {
       const supplied = request.headers.get("x-request-id");
       const requestId =
@@ -90,8 +93,10 @@ export function createApp(
     })
     .onAfterHandle(() => {
       metrics.requestsTotal += 1;
-    })
-    .onError(({ code, error, request, requestId, set }) => {
+    });
+
+  const withErrors = configured.onError(
+    ({ code, error, request, requestId, set }) => {
       metrics.errorsTotal += 1;
       const errorRequestId = requestId ?? crypto.randomUUID();
       set.headers["x-request-id"] = errorRequestId;
@@ -123,5 +128,16 @@ export function createApp(
           details: mapped.details,
         },
       } satisfies ApiErrorBody;
-    });
+    },
+  );
+
+  // Elysia's fluent type carries every route schema in its generic state. The
+  // registrar is an application composition boundary, so keep that detail
+  // out of AppDependencies while preserving the concrete runtime instance.
+  const registered = dependencies.registerRoutes?.(
+    withErrors as unknown as Elysia,
+  );
+  return registered instanceof Elysia
+    ? (registered as unknown as typeof withErrors)
+    : withErrors;
 }

@@ -4,6 +4,8 @@ export interface AppConfig {
   readonly appEnv: AppEnvironment;
   readonly appRelease: string;
   readonly appOrigin: URL;
+  /** Optional for in-memory tests; required by staging and production. */
+  readonly databaseUrl?: string;
   readonly host: string;
   readonly port: number;
   readonly logLevel: "debug" | "info" | "warn" | "error";
@@ -33,6 +35,11 @@ export function loadAppConfig(env: Environment): AppConfig {
   if (appEnv === "production" && origin.protocol !== "https:") {
     throw new Error("APP_ORIGIN must use HTTPS in production");
   }
+  const databaseUrl = env.GEZYCBT_DATABASE_URL ?? env.DATABASE_URL;
+  if ((appEnv === "staging" || appEnv === "production") && !databaseUrl) {
+    throw new Error("GEZYCBT_DATABASE_URL is required in staging/production");
+  }
+  if (databaseUrl !== undefined) validateDatabaseUrl(databaseUrl);
   const host = required(env, "HOST");
   const port = positiveInteger(required(env, "PORT"), "PORT");
   const logLevel = env.LOG_LEVEL ?? "info";
@@ -42,10 +49,28 @@ export function loadAppConfig(env: Environment): AppConfig {
     appEnv,
     appRelease,
     appOrigin: origin,
+    ...(databaseUrl === undefined ? {} : { databaseUrl }),
     host,
     port,
     logLevel: logLevel as AppConfig["logLevel"],
   };
+}
+
+function validateDatabaseUrl(value: string): void {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error("GEZYCBT_DATABASE_URL is invalid");
+  }
+  if (
+    !["mariadb:", "mysql:"].includes(url.protocol) ||
+    !url.hostname ||
+    url.pathname.length <= 1 ||
+    !url.username
+  ) {
+    throw new Error("GEZYCBT_DATABASE_URL is invalid");
+  }
 }
 
 function required(env: Environment, key: string): string {

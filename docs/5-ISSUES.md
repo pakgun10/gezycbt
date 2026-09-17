@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074 dan ISS-080–ISS-092 selesai pada baseline ini; issue setelah ISS-092 tetap backlog
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, dan entry gate ISS-093–ISS-094 selesai pada baseline ini; issue Fase 8 setelah ISS-094 tetap backlog
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 17 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -138,8 +138,11 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-090` | `DONE` | Result view mengambil session + participant-safe result, menampilkan aggregate, release gate MAIN, canRetry practice, dan tidak menampilkan answer key/print claim. |
 | `ISS-091` | `DONE` | BroadcastChannel memberi advisory antar-tab, focus heading/modal trigger dikelola, dan conflict/finalization state mencegah submit ganda. |
 | `ISS-092` | `DONE` | Matriks acceptance E2E 23 skenario pada viewport 360/390/768/1366, light/dark/reduced motion, reliability, privacy, dan accessibility tersedia di [`participant-e2e-matrix.md`](./participant-e2e-matrix.md); controller/API/router tests lulus. |
+| `ISS-093` | `DONE` | Runtime composition menyediakan konfigurasi database tervalidasi, readiness MariaDB, lifecycle shutdown, serta route authentication SQL-backed pada proses API. |
+| `ISS-094` | `DONE` | Local development dan migration workflow tersedia melalui `.env.example`, Compose MariaDB development, scripts root, migration CLI, README, dan [`9-RUNBOOK.md`](./9-RUNBOOK.md). |
 
-Gate Fase 7 sampai `ISS-092` telah selesai. Issue berikutnya adalah `ISS-100` sesuai urutan backlog.
+Gate Fase 7 sampai `ISS-092` dan entry gate Fase 8 sampai `ISS-094` telah
+selesai. Issue berikutnya adalah `ISS-100` sesuai urutan backlog.
 
 ---
 
@@ -440,13 +443,26 @@ Spike wajib menguji:
 
 ---
 
+## 14.1 Entry gate Fase 8
+
+Entry gate ini menyelesaikan wiring minimum dan workflow lokal sebelum UI staff
+dibangun. API tidak menjalankan migration saat boot; migration tetap command
+release terpisah dan readiness memeriksa koneksi database.
+
+| ID | P | Size | Issue | Dependency | Acceptance ringkas |
+|---|---:|---:|---|---|---|
+| ISS-093 | P0 | M | Wire API runtime composition dan database readiness | ISS-012, ISS-015, ISS-020, ISS-033 | Config database tervalidasi; auth route memakai SQL repository; readiness dan graceful shutdown tersedia |
+| ISS-094 | P0 | M | Buat local operations quickstart dan migration CLI | ISS-015, ISS-093 | `.env.example`, Compose dev, `db:migrate`, `dev/start`, bootstrap, dan runbook dapat diikuti dari clean checkout |
+
+---
+
 ## 15. Fase 8 — Admin dan guru web
 
 **Outcome:** seluruh workflow web dari data peserta sampai export hasil dapat dilakukan tanpa tool database.
 
 | ID | P | Size | Issue | Dependency | Acceptance ringkas |
 |---|---:|---:|---|---|---|
-| ISS-100 | P1 | L | Implement admin users dan academic UI | ISS-023–ISS-027, ISS-034 | List/form/import wizard, mobile states, role menu, re-auth flows |
+| ISS-100 | P1 | L | Implement admin users dan academic UI | ISS-023–ISS-027, ISS-034, ISS-093–ISS-094 | List/form/import wizard, mobile states, role menu, re-auth flows |
 | ISS-101 | P1 | M | Implement teacher scope switcher | ISS-024, ISS-034, ISS-014 | URL scope, reset incompatible filters/selection, unsaved confirmation |
 | ISS-102 | P1 | L | Implement question bank/editor UI | ISS-049, ISS-046, ISS-047 | Three types, preview, media, alt, readiness links, unsaved state |
 | ISS-103 | P1 | L | Implement exam editor dan picker | ISS-051, ISS-052 | 100+ paginated search, selected tray, keyboard reorder, readiness report |
@@ -579,15 +595,18 @@ Jika salah satu dipromosikan, buat PRD delta dan ADR/migration analysis sebelum 
 ## 22. Urutan issue yang sudah dijalankan dan langkah berikutnya
 
 Issue sampai `ISS-092` telah dikerjakan berurutan sesuai dependency, termasuk
-runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`.
+runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`. Entry
+gate `ISS-093–ISS-094` kemudian diselesaikan untuk memastikan API, database,
+dan workflow lokal dapat dijalankan sebelum UI staff dimulai.
 
-Gate berikutnya adalah review hasil Fase 7 dan persiapan Fase 8:
+Gate berikutnya adalah Fase 8. Tabel pada bagian 15 adalah source of truth untuk
+ID dan scope issue; urutannya:
 
-1. `ISS-100` — import preview UI.
-2. `ISS-101` — import commit UI dan artifact download.
-3. `ISS-102` — menu × role dan shell admin/guru.
-4. `ISS-103` — authoring bank soal UI.
-5. `ISS-104` — exam authoring UI.
+1. `ISS-100` — admin users dan academic UI.
+2. `ISS-101` — teacher scope switcher.
+3. `ISS-102` — question bank/editor UI.
+4. `ISS-103` — exam editor dan picker.
+5. `ISS-104` — schedule UI.
 6. `ISS-105` — monitoring ujian dan operasi session.
 7. `ISS-106` — result release dan export UI.
 

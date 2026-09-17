@@ -105,39 +105,42 @@ export interface CsrfGuardOptions {
  * use `requireSession: false`, which still enforces same-origin requests.
  */
 export function createCsrfGuard(options: CsrfGuardOptions): Elysia {
-  return new Elysia({ name: "gezycbt-csrf-guard" }).onBeforeHandle(
-    async ({ request }) => {
-      if (!isStateChangingMethod(request.method)) return;
-      const cookieToken = readAuthCookie(request.headers.get("cookie"));
-      const session = cookieToken
-        ? await options.sessionService.resolve(cookieToken)
-        : null;
-      try {
-        await assertCsrfRequest({
-          method: request.method,
-          origin: request.headers.get("origin"),
-          expectedOrigin: options.expectedOrigin,
-          csrfToken: request.headers.get(CSRF_HEADER_NAME),
-          session,
-          verifyCsrfSecret: (sessionId, csrfToken) =>
-            options.sessionService.verifyCsrfSecret(sessionId, csrfToken),
-          ...(options.requireSession === undefined
-            ? {}
-            : { requireSession: options.requireSession }),
-        });
-      } catch (error) {
-        if (error instanceof CsrfProtectionError) {
-          throw new AppError(
-            error.status,
-            error.status === 401 ? "AUTHENTICATION_REQUIRED" : "CSRF_INVALID",
-            error.status === 401
-              ? "Autentikasi diperlukan."
-              : "Permintaan tidak dapat diverifikasi.",
-            { reason: error.reason },
-          );
-        }
-        throw error;
+  return applyCsrfGuard(new Elysia({ name: "gezycbt-csrf-guard" }), options);
+}
+
+/** Applies the guard to a host app so its error boundary remains host-owned. */
+export function applyCsrfGuard(app: Elysia, options: CsrfGuardOptions): Elysia {
+  return app.onBeforeHandle(async ({ request }) => {
+    if (!isStateChangingMethod(request.method)) return;
+    const cookieToken = readAuthCookie(request.headers.get("cookie"));
+    const session = cookieToken
+      ? await options.sessionService.resolve(cookieToken)
+      : null;
+    try {
+      await assertCsrfRequest({
+        method: request.method,
+        origin: request.headers.get("origin"),
+        expectedOrigin: options.expectedOrigin,
+        csrfToken: request.headers.get(CSRF_HEADER_NAME),
+        session,
+        verifyCsrfSecret: (sessionId, csrfToken) =>
+          options.sessionService.verifyCsrfSecret(sessionId, csrfToken),
+        ...(options.requireSession === undefined
+          ? {}
+          : { requireSession: options.requireSession }),
+      });
+    } catch (error) {
+      if (error instanceof CsrfProtectionError) {
+        throw new AppError(
+          error.status,
+          error.status === 401 ? "AUTHENTICATION_REQUIRED" : "CSRF_INVALID",
+          error.status === 401
+            ? "Autentikasi diperlukan."
+            : "Permintaan tidak dapat diverifikasi.",
+          { reason: error.reason },
+        );
       }
-    },
-  );
+      throw error;
+    }
+  });
 }

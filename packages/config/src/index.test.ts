@@ -26,4 +26,25 @@ describe("loadAppConfig", () => {
       }),
     ).toThrow("HTTPS");
   });
+
+  test("accepts a MariaDB URL and requires it for production", () => {
+    const config = loadAppConfig({
+      ...base,
+      GEZYCBT_DATABASE_URL: "mariadb://user:password@127.0.0.1:3306/gezycbt",
+    });
+    expect(config.databaseUrl).toContain("mariadb://");
+    expect(() =>
+      loadAppConfig({
+        ...base,
+        APP_ENV: "production",
+        APP_ORIGIN: "https://example.test",
+      }),
+    ).toThrow("GEZYCBT_DATABASE_URL");
+  });
+
+  test("rejects unsupported database URLs", () => {
+    expect(() =>
+      loadAppConfig({ ...base, GEZYCBT_DATABASE_URL: "sqlite://local" }),
+    ).toThrow("GEZYCBT_DATABASE_URL is invalid");
+  });
 });

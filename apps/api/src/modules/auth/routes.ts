@@ -1,7 +1,12 @@
 import type { Id } from "@gezycbt/contracts";
+import { Elysia } from "elysia";
 import { AppError } from "../../http/app-error";
 import type { UserRole } from "../users/domain";
-import { createCsrfGuard } from "./csrf";
+import {
+  assertCsrfRequest,
+  CSRF_HEADER_NAME,
+  CsrfProtectionError,
+} from "./csrf";
 import {
   type AuthLoginService,
   InvalidLoginError,
@@ -33,13 +38,20 @@ export interface AuthRoutesOptions {
 }
 
 export function createAuthRoutes(options: AuthRoutesOptions) {
-  const csrf = createCsrfGuard({
-    expectedOrigin: options.expectedOrigin,
-    sessionService: options.sessionService,
-    requireSession: false,
-  });
-  return csrf
+  return registerAuthRoutes(
+    new Elysia({ name: "gezycbt-auth-routes" }),
+    options,
+  );
+}
+
+/** Registers authentication routes directly on the host application. */
+export function registerAuthRoutes(
+  app: Elysia,
+  options: AuthRoutesOptions,
+): Elysia {
+  return app
     .post("/api/v1/auth/staff/login", async ({ body, request, set }) => {
+      await assertAuthMutation(request, options);
       const credentials = parseLoginBody(body);
       const clientIp = options.getClientIp?.(request);
       const result = await runLogin(() =>
@@ -52,6 +64,7 @@ export function createAuthRoutes(options: AuthRoutesOptions) {
       return loginResponse(result);
     })
     .post("/api/v1/auth/participant/login", async ({ body, request, set }) => {
+      await assertAuthMutation(request, options);
       const credentials = parseLoginBody(body);
       const clientIp = options.getClientIp?.(request);
       const result = await runLogin(() =>
@@ -99,7 +112,39 @@ export function createAuthRoutes(options: AuthRoutesOptions) {
         csrfToken: result.csrfSecret,
         expiresAt: result.session.absoluteExpiresAt,
       };
+    }) as unknown as Elysia;
+}
+
+async function assertAuthMutation(
+  request: Request,
+  options: AuthRoutesOptions,
+): Promise<void> {
+  const token = readAuthCookie(request.headers.get("cookie"));
+  const session = token ? await options.sessionService.resolve(token) : null;
+  try {
+    await assertCsrfRequest({
+      method: request.method,
+      origin: request.headers.get("origin"),
+      expectedOrigin: options.expectedOrigin,
+      csrfToken: request.headers.get(CSRF_HEADER_NAME),
+      session,
+      verifyCsrfSecret: (sessionId, csrfToken) =>
+        options.sessionService.verifyCsrfSecret(sessionId, csrfToken),
+      requireSession: false,
     });
+  } catch (error) {
+    if (error instanceof CsrfProtectionError) {
+      throw new AppError(
+        error.status,
+        error.status === 401 ? "AUTHENTICATION_REQUIRED" : "CSRF_INVALID",
+        error.status === 401
+          ? "Autentikasi diperlukan."
+          : "Permintaan tidak dapat diverifikasi.",
+        { reason: error.reason },
+      );
+    }
+    throw error;
+  }
 }
 
 function parseLoginBody(body: unknown): {

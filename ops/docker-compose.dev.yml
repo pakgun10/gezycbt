@@ -1,0 +1,23 @@
+services:
+  mariadb:
+    image: mariadb:11.4.13
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: gezycbt_dev
+      MARIADB_USER: gezycbt_dev
+      MARIADB_PASSWORD: gezycbt_dev
+      MARIADB_ROOT_PASSWORD: gezycbt_dev_root
+      TZ: UTC
+    ports:
+      - "127.0.0.1:33068:3306"
+    volumes:
+      - gezycbt_dev_data:/var/lib/mysql
+    healthcheck:
+      test:
+        ["CMD-SHELL", "mariadb-admin ping -h 127.0.0.1 -u root -pgezycbt_dev_root"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  gezycbt_dev_data:

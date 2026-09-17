@@ -126,4 +126,21 @@ describe("createApp", () => {
       checks: { database: "failed" },
     });
   });
+
+  test("registers route plugins before serving the application", async () => {
+    const app = createApp(
+      config,
+      { error: () => undefined },
+      {
+        registerRoutes: (instance) => {
+          return instance.get("/registered", () => ({ ok: true }));
+        },
+      },
+    );
+    const response = await app.handle(
+      new Request("http://localhost/registered"),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true });
+  });
 });

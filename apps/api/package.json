@@ -4,6 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "bun --watch src/index.ts",
+    "start": "bun src/index.ts",
+    "db:migrate": "bun src/cli/migrate.ts",
     "bootstrap:admin": "bun src/cli/bootstrap-admin.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "biome check src",
