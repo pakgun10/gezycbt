@@ -997,8 +997,25 @@ Import preview menghasilkan ID dan opaque commit token berumur pendek yang meref
 | `POST /api/v1/teacher/question-revisions/:id/publish` | Freeze revision |
 | `POST /api/v1/teacher/media` | Upload asset |
 | `DELETE /api/v1/teacher/media/:id` | Hapus asset orphan/draft yang diizinkan |
+| `POST /api/v1/teacher/question-revisions/:id/media` | Attach asset ke draft revision dengan alt/decorative policy |
+| `DELETE /api/v1/teacher/question-revisions/:id/media/:mediaId` | Detach asset dari draft revision |
 
 `GET` revision untuk editor guru boleh memuat answer key; route peserta tidak pernah memakai contract ini.
+
+Kontrak field-level question authoring menggunakan Elysia `t`/TypeBox di
+`apps/api/src/modules/questions/api-contract.ts`. Contract tersebut menjadi
+sumber runtime validation dan route inventory OpenAPI 3.1 di
+`apps/api/src/modules/questions/openapi.ts`. Response guru boleh memuat
+`isCorrect`/`correctValue`; response peserta selalu memakai `ParticipantQuestion`
+yang tidak memiliki answer key, explanation, content hash, question bank, atau
+storage metadata. Upload memakai `multipart/form-data`, sedangkan mutation JSON
+memakai `expectedUpdatedAt` untuk optimistic concurrency dan header idempotency
+yang diproses oleh application layer.
+
+Pada environment development, test, dan staging, dokumen tersebut disajikan
+melalui `GET /openapi.json` dengan `Cache-Control: no-store`. Route ini tidak
+terdaftar pada production baseline; akses dokumentasi production membutuhkan
+route admin terautentikasi yang akan ditentukan kemudian.
 
 #### Exams dan schedules
 

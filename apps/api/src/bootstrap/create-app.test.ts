@@ -68,6 +68,37 @@ describe("createApp", () => {
     expect(await metrics.text()).toContain("gezycbt_requests_total");
   });
 
+  test("exposes question OpenAPI only outside production", async () => {
+    const development = createApp(config, { error: () => undefined });
+    const openapi = await development.handle(
+      new Request("http://localhost/openapi.json"),
+    );
+    expect(openapi.status).toBe(200);
+    expect(openapi.headers.get("content-type")).toContain("application/json");
+    const document = (await openapi.json()) as {
+      openapi: string;
+      paths: Record<string, unknown>;
+    };
+    expect(document.openapi).toBe("3.1.0");
+    expect(document.paths["/api/v1/teacher/question-banks"]).toBeDefined();
+
+    const production = createApp(
+      {
+        ...config,
+        appEnv: "production",
+        appOrigin: new URL("https://example.test"),
+      },
+      { error: () => undefined },
+    );
+    expect(
+      (
+        await production.handle(
+          new Request("https://example.test/openapi.json"),
+        )
+      ).status,
+    ).toBe(404);
+  });
+
   test("returns 503 when a readiness dependency fails", async () => {
     const app = createApp(
       config,

@@ -3,6 +3,7 @@ import type { ApiErrorBody } from "@gezycbt/contracts";
 import { Elysia } from "elysia";
 import { AppError } from "../http/app-error";
 import { type AppLogger, consoleLogger } from "../http/logger";
+import { questionApiOpenApi } from "../modules/questions/openapi";
 import { checkReadiness, type ReadinessCheck } from "../observability/health";
 import { createMetrics, renderMetrics } from "../observability/metrics";
 
@@ -19,7 +20,7 @@ export function createApp(
 ) {
   const metrics = createMetrics();
   const startedAt = Date.now();
-  return new Elysia({ name: "gezycbt-api" })
+  const app = new Elysia({ name: "gezycbt-api" })
     .decorate("config", config)
     .get("/health/live", ({ set }) => {
       set.headers["cache-control"] = "no-store";
@@ -35,7 +36,20 @@ export function createApp(
       set.headers["content-type"] = "text/plain; version=0.0.4";
       set.headers["cache-control"] = "no-store";
       return renderMetrics(metrics, startedAt);
-    })
+    });
+
+  // OpenAPI is intentionally absent from production until an authenticated
+  // admin documentation route is introduced. Development/staging need the
+  // static contract for client generation and manual review.
+  if (config.appEnv !== "production") {
+    app.get("/openapi.json", ({ set }) => {
+      set.headers["content-type"] = "application/json; charset=utf-8";
+      set.headers["cache-control"] = "no-store";
+      return questionApiOpenApi;
+    });
+  }
+
+  return app
     .derive(({ request, set }) => {
       const supplied = request.headers.get("x-request-id");
       const requestId =
