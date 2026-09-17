@@ -12,6 +12,7 @@ import {
   type CreateExamInput,
   type ExamDraftMetadata,
   ExamImmutableError,
+  ExamPublishInvariantError,
   type ExamQuestion,
   ExamQuestionDuplicateError,
   ExamQuestionOrderError,
@@ -48,6 +49,11 @@ export interface ExamDraftRepository {
     id: Id,
     input: UpdateExamRevisionInput,
     expectedUpdatedAt: UtcTimestamp,
+  ): Promise<ExamRevision | null>;
+  publishRevision(
+    id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+    totalPoints: string,
   ): Promise<ExamRevision | null>;
   addQuestion(
     revisionId: Id,
@@ -274,6 +280,65 @@ export class SqlExamDraftRepository implements ExamDraftRepository {
          WHERE id = ? AND status = 'DRAFT'`,
         [...parameters, id],
       );
+      return readRevision(connection, id);
+    });
+  }
+
+  async publishRevision(
+    id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+    totalPoints: string,
+  ): Promise<ExamRevision | null> {
+    return this.database.transaction(async (connection) => {
+      const current = await readRevision(connection, id, true);
+      if (!current) return null;
+      assertDraftAndVersion(current, expectedUpdatedAt);
+      if (current.exam.status === "ARCHIVED") throw new ExamImmutableError();
+
+      const questionRows = await connection.query<{
+        subject_id: unknown;
+        status: unknown;
+      }>(
+        `SELECT qb.subject_id, qr.status
+         FROM exam_questions eq
+         JOIN question_revisions qr ON qr.id = eq.question_revision_id
+         JOIN questions q ON q.id = qr.question_id
+         JOIN question_banks qb ON qb.id = q.question_bank_id
+         WHERE eq.exam_revision_id = ?
+         ORDER BY eq.position ASC
+         FOR UPDATE`,
+        [id],
+      );
+      if (
+        questionRows.length === 0 ||
+        questionRows.some(
+          (row) =>
+            row.status !== "PUBLISHED" ||
+            parseDatabaseId(row.subject_id) !== current.exam.subjectId,
+        )
+      )
+        throw new ExamPublishInvariantError();
+
+      const revisionResult = await connection.execute(
+        `UPDATE exam_revisions
+         SET status = 'PUBLISHED', total_points = ?,
+             published_at = UTC_TIMESTAMP(6), updated_at = UTC_TIMESTAMP(6)
+         WHERE id = ? AND status = 'DRAFT'`,
+        [normalizePoints(totalPoints), id],
+      );
+      if (affectedRows(revisionResult) !== 1)
+        throw new ExamVersionConflictError();
+      const examResult = await connection.execute(
+        `UPDATE exams
+         SET status = 'PUBLISHED', current_published_revision_id = ?,
+             updated_at = UTC_TIMESTAMP(6)
+         WHERE id = ?`,
+        [id, current.exam.id],
+      );
+      if (affectedRows(examResult) !== 1)
+        throw new ExamPublishInvariantError(
+          "Exam pointer could not be updated",
+        );
       return readRevision(connection, id);
     });
   }
@@ -565,6 +630,13 @@ function insertId(result: unknown, label: string): Id {
   const id = (result as { insertId?: unknown } | null)?.insertId;
   if (typeof id !== "bigint") throw new Error(`${label} did not return an ID`);
   return formatId(id);
+}
+
+function affectedRows(result: unknown): number {
+  const value = (result as { affectedRows?: unknown } | null)?.affectedRows;
+  if (typeof value !== "number" || !Number.isSafeInteger(value))
+    throw new Error("Database returned an invalid affected row count");
+  return value;
 }
 
 function requiredId(value: unknown, field: string): Id {

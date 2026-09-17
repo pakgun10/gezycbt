@@ -73,6 +73,22 @@ describe("SqlExamDraftRepository", () => {
       true,
     );
   });
+
+  test("publishes the revision, stores total points, and advances the logical pointer", async () => {
+    const database = new FakeExamDatabase();
+    database.questions = [questionRow(50n, 100n, 1)];
+    const repository = new SqlExamDraftRepository(database);
+
+    const result = await repository.publishRevision("40" as Id, NOW, "1.00");
+
+    expect(result?.status).toBe("PUBLISHED");
+    expect(result?.totalPoints).toBe("1.00");
+    expect(
+      database.statements.some((sql) =>
+        sql.includes("current_published_revision_id"),
+      ),
+    ).toBe(true);
+  });
 });
 
 function questionRow(id: bigint, questionRevisionId: bigint, position: number) {
@@ -90,12 +106,20 @@ class FakeExamDatabase implements DatabasePort {
   readonly statements: string[] = [];
   transactionCount = 0;
   questions: Record<string, unknown>[] = [];
+  revisionStatus: "DRAFT" | "PUBLISHED" = "DRAFT";
+  totalPoints = "0.00";
 
   async query<T extends Record<string, unknown>>(
     sql: string,
     parameters: readonly unknown[] = [],
   ): Promise<readonly T[]> {
     this.statements.push(sql);
+    if (sql.includes("SELECT qb.subject_id, qr.status")) {
+      return this.questions.map(() => ({
+        subject_id: 20n,
+        status: "PUBLISHED",
+      })) as unknown as T[];
+    }
     if (sql.includes("FROM exam_questions")) {
       return [...this.questions].sort(
         (a, b) => Number(a.position) - Number(b.position),
@@ -116,8 +140,12 @@ class FakeExamDatabase implements DatabasePort {
       return [{ revision_no: 1 }] as unknown as T[];
     if (sql.includes("SELECT id FROM exam_revisions"))
       return [{ id: 40n }] as unknown as T[];
-    if (sql.includes("FROM exam_revisions er")) return [revisionRow()] as T[];
-    if (sql.includes("FROM exams")) return [examRow()] as T[];
+    if (sql.includes("FROM exam_revisions er"))
+      return [
+        revisionRow(this.revisionStatus, this.totalPoints),
+      ] as unknown as T[];
+    if (sql.includes("FROM exams"))
+      return [examRow(this.revisionStatus)] as unknown as T[];
     return [] as T[];
   }
 
@@ -130,6 +158,11 @@ class FakeExamDatabase implements DatabasePort {
       return { affectedRows: 1, insertId: 30n };
     if (sql.includes("INSERT INTO exam_revisions"))
       return { affectedRows: 1, insertId: 40n };
+    if (sql.includes("UPDATE exam_revisions")) {
+      this.totalPoints = String(parameters[0]);
+      this.revisionStatus = "PUBLISHED";
+      return { affectedRows: 1 };
+    }
     if (sql.includes("INSERT INTO exam_questions")) {
       this.questions.push({
         ...questionRow(
@@ -163,37 +196,40 @@ class FakeExamDatabase implements DatabasePort {
   async close(): Promise<void> {}
 }
 
-function examRow(): Record<string, unknown> {
+function examRow(status: "DRAFT" | "PUBLISHED"): Record<string, unknown> {
   return {
     id: 30n,
     subject_id: 20n,
     owner_teacher_id: 10n,
-    status: "DRAFT",
-    current_published_revision_id: null,
+    status,
+    current_published_revision_id: status === "PUBLISHED" ? 40n : null,
     created_at: NOW,
     updated_at: NOW,
   };
 }
 
-function revisionRow(): Record<string, unknown> {
+function revisionRow(
+  status: "DRAFT" | "PUBLISHED",
+  totalPoints = "0.00",
+): Record<string, unknown> {
   return {
     id: 40n,
     exam_id: 30n,
     subject_id: 20n,
     owner_teacher_id: 10n,
-    exam_status: "DRAFT",
-    current_published_revision_id: null,
+    exam_status: status,
+    current_published_revision_id: status === "PUBLISHED" ? 40n : null,
     exam_created_at: NOW,
     exam_updated_at: NOW,
     revision_no: 1,
-    status: "DRAFT",
+    status,
     title: "Ujian",
     instructions_html: "",
     duration_seconds: 3_600,
     shuffle_questions: 0,
     shuffle_options: 0,
-    total_points: "0.00",
-    published_at: null,
+    total_points: totalPoints,
+    published_at: status === "PUBLISHED" ? NOW : null,
     created_at: NOW,
     updated_at: NOW,
   };

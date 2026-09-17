@@ -103,8 +103,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-049` | `DONE` | Elysia/TypeBox question API contract mencakup list/search/detail bank dan revision, draft/update/validate/publish, upload/attach/detach/delete media, serta OpenAPI 3.1 route inventory yang tersedia di `/openapi.json` non-production. Discriminated shape test, optimistic version test, route coverage, JSON serialization, dan participant negative leakage lulus. |
 | `ISS-050` | `DONE` | Migration `exams`, `exam_revisions`, dan `exam_questions` tersedia dengan logical/revision split, revision pointer, unique revision number, unique question position/reference, positive points, total points, publish timestamp invariant, FK `RESTRICT`, dan indexes untuk scope/order/read path. DDL serta constraint smoke test MariaDB lulus. |
 | `ISS-051` | `DONE` | `ExamDraftService` dan `SqlExamDraftRepository` menyediakan create exam/revision, metadata update, add/remove/reorder question, decimal points, expected `updatedAt`, teacher owner+subject scope, published-question dan same-subject enforcement, duplicate/order rejection, immutable published revision, transactional temporary position range, serta unit/SQL contract test. |
+| `ISS-052` | `DONE` | `ExamReadinessService` menghasilkan report deterministik untuk metadata, question reference, status/subject, posisi, duplicate, points, dan total decimal; `ExamPublishService` serta repository memvalidasi ulang dan melakukan publish atomik dengan expected version, `published_at`, total points, logical pointer, serta immutable published revision. Unit dan SQL contract test lulus. |
 
-Gate Fase 0 sampai `ISS-051` telah selesai. Issue berikutnya adalah `ISS-052` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-052` telah selesai. Issue berikutnya adalah `ISS-053` sesuai urutan backlog.
 
 ---
 
@@ -663,7 +664,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-47. `ISS-052` — implement exam readiness dan publish.
+47. `ISS-052` — implement exam readiness dan publish (selesai).
+
+Langkah berikutnya:
+
+48. `ISS-053` — migration schedules dan targets.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

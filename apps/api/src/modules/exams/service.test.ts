@@ -313,6 +313,27 @@ class FakeExamRepository implements ExamDraftRepository {
     return this.revision;
   }
 
+  async publishRevision(
+    _id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+    totalPoints: string,
+  ): Promise<ExamRevision> {
+    if (expectedUpdatedAt !== this.revision.updatedAt)
+      throw new Error("stale revision");
+    this.revision = {
+      ...this.revision,
+      status: "PUBLISHED",
+      totalPoints,
+      publishedAt: NEXT,
+      exam: {
+        ...this.revision.exam,
+        status: "PUBLISHED",
+        currentPublishedRevisionId: this.revision.id,
+      },
+    };
+    return this.revision;
+  }
+
   async addQuestion(
     _id: Id,
     input: AddExamQuestionInput,

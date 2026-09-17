@@ -744,6 +744,39 @@ revision not found, question not found atau tidak published, duplicate question,
 invalid order, immutable revision, authorization denied, dan optimistic version
 conflict. Pesan tidak membocorkan resource lintas scope.
 
+#### Readiness report dan publish
+
+`ExamReadinessService` adalah validator deterministik yang dipakai oleh tombol
+**Validate** dan sebagai pemeriksaan awal sebelum publish. Service memuat
+revision soal berdasarkan urutan `exam_questions`, lalu mengembalikan report
+yang dapat langsung dipakai UI. Setiap issue memiliki severity, stable code,
+entity ID, `fieldPath`, pesan aman, dan remediation hint; urutan issue selalu
+stabil agar hasil validasi tidak berubah-ubah antar request.
+
+Readiness menghasilkan `ERROR` untuk kondisi yang membuat ujian tidak dapat
+dikerjakan secara konsisten: judul atau durasi invalid, daftar soal kosong,
+posisi tidak unik/berurutan mulai dari 1, question revision duplikat atau tidak
+ditemukan, soal belum `PUBLISHED`, subject soal berbeda, atau bobot tidak
+positif dan tidak dapat dinormalisasi ke dua angka desimal. Instruksi kosong
+ditandai sebagai `WARNING`; warning tidak memblokir publish pada baseline.
+Report juga menghitung `questionCount` dan `totalPoints` menggunakan aritmetika
+decimal berbasis integer cents, sehingga tidak bergantung pada floating point.
+
+`ExamPublishService` mewajibkan `expectedUpdatedAt` dari editor. Report yang
+dibuat browser tidak dipercaya sebagai bukti readiness: server selalu memuat
+ulang revision dan question revision, menjalankan validator, lalu menolak
+dengan `ExamPublishBlockedError` beserta report jika masih ada error.
+
+Publish dilakukan atomik di repository. Transaksi mengunci exam revision dan
+semua question row terkait, memeriksa kembali status published serta subject,
+lalu memperbarui `exam_revisions.status` menjadi `PUBLISHED`, menyimpan
+`published_at` dan total poin, serta memajukan
+`exams.current_published_revision_id` dan status logical exam. Tidak ada state
+setengah publish yang dapat dilihat request lain. Versi timestamp yang sudah
+kedaluwarsa menghasilkan conflict tanpa perubahan. Setelah berhasil, revision
+dan seluruh question reference/points-nya immutable; perubahan berikutnya
+harus dibuat sebagai draft revision baru.
+
 ### C.7 Exam schedules
 
 Schedule menentukan:

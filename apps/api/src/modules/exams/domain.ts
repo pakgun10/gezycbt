@@ -113,6 +113,15 @@ export class ExamVersionConflictError extends Error {
   }
 }
 
+export class ExamPublishInvariantError extends Error {
+  constructor(
+    message = "Exam revision no longer satisfies publish invariants",
+  ) {
+    super(message);
+    this.name = "ExamPublishInvariantError";
+  }
+}
+
 export class ExamQuestionNotFoundError extends Error {
   constructor() {
     super("Question revision was not found");
