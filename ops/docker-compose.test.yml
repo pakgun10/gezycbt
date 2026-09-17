@@ -1,0 +1,20 @@
+services:
+  mariadb:
+    image: mariadb:11.4.13
+    environment:
+      MARIADB_DATABASE: gezycbt_test
+      MARIADB_USER: gezycbt_test
+      MARIADB_PASSWORD: gezycbt_test
+      MARIADB_ROOT_PASSWORD: gezycbt_root_test
+      TZ: UTC
+    ports:
+      - "127.0.0.1:33067:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+00:00
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 2s
+      timeout: 5s
+      retries: 30

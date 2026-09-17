@@ -1,0 +1,60 @@
+import type { Migration } from "../migration-runner";
+
+export const identityMigration: Migration = {
+  id: "0001_identity",
+  statements: [
+    `CREATE TABLE school_settings (
+      id BIGINT UNSIGNED NOT NULL,
+      school_name VARCHAR(200) NOT NULL,
+      school_code VARCHAR(50) NOT NULL,
+      address VARCHAR(500) NULL,
+      logo_media_asset_id BIGINT UNSIGNED NULL,
+      timezone VARCHAR(64) NOT NULL DEFAULT 'Asia/Jakarta',
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      CONSTRAINT pk_school_settings PRIMARY KEY (id),
+      CONSTRAINT uq_school_settings_code UNIQUE (school_code),
+      CONSTRAINT chk_school_settings_singleton CHECK (id = 1)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE users (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      username VARCHAR(100) NOT NULL,
+      username_normalized VARCHAR(100) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      password_hash VARCHAR(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+      role VARCHAR(20) NOT NULL,
+      status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+      display_name VARCHAR(200) NOT NULL,
+      force_password_change BOOLEAN NOT NULL DEFAULT FALSE,
+      password_changed_at DATETIME(6) NULL,
+      last_login_at DATETIME(6) NULL,
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      CONSTRAINT pk_users PRIMARY KEY (id),
+      CONSTRAINT uq_users_username_normalized UNIQUE (username_normalized),
+      CONSTRAINT chk_users_role CHECK (role IN ('ADMIN', 'TEACHER', 'PARTICIPANT')),
+      CONSTRAINT chk_users_status CHECK (status IN ('ACTIVE', 'DISABLED')),
+      CONSTRAINT chk_users_username_length CHECK (CHAR_LENGTH(username) BETWEEN 1 AND 100),
+      CONSTRAINT chk_users_display_name_length CHECK (CHAR_LENGTH(display_name) BETWEEN 1 AND 200)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+    `CREATE TABLE auth_sessions (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      token_hash BINARY(32) NOT NULL,
+      csrf_secret_hash BINARY(32) NOT NULL,
+      created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      last_seen_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
+      idle_expires_at DATETIME(6) NOT NULL,
+      absolute_expires_at DATETIME(6) NOT NULL,
+      revoked_at DATETIME(6) NULL,
+      revoke_reason VARCHAR(100) NULL,
+      ip_prefix_hash BINARY(32) NULL,
+      user_agent_hash BINARY(32) NULL,
+      CONSTRAINT pk_auth_sessions PRIMARY KEY (id),
+      CONSTRAINT uq_auth_sessions_token_hash UNIQUE (token_hash),
+      CONSTRAINT fk_auth_sessions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE RESTRICT ON UPDATE RESTRICT,
+      CONSTRAINT chk_auth_sessions_expiry CHECK (idle_expires_at <= absolute_expires_at),
+      INDEX idx_auth_sessions_user_active (user_id, revoked_at, idle_expires_at),
+      INDEX idx_auth_sessions_expiry (idle_expires_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  ],
+};

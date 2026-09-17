@@ -1,0 +1,20 @@
+{
+  "name": "@gezycbt/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bootstrap:admin": "bun src/cli/bootstrap-admin.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check src",
+    "test": "bun test --pass-with-no-tests",
+    "build": "bun build src/index.ts --outdir dist --target bun"
+  },
+  "dependencies": {
+    "@gezycbt/config": "workspace:*",
+    "@gezycbt/contracts": "workspace:*",
+    "@gezycbt/database": "workspace:*",
+    "elysia": "1.4.30"
+  },
+  "devDependencies": { "@biomejs/biome": "2.3.10", "@types/bun": "1.4.2", "typescript": "5.9.3" }
+}

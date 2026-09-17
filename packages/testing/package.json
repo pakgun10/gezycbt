@@ -1,0 +1,10 @@
+{
+  "name": "@gezycbt/testing",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "typecheck": "tsc --noEmit -p tsconfig.json", "lint": "biome check src", "test": "bun test --pass-with-no-tests", "build": "bun build src/index.ts --outdir dist --target bun" },
+  "dependencies": { "@gezycbt/database": "workspace:*" },
+  "devDependencies": { "@biomejs/biome": "2.3.10", "typescript": "5.9.3" }
+}

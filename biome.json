@@ -1,0 +1,10 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.3.10/schema.json",
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2
+  },
+  "linter": { "enabled": true },
+  "files": { "includes": ["**", "!apps/web/src/**/*.vue"] }
+}

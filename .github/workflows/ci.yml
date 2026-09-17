@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    services:
+      mariadb:
+        image: mariadb:11.4.13
+        env:
+          MARIADB_DATABASE: gezycbt_test
+          MARIADB_USER: gezycbt_test
+          MARIADB_PASSWORD: gezycbt_test
+          MARIADB_ROOT_PASSWORD: gezycbt_root_test
+          TZ: UTC
+        ports:
+          - 33067:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bun run check
+      - run: bun run test:integration

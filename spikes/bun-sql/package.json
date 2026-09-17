@@ -1,0 +1,9 @@
+{
+  "name": "@gezycbt/spike-bun-sql-mariadb",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "bun run src/index.ts",
+    "transpile-check": "bun build src/index.ts --target bun --no-bundle --outfile /tmp/gezycbt-bun-sql-spike.js"
+  }
+}
