@@ -90,7 +90,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-035` | `DONE` | Password management menyediakan self-change dan admin reset dengan re-authentication, role-aware Argon2 hash, optimistic user update, forced password change untuk reset, revoke seluruh session target, replacement session untuk self-change, dan audit contract tanpa secret. API typecheck serta 62 test lulus (3 integration test MariaDB ter-skip tanpa database). |
 | `ISS-036` | `DONE` | Auth expiry contract membedakan cookie hilang vs session expired, mengembalikan `AUTH_SESSION_EXPIRED`, mempertahankan resume context opaque berumur pendek, dan mewajibkan ownership check peserta setelah login ulang. Test expiry, route-bound context, ownership, dan final deadline behavior lulus. API typecheck serta 66 test lulus (3 integration test MariaDB ter-skip tanpa database). |
 
-Gate Fase 0 sampai `ISS-036` telah selesai. Issue berikutnya adalah `ISS-037`: throttling persistence dan cleanup.
+| `ISS-037` | `DONE` | `auth_throttles` MariaDB migration dan `SqlLoginFailureLimiter` menyimpan bucket kegagalan account/IP berbasis SHA-256, memakai row lock transaction, bertahan restart, mengembalikan `Retry-After`, membersihkan bucket lama secara bounded, serta mempertahankan in-memory limiter untuk fallback. Unit API lulus. |
+
+Gate Fase 0 sampai `ISS-037` telah selesai. Issue berikutnya adalah `ISS-038` sesuai urutan backlog.
 
 ---
 
@@ -600,7 +602,7 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-34. `ISS-037` — throttling persistence dan cleanup.
+34. `ISS-037` — throttling persistence dan cleanup (selesai).
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

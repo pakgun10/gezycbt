@@ -5,6 +5,7 @@ import { subjectsMigration } from "./0003_subjects";
 import { systemLocksMigration } from "./0004_system_locks";
 import { userImportPreviewsMigration } from "./0005_user_import_previews";
 import { importCommitMigration } from "./0006_import_commit";
+import { authThrottlesMigration } from "./0007_auth_throttles";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -13,4 +14,5 @@ export const migrations: readonly Migration[] = [
   systemLocksMigration,
   userImportPreviewsMigration,
   importCommitMigration,
+  authThrottlesMigration,
 ];

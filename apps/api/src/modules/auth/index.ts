@@ -5,3 +5,5 @@ export * from "./password";
 export * from "./password-management";
 export * from "./routes";
 export * from "./session";
+export * from "./sql-login-limiter";
+export * from "./throttle-repository";

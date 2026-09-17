@@ -1590,6 +1590,7 @@ Application service tetap memeriksa lifecycle sebelum delete. Foreign key adalah
 |---|---|
 | `users` | `UNIQUE(username_normalized)`, `(role, status)` |
 | `auth_sessions` | `UNIQUE(token_hash)`, `(user_id, revoked_at, absolute_expires_at)`, `(absolute_expires_at)` |
+| `auth_throttles` | `UNIQUE(category, key_hash)`, `(category, blocked_until)`, `(last_failure_at)` |
 | `user_import_previews` | `UNIQUE(commit_token_hash)`, `(owner_user_id, status, expires_at)`, `(expires_at)` |
 | `user_import_preview_rows` | `UNIQUE(preview_id, row_number)`, `(preview_id, classification, blocking, row_number)` |
 | `user_import_credential_artifacts` | `UNIQUE(preview_id)`, `(owner_user_id, expires_at)`, `(expires_at)` |
@@ -2135,7 +2136,7 @@ Kegagalan username tidak dikenal tetap melakukan bounded dummy password verifica
 
 Implementasi baseline tersedia di `apps/api/src/modules/auth/login.ts` dan `routes.ts`. Endpoint dipisah berdasarkan audience: `POST /api/v1/auth/staff/login` hanya menerima akun `ADMIN` atau `TEACHER`, sedangkan `POST /api/v1/auth/participant/login` hanya menerima akun `PARTICIPANT`; seluruh akun harus berstatus `ACTIVE`. Username dinormalisasi sebelum lookup. Username tidak dikenal, akun nonaktif, role yang salah, dan password salah menjalankan dummy/normal verification sesuai kebutuhan lalu mengembalikan pesan dan envelope kegagalan yang sama. Failure limiter diperiksa sebelum lookup/hash dan kegagalan dicatat berdasarkan normalized username serta alamat IP yang diperoleh dari adapter server tepercaya. Alamat IP tidak pernah diterima dari field body klien. Setelah berhasil, service membuat opaque auth session dan route mengirim cookie `__Host-gezycbt-auth` serta CSRF secret ke bootstrap frontend.
 
-Baseline limiter adalah 5 kegagalan per username dalam 15 menit dan 300 kegagalan per IP dalam 15 menit. Implementasi in-memory dipakai untuk lane awal/satu process; persistence lintas restart dan koordinasi multi-instance menjadi scope `ISS-037`. Ketika antrean Argon2 penuh, login berhenti sebelum pekerjaan tambahan dan mengembalikan `503 SERVICE_BUSY` dengan retry hint.
+Baseline limiter adalah 5 kegagalan per username dalam 15 menit dan 300 kegagalan per IP dalam 15 menit. `SqlLoginFailureLimiter` menyimpan bucket `LOGIN_ACCOUNT` dan `LOGIN_IP` di tabel `auth_throttles`; key yang disimpan hanya digest SHA-256, sehingga failure budget tetap berlaku setelah restart dan dapat dibagi antar-process. Update bucket memakai row lock transaction agar increment tidak hilang ketika request bersamaan. Housekeeping menghapus bucket tanpa aktivitas selama 30 hari secara batch bounded (maksimum 1.000 row per invocation). `InMemoryLoginFailureLimiter` tetap tersedia sebagai fallback untuk test atau deployment satu-process tanpa database; ia bukan pilihan production multi-process. Ketika antrean Argon2 penuh, login berhenti sebelum pekerjaan tambahan dan mengembalikan `503 SERVICE_BUSY` dengan retry hint.
 
 ### F.7 Authorization policies
 
