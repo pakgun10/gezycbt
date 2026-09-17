@@ -12,6 +12,7 @@ import { userImportPreviewsMigration } from "./migrations/0005_user_import_previ
 import { importCommitMigration } from "./migrations/0006_import_commit";
 import { authThrottlesMigration } from "./migrations/0007_auth_throttles";
 import { questionBanksMigration } from "./migrations/0008_question_banks";
+import { questionOptionsMigration } from "./migrations/0009_question_options";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -32,6 +33,8 @@ integration("migration runner with MariaDB", () => {
   afterAll(async () => {
     await database.execute("DROP TABLE IF EXISTS audit_logs");
     await database.execute("DROP TABLE IF EXISTS auth_throttles");
+    await database.execute("DROP TABLE IF EXISTS true_false_statements");
+    await database.execute("DROP TABLE IF EXISTS question_options");
     await database.execute("DROP TABLE IF EXISTS question_revisions");
     await database.execute("DROP TABLE IF EXISTS questions");
     await database.execute("DROP TABLE IF EXISTS question_banks");
@@ -97,6 +100,7 @@ integration("migration runner with MariaDB", () => {
         importCommitMigration,
         authThrottlesMigration,
         questionBanksMigration,
+        questionOptionsMigration,
       ],
       options,
     );
@@ -155,6 +159,13 @@ integration("migration runner with MariaDB", () => {
       "question_banks",
       "question_revisions",
       "questions",
+    ]);
+    const optionTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('question_options', 'true_false_statements')",
+    );
+    expect(optionTables.map((row) => row.table_name).sort()).toEqual([
+      "question_options",
+      "true_false_statements",
     ]);
   });
 });

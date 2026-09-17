@@ -7,6 +7,7 @@ import { userImportPreviewsMigration } from "./0005_user_import_previews";
 import { importCommitMigration } from "./0006_import_commit";
 import { authThrottlesMigration } from "./0007_auth_throttles";
 import { questionBanksMigration } from "./0008_question_banks";
+import { questionOptionsMigration } from "./0009_question_options";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -17,4 +18,5 @@ export const migrations: readonly Migration[] = [
   importCommitMigration,
   authThrottlesMigration,
   questionBanksMigration,
+  questionOptionsMigration,
 ];
