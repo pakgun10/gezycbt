@@ -10,7 +10,7 @@ import {
   QuestionValidationError,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
-import { QuestionDraftService } from "./service";
+import { hashQuestionContent, QuestionDraftService } from "./service";
 
 const ACTOR: UseCaseContext = {
   actor: {
@@ -102,6 +102,32 @@ describe("QuestionDraftService", () => {
       service.updateDraft(ACTOR, repository.revision.id, choiceContent()),
     ).rejects.toBeInstanceOf(QuestionImmutableError);
   });
+
+  test("authorizes before rejecting an archived bank", async () => {
+    const repository = new FakeQuestionRepository();
+    repository.bank = { ...repository.bank, status: "ARCHIVED" };
+    const authorization = new FakeAuthorization();
+    const service = new QuestionDraftService(repository, authorization);
+
+    await expect(
+      service.createDraft(ACTOR, {
+        ...choiceContent(),
+        questionBankId: repository.bank.id,
+      }),
+    ).rejects.toBeInstanceOf(QuestionValidationError);
+    expect(authorization.resources).toEqual([repository.bank.id]);
+  });
+
+  test("hash is independent of child array order", async () => {
+    const content = choiceContent();
+    const reversed = {
+      ...content,
+      options: [...content.options].reverse(),
+    };
+    expect(await hashQuestionContent(content)).toEqual(
+      await hashQuestionContent(reversed),
+    );
+  });
 });
 
 const NOW = "2026-09-17T00:00:00.000Z" as UtcTimestamp;
@@ -132,7 +158,7 @@ class FakeAuthorization {
 }
 
 class FakeQuestionRepository implements QuestionDraftRepository {
-  readonly bank: QuestionBankSummary = {
+  bank: QuestionBankSummary = {
     id: "20" as Id,
     subjectId: "30" as Id,
     ownerTeacherId: "10" as Id,

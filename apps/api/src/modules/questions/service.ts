@@ -35,11 +35,13 @@ export class QuestionDraftService {
     assertNewChildren(content);
     const bank = await this.repository.findQuestionBank(input.questionBankId);
     if (!bank) throw new QuestionNotFoundError();
+    // Authorize before exposing whether a bank is archived to an out-of-scope
+    // teacher. The authorization policy owns the not-found/forbidden boundary.
+    await this.authorization.assertTeacherScope(context.actor, bank);
     if (bank.status !== "ACTIVE")
       throw new QuestionValidationError(
         "Archived question bank cannot receive new questions",
       );
-    await this.authorization.assertTeacherScope(context.actor, bank);
     const createdBy = context.actor.userId;
     if (!createdBy) throw new QuestionNotFoundError();
     return this.repository.createDraft({
@@ -106,16 +108,20 @@ export async function hashQuestionContent(
     stimulusHtml: content.stimulusHtml,
     promptHtml: content.promptHtml,
     explanationHtml: content.explanationHtml,
-    options: content.options.map((option) => ({
-      position: option.position,
-      contentHtml: option.contentHtml,
-      isCorrect: option.isCorrect,
-    })),
-    statements: content.statements.map((statement) => ({
-      position: statement.position,
-      statementHtml: statement.statementHtml,
-      correctValue: statement.correctValue,
-    })),
+    options: [...content.options]
+      .sort((a, b) => a.position - b.position)
+      .map((option) => ({
+        position: option.position,
+        contentHtml: option.contentHtml,
+        isCorrect: option.isCorrect,
+      })),
+    statements: [...content.statements]
+      .sort((a, b) => a.position - b.position)
+      .map((statement) => ({
+        position: statement.position,
+        statementHtml: statement.statementHtml,
+        correctValue: statement.correctValue,
+      })),
   });
   const digest = await crypto.subtle.digest(
     "SHA-256",

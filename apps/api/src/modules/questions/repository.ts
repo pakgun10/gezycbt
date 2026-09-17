@@ -414,7 +414,7 @@ function mapOptionRow(row: OptionRow) {
     id,
     position,
     contentHtml: requireText(row.content_html, "content_html"),
-    isCorrect: Boolean(row.is_correct),
+    isCorrect: toBoolean(row.is_correct),
   };
 }
 
@@ -427,7 +427,7 @@ function mapStatementRow(row: StatementRow) {
     id,
     position,
     statementHtml: requireText(row.statement_html, "statement_html"),
-    correctValue: Boolean(row.correct_value),
+    correctValue: toBoolean(row.correct_value),
   };
 }
 
@@ -469,4 +469,8 @@ function toBytes(value: unknown): Uint8Array {
   if (value instanceof Uint8Array) return new Uint8Array(value);
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
   throw new Error("Database returned invalid question content hash");
+}
+
+function toBoolean(value: unknown): boolean {
+  return value === true || value === 1 || value === "1";
 }
