@@ -1,7 +1,7 @@
 # GezyCBT — Developer dan Operations Runbook
 
-**Status:** Baseline operasional Fase 8 dan agent foundation/question authoring (ISS-100–ISS-110, ISS-120–ISS-125)
-**Terakhir diperbarui:** 17 September 2026
+**Status:** Baseline operasional Fase 8 dan agent foundation/question/exam authoring (ISS-100–ISS-110, ISS-120–ISS-126)
+**Terakhir diperbarui:** 18 September 2026
 
 Dokumen ini menjelaskan cara menjalankan fondasi repository, database lokal,
 migrasi, API, dan bootstrap admin. Ia belum menggantikan runbook production
@@ -179,8 +179,9 @@ Entry gate ini dianggap lulus bila clean checkout dapat:
 6. menjalankan bootstrap admin satu kali;
 7. menjalankan quality gate repository.
 
-Setelah discovery foundation dan question/media authoring agent lulus, pekerjaan
-berikutnya adalah `ISS-126` untuk exam authoring. Client agent dikelola dari
+Setelah discovery foundation, question/media authoring, dan exam authoring
+agent lulus, pekerjaan berikutnya adalah `ISS-127` untuk agent result dan
+practice reads. Client agent dikelola dari
 `/admin/integrations`; credential plaintext hanya muncul sekali setelah
 re-authentication. Operasi export memakai job durable dan download token satu
 kali yang berlaku maksimal lima menit.

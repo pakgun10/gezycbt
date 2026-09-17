@@ -12,6 +12,18 @@ import {
   CsrfProtectionError,
 } from "../auth/csrf";
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
+import {
+  ExamImmutableError,
+  ExamNotFoundError,
+  ExamPublishInvariantError,
+  ExamQuestionDuplicateError,
+  ExamQuestionNotFoundError,
+  ExamQuestionOrderError,
+  ExamRevisionNotFoundError,
+  ExamValidationError,
+  ExamVersionConflictError,
+} from "../exams/domain";
+import { ExamPublishBlockedError } from "../exams/publish";
 import { MediaPersistenceError, MediaValidationError } from "../media/domain";
 import {
   MEDIA_USAGES,
@@ -32,6 +44,10 @@ import {
 } from "../questions/domain";
 import { QuestionPublishBlockedError } from "../questions/publish";
 import type { StoredUser } from "../users";
+import {
+  AgentExamNotFoundError,
+  type IntegrationExamAuthoringService,
+} from "./exam-authoring";
 import {
   type DiscoveryQuery,
   type DiscoveryResourceType,
@@ -63,6 +79,7 @@ export interface IntegrationRouteOptions {
   readonly isReauthenticated: (userId: Id) => boolean;
   readonly expectedOrigin: URL | string;
   readonly questionAuthoring?: IntegrationQuestionAuthoringService;
+  readonly examAuthoring?: IntegrationExamAuthoringService;
 }
 
 export function createIntegrationRoutes(
@@ -404,6 +421,218 @@ export function createIntegrationRoutes(
   });
 
   app.get(
+    "/api/v1/integrations/agent/exams/:id",
+    async ({ request, params }) => {
+      try {
+        const authoring = requireExamAuthoring(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await authoring.getExam(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post("/api/v1/integrations/agent/exams", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const authoring = requireExamAuthoring(options);
+      const payload = objectPayload(body);
+      return authoring.createExam(
+        authentication,
+        {
+          subjectId: idValue(payload.subjectId, "subjectId"),
+          ...(payload.ownerTeacherId === undefined
+            ? {}
+            : {
+                ownerTeacherId: idValue(
+                  payload.ownerTeacherId,
+                  "ownerTeacherId",
+                ),
+              }),
+          ...examMetadataPayload(payload),
+        },
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/exams/:id/revisions",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          return authoring.createRevision(
+            authentication,
+            idParam(params),
+            examMetadataPayload(objectPayload(body)),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/exam-revisions/:id",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          const payload = objectPayload(body);
+          const expected = requiredTimestamp(
+            payload.expectedUpdatedAt,
+            "expectedUpdatedAt",
+          );
+          const { expectedUpdatedAt: _expected, ...input } = payload;
+          return authoring.updateRevision(
+            authentication,
+            idParam(params),
+            examMetadataPatchPayload(input),
+            expected,
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/exam-revisions/:id/questions",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.addQuestion(
+            authentication,
+            idParam(params),
+            {
+              questionRevisionId: idValue(
+                payload.questionRevisionId,
+                "questionRevisionId",
+              ),
+              points: stringField(payload.points, "points"),
+              ...(payload.position === undefined
+                ? {}
+                : { position: requiredInteger(payload.position, "position") }),
+            },
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.delete(
+    "/api/v1/integrations/agent/exam-revisions/:id/questions/:questionId",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.removeQuestion(
+            authentication,
+            idParam(params),
+            idValue(
+              (params as Record<string, unknown>).questionId,
+              "questionId",
+            ),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.put(
+    "/api/v1/integrations/agent/exam-revisions/:id/questions/order",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          const payload = objectPayload(body);
+          if (!Array.isArray(payload.questionRevisionIds))
+            throw new AppError(
+              422,
+              "VALIDATION_FAILED",
+              "questionRevisionIds harus berupa array.",
+            );
+          return authoring.reorderQuestions(
+            authentication,
+            idParam(params),
+            payload.questionRevisionIds.map((id) =>
+              idValue(id, "questionRevisionId"),
+            ),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/exam-revisions/:id/validate",
+    async ({ request, params }) => {
+      try {
+        const authoring = requireExamAuthoring(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await authoring.validateRevision(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/exam-revisions/:id/publish",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireExamAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.publishRevision(
+            authentication,
+            idParam(params),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.get(
     "/api/v1/integrations/agent/schedules",
     async ({ request, query }) => {
       try {
@@ -655,6 +884,18 @@ function requireQuestionAuthoring(
   return options.questionAuthoring;
 }
 
+function requireExamAuthoring(
+  options: IntegrationRouteOptions,
+): IntegrationExamAuthoringService {
+  if (!options.examAuthoring)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Exam authoring integration belum tersedia.",
+    );
+  return options.examAuthoring;
+}
+
 async function agentMutation<T>(
   request: Request,
   options: IntegrationRouteOptions,
@@ -887,6 +1128,48 @@ function mapIntegrationError(error: unknown): Error {
       "VERSION_CONFLICT",
       "Revision published tidak dapat diubah.",
     );
+  if (error instanceof AgentExamNotFoundError)
+    return new AppError(
+      404,
+      "NOT_FOUND",
+      "Ujian atau revision tidak ditemukan.",
+    );
+  if (error instanceof ExamPublishBlockedError)
+    return new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Ujian belum memenuhi publish readiness.",
+      { report: error.report },
+    );
+  if (error instanceof ExamVersionConflictError)
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Ujian berubah oleh request lain. Muat ulang lalu ulangi.",
+    );
+  if (
+    error instanceof ExamRevisionNotFoundError ||
+    error instanceof ExamNotFoundError ||
+    error instanceof ExamQuestionNotFoundError
+  )
+    return new AppError(
+      404,
+      "NOT_FOUND",
+      "Ujian atau soal yang dipilih tidak ditemukan.",
+    );
+  if (
+    error instanceof ExamImmutableError ||
+    error instanceof ExamQuestionDuplicateError ||
+    error instanceof ExamQuestionOrderError ||
+    error instanceof ExamPublishInvariantError
+  )
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Perubahan ujian tidak dapat diterapkan pada state saat ini.",
+    );
+  if (error instanceof ExamValidationError)
+    return new AppError(422, "VALIDATION_FAILED", "Data ujian tidak valid.");
   if (
     error instanceof MediaValidationError ||
     error instanceof MediaRelationValidationError
@@ -974,6 +1257,67 @@ function questionContentPayload(payload: Record<string, unknown>): {
   };
 }
 
+function examMetadataPayload(payload: Record<string, unknown>): {
+  title: string;
+  instructionsHtml: string;
+  durationSeconds: number;
+  shuffleQuestions: boolean;
+  shuffleOptions: boolean;
+} {
+  return {
+    title: stringField(payload.title, "title"),
+    instructionsHtml: stringValue(payload.instructionsHtml, "instructionsHtml"),
+    durationSeconds: requiredInteger(
+      payload.durationSeconds,
+      "durationSeconds",
+    ),
+    shuffleQuestions: booleanField(
+      payload.shuffleQuestions,
+      "shuffleQuestions",
+    ),
+    shuffleOptions: booleanField(payload.shuffleOptions, "shuffleOptions"),
+  };
+}
+
+function examMetadataPatchPayload(payload: Record<string, unknown>): {
+  title?: string;
+  instructionsHtml?: string;
+  durationSeconds?: number;
+  shuffleQuestions?: boolean;
+  shuffleOptions?: boolean;
+} {
+  const result: {
+    title?: string;
+    instructionsHtml?: string;
+    durationSeconds?: number;
+    shuffleQuestions?: boolean;
+    shuffleOptions?: boolean;
+  } = {};
+  if (Object.hasOwn(payload, "title"))
+    result.title = stringField(payload.title, "title");
+  if (Object.hasOwn(payload, "instructionsHtml"))
+    result.instructionsHtml = stringValue(
+      payload.instructionsHtml,
+      "instructionsHtml",
+    );
+  if (Object.hasOwn(payload, "durationSeconds"))
+    result.durationSeconds = requiredInteger(
+      payload.durationSeconds,
+      "durationSeconds",
+    );
+  if (Object.hasOwn(payload, "shuffleQuestions"))
+    result.shuffleQuestions = booleanField(
+      payload.shuffleQuestions,
+      "shuffleQuestions",
+    );
+  if (Object.hasOwn(payload, "shuffleOptions"))
+    result.shuffleOptions = booleanField(
+      payload.shuffleOptions,
+      "shuffleOptions",
+    );
+  return result;
+}
+
 function arrayPayload(value: unknown, field: string): readonly unknown[] {
   if (!Array.isArray(value))
     throw new AppError(
@@ -1033,6 +1377,11 @@ function objectPayload(value: unknown): Record<string, unknown> {
 function stringField(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim())
     throw new AppError(422, "VALIDATION_FAILED", `${field} wajib diisi.`);
+  return value;
+}
+function stringValue(value: unknown, field: string): string {
+  if (typeof value !== "string")
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
   return value;
 }
 function optionalString(value: unknown): string | undefined {

@@ -1,11 +1,11 @@
-# Agent-readiness audit — ISS-120 sampai ISS-125
+# Agent-readiness audit — ISS-120 sampai ISS-126
 
-**Tanggal:** 17 September 2026
+**Tanggal:** 18 September 2026
 **Scope:** baseline machine integration untuk Hivekeep/Hermes pada deployment
 single-tenant GezyCBT.
 
 Dokumen ini mencatat hasil audit fondasi dan keputusan implementasi sebelum
-tool CRUD/hasil/export agent dibuka pada issue berikutnya.
+tool hasil/export dan operasi berisiko agent dibuka pada issue berikutnya.
 
 ## ISS-120 — application-service readiness
 
@@ -98,10 +98,27 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
   timestamp untuk update/publish. Durable action replay dan prepare/confirm tetap
   berada di ISS-129.
 
+## ISS-126 — exam authoring
+
+- Agent exam memakai `IntegrationExamAuthoringService` dan application service
+  exam yang sama dengan route web: `ExamDraftService`,
+  `ExamReadinessService`, dan `ExamPublishService`.
+- Surface mencakup safe read exam/revision, create exam/revision, update
+  metadata, attach/remove/reorder question revision, readiness report, dan
+  publish. Response tidak membawa isi soal atau answer key.
+- Owner/grant/subject/exam scope diperiksa sebelum setiap operasi. Client
+  teacher dibatasi pada exam milik owner; client admin dapat memilih
+  `ownerTeacherId` dalam scope yang diberikan.
+- Mutation membuat external-agent actor context, wajib memakai bounded
+  `Idempotency-Key`, dan mencatat audit event. Update/reorder/attach/remove/
+  publish menggunakan `expectedUpdatedAt` untuk optimistic concurrency.
+- Publish gagal dengan report readiness ketika ada error; published revision
+  tetap immutable. Exact action plan dan web approval tetap menjadi ISS-129.
+
 ## Batasan yang sengaja ditunda
 
 - Action plan prepare/confirm dan web approval: ISS-129.
-- CRUD exam/schedule agent: ISS-126.
+- CRUD schedule agent: issue lanjutan setelah exam authoring.
 - Result/practice/export agent surface: ISS-127–ISS-128.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
 - Full capability OpenAPI document dan typed Hivekeep/Hermes adapter: ISS-131.

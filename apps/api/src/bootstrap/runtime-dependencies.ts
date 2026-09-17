@@ -28,6 +28,7 @@ import {
 } from "../modules/exams";
 import {
   createIntegrationRoutes,
+  IntegrationExamAuthoringService,
   IntegrationQuestionAuthoringService,
   IntegrationRateLimiter,
   IntegrationService,
@@ -190,6 +191,12 @@ export function createRuntimeDependencies(
     mediaUpload,
     mediaRelations,
   });
+  const agentExamAuthoring = new IntegrationExamAuthoringService({
+    integration: integrationService,
+    drafts: examDrafts,
+    publish: examPublish,
+    readiness: examReadiness,
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -230,6 +237,7 @@ export function createRuntimeDependencies(
             isReauthenticated: (userId) => isStaffReauthenticated(userId),
             expectedOrigin: config.appOrigin,
             questionAuthoring: agentQuestionAuthoring,
+            examAuthoring: agentExamAuthoring,
           }),
         )
         .use(

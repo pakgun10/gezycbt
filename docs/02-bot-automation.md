@@ -1,16 +1,16 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, dan question/media authoring ISS-125 diimplementasikan; tool workflow lanjutan masih bertahap
-**Versi dokumen:** 0.4  
-**Terakhir diperbarui:** 17 September 2026
+**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, dan exam authoring ISS-126 diimplementasikan; tool workflow lanjutan masih bertahap
+**Versi dokumen:** 0.5
+**Terakhir diperbarui:** 18 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
 
 Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp sendiri. Bot, channel, percakapan, memory, LLM, dan agent loop dijalankan oleh Hivekeep atau Hermes sebagai aplikasi terpisah. GezyCBT menyediakan API/tool yang aman agar agent dapat menjalankan pekerjaan CBT.
 
 Fondasi machine client, credential, grant, rate limit, audit, management console,
-kill switch, discovery, serta question/media authoring
-tersedia pada ISS-120–ISS-125.
+kill switch, discovery, question/media authoring, dan exam authoring
+tersedia pada ISS-120–ISS-126.
 Tool CRUD, action approval, hasil, dan export dibuka setelah issue lanjutan
 selesai; daftar batasnya ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
 
@@ -621,9 +621,33 @@ POST     /api/v1/integrations/agent/exams/:id/revisions
 PATCH    /api/v1/integrations/agent/exam-revisions/:id
 POST     /api/v1/integrations/agent/exam-revisions/:id/questions
 DELETE   /api/v1/integrations/agent/exam-revisions/:id/questions/:questionId
+PUT      /api/v1/integrations/agent/exam-revisions/:id/questions/order
 POST     /api/v1/integrations/agent/exam-revisions/:id/validate
 POST     /api/v1/integrations/agent/exam-revisions/:id/publish
 ~~~
+
+`GET /exams/:id` mengembalikan revision yang sedang dipakai (published bila
+tersedia, jika belum maka revision draft terbaru). Response hanya memuat
+metadata exam dan stable `questionRevisionId`, `position`, serta `points`; isi
+soal dan answer key tetap diambil melalui question API.
+
+`POST /exams` membuat exam dan revision draft pertama. Client dengan owner role
+`TEACHER` selalu membuat exam atas nama owner-nya sendiri; client `ADMIN` wajib
+menyertakan `ownerTeacherId`. Create, create revision, update, attach, remove,
+reorder, dan publish memakai application service yang sama dengan web, wajib
+memakai `Idempotency-Key`, dan seluruh update/publish memakai
+`expectedUpdatedAt` untuk optimistic concurrency.
+
+`POST /exam-revisions/:id/validate` menghasilkan readiness report lengkap
+(error/warning, field path, question count, dan total points). Publish ditolak
+ketika report memiliki error. Revision published immutable dan tidak dapat
+diubah; agent harus membuat revision draft baru.
+
+Attach hanya menerima published question revision yang berada pada subject yang
+sama dan masih berada dalam effective owner/grant scope. Reorder harus mengirim
+seluruh daftar `questionRevisionIds` tepat satu kali. Publish langsung adalah
+operasi capability `exams.publish`; prepare/confirm dan approval web untuk
+operasi berisiko tetap mengikuti ISS-129.
 
 ### 11.4 Results, exports, actions
 
@@ -848,7 +872,9 @@ safe answer-key boundary, sensitive audit, dan bounded idempotency header.
 
 ### I4 — Exam authoring
 
-Exam/revision, attach/remove/reorder, points, readiness validation, dan R2 publish.
+Exam/revision, attach/remove/reorder, points, readiness validation, safe exam
+view, optimistic version, dan R2 publish langsung melalui application service.
+Exact action plan/prepare-confirm untuk publish ditambahkan pada ISS-129.
 
 ### I5 — Results/export
 
@@ -862,7 +888,10 @@ Prepare/confirm, web approval, schedule close, result release, session extension
 
 Typed Hivekeep tool/plugin atau MCP bridge, Hermes MCP/custom tool, skills/tool descriptions, vault setup, allowed-user policy, contract/E2E/security tests, dan pinned compatibility versions.
 
-I0 dibangun bersama core. I1–I2 dimulai setelah auth/read models stabil. I3 mengikuti question bank, I4 mengikuti exam authoring, I5 mengikuti results, dan I6 terakhir. Agent dapat dipakai untuk CRUD soal setelah module soal stabil tanpa menunggu seluruh fitur berisiko tinggi selesai.
+I0 dibangun bersama core. I1–I2 dimulai setelah auth/read models stabil. I3
+mengikuti question bank, I4 mengikuti exam authoring, I5 mengikuti results, dan
+I6 terakhir. Agent dapat dipakai untuk CRUD soal dan exam draft setelah module
+terkait stabil tanpa menunggu seluruh fitur berisiko tinggi selesai.
 
 ---
 

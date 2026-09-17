@@ -87,6 +87,7 @@ function app(
   reauthenticated = true,
   capabilities: readonly string[] = [],
   questionAuthoring?: unknown,
+  examAuthoring?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -143,6 +144,7 @@ function app(
         ...(questionAuthoring
           ? { questionAuthoring: questionAuthoring as never }
           : {}),
+        ...(examAuthoring ? { examAuthoring: examAuthoring as never } : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -244,6 +246,45 @@ test("agent authoring route delegates safe question reads and enforces mutation 
         body: JSON.stringify({}),
       },
     ),
+  );
+  expect(mutation.status).toBe(422);
+});
+
+test("agent exam authoring exposes safe reads and mutation idempotency", async () => {
+  const examAuthoring = {
+    async getExam() {
+      return { id: "101", examId: "100", questions: [] };
+    },
+    async createExam() {
+      throw new Error("should not execute without idempotency key");
+    },
+  };
+  const application = app(
+    true,
+    ["exams.read", "exams.create"],
+    undefined,
+    examAuthoring,
+  );
+  const read = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/exams/100",
+      {
+        headers: { authorization: "Bearer integration-token" },
+      },
+    ),
+  );
+  expect(read.status).toBe(200);
+  expect(await read.json()).toMatchObject({ data: { examId: "100" } });
+
+  const mutation = await application.handle(
+    new Request("https://cbt.example.test/api/v1/integrations/agent/exams", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer integration-token",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({}),
+    }),
   );
   expect(mutation.status).toBe(422);
 });
