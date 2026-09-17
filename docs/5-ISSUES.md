@@ -93,8 +93,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-037` | `DONE` | `auth_throttles` MariaDB migration dan `SqlLoginFailureLimiter` menyimpan bucket kegagalan account/IP berbasis SHA-256, memakai row lock transaction, bertahan restart, mengembalikan `Retry-After`, membersihkan bucket lama secara bounded, serta mempertahankan in-memory limiter untuk fallback. Unit API lulus. |
 | `ISS-040` | `DONE` | Migration `question_banks`, `questions`, dan `question_revisions` tersedia dengan ownership subject/teacher, status/lifecycle checks, tiga question type, content hash, revision numbering, published timestamp invariant, foreign key `RESTRICT`, dan query indexes. Migration registry serta integration coverage diperbarui. |
 | `ISS-041` | `DONE` | Migration `question_options` dan `true_false_statements` tersedia dengan posisi unik dan bounded (1–10 untuk choice, 1–3 untuk TRUE/FALSE), answer key server-side, foreign key `RESTRICT`, index revision/key, serta integration coverage migration. |
+| `ISS-042` | `DONE` | `QuestionDraftService` dan `SqlQuestionDraftRepository` mendukung draft discriminated untuk tiga tipe soal, normalisasi/hash konten, teacher ownership + subject scope, optimistic update, immutable published revision, serta rejection foreign child ID dan child type mismatch. Unit API lulus. |
 
-Gate Fase 0 sampai `ISS-041` telah selesai. Issue berikutnya adalah `ISS-042` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-042` telah selesai. Issue berikutnya adalah `ISS-043` sesuai urutan backlog.
 
 ---
 
@@ -613,7 +614,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-37. `ISS-042` — implement question draft service.
+37. `ISS-042` — implement question draft service (selesai).
+
+Langkah berikutnya:
+
+38. `ISS-043` — implement question readiness validator.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
