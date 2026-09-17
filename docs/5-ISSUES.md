@@ -107,8 +107,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-053` | `DONE` | Migration `exam_schedules`, `exam_schedule_classes`, dan `exam_schedule_participants` menyediakan mode MAIN/PRACTICE, lifecycle state, UTC window, duration snapshot, hard stop, attempt/release policy, hashed access fields, close metadata, FK `RESTRICT`, mode-aware CHECK, target uniqueness, dan query indexes. Unit migration serta integration migration MariaDB disposable lulus. |
 | `ISS-054` | `DONE` | `ScheduleService` dan `SqlScheduleRepository` menyediakan create/update draft, teacher scope, published revision guard, MAIN/PRACTICE invariant, optimistic version, lifecycle `DRAFT → READY → OPEN → CLOSED → ARCHIVED`, server/database timestamp authority, close reason/actor, system auto-advance, serta unit dan SQL contract test. |
 | `ISS-055` | `DONE` | `ScheduleAccessCodeService` dan repository menyediakan kode MAIN/PRACTICE lima karakter dengan alfabet tanpa karakter ambigu, normalisasi uppercase/hyphen, generator CSPRNG, HMAC-SHA-256 bernamespace, proposal atau generator server, rotasi berbasis optimistic version, plaintext one-time, safe hint, collision retry bounded, mode/status guard, dan authorization teacher scope. Unit API lulus. |
+| `ISS-056` | `DONE` | `IdentityFieldConfigurationService` menyediakan katalog allowlist (`name`, `institution`, `class`, `student_number`, `department`), validasi konfigurasi practice, `name` wajib, batas panjang per field, allowed values, normalisasi snapshot server-side, penolakan field arbitrer, dan serialisasi deterministik. Unit API lulus. |
 
-Gate Fase 0 sampai `ISS-055` telah selesai. Issue berikutnya adalah `ISS-056` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-056` telah selesai. Issue berikutnya adalah `ISS-057` sesuai urutan backlog.
 
 ---
 
@@ -683,7 +684,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-51. `ISS-056` — implement identity field configuration.
+51. `ISS-056` — implement identity field configuration (selesai).
+
+Langkah berikutnya:
+
+52. `ISS-057` — implement lifecycle reconciler.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

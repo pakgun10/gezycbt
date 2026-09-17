@@ -4,6 +4,7 @@ import {
   parseUtcTimestamp,
   type UtcTimestamp,
 } from "@gezycbt/contracts";
+import { normalizeIdentityFieldConfig } from "./identity";
 
 export const SCHEDULE_MODES = ["MAIN", "PRACTICE"] as const;
 export type ScheduleMode = (typeof SCHEDULE_MODES)[number];
@@ -398,102 +399,7 @@ export function normalizeIdentityFieldsJson(
   value: string | null | undefined,
   mode: ScheduleMode,
 ): string | null {
-  if (value === undefined || value === null || value.trim() === "") return null;
-  if (typeof value !== "string")
-    throw new ScheduleValidationError(
-      "identityFieldsJson must be JSON text",
-      "INVALID_IDENTITY_FIELDS",
-    );
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(value);
-  } catch {
-    throw new ScheduleValidationError(
-      "identityFieldsJson must contain valid JSON",
-      "INVALID_IDENTITY_FIELDS",
-    );
-  }
-  if (!Array.isArray(parsed) || parsed.length > 20)
-    throw new ScheduleValidationError(
-      "identityFieldsJson must be an array with at most 20 fields",
-      "INVALID_IDENTITY_FIELDS",
-    );
-  const fields = parsed.map((item, index) =>
-    normalizeIdentityField(item, index),
-  );
-  const keys = new Set(fields.map((field) => field.key));
-  if (keys.size !== fields.length)
-    throw new ScheduleValidationError(
-      "identityFieldsJson cannot contain duplicate keys",
-      "INVALID_IDENTITY_FIELDS",
-    );
-  if (mode === "MAIN" && fields.length > 0)
-    throw new ScheduleValidationError(
-      "MAIN schedule cannot define practice identity fields",
-      "MAIN_IDENTITY_FIELDS_FORBIDDEN",
-    );
-  return JSON.stringify(fields);
-}
-
-function normalizeIdentityField(
-  value: unknown,
-  index: number,
-): ScheduleIdentityField {
-  if (!value || typeof value !== "object")
-    throw new ScheduleValidationError(
-      `Identity field ${index + 1} is invalid`,
-      "INVALID_IDENTITY_FIELDS",
-    );
-  const candidate = value as Record<string, unknown>;
-  const key = candidate.key;
-  const label = candidate.label;
-  const type = candidate.type;
-  const required = candidate.required;
-  if (
-    typeof key !== "string" ||
-    !/^[a-z][a-z0-9_]{0,49}$/u.test(key) ||
-    typeof label !== "string" ||
-    label.trim().length < 1 ||
-    label.trim().length > 100 ||
-    type !== "TEXT" ||
-    typeof required !== "boolean"
-  )
-    throw new ScheduleValidationError(
-      `Identity field ${index + 1} is invalid`,
-      "INVALID_IDENTITY_FIELDS",
-    );
-  const maxLength = candidate.maxLength;
-  if (
-    maxLength !== undefined &&
-    (typeof maxLength !== "number" ||
-      !Number.isSafeInteger(maxLength) ||
-      maxLength < 1 ||
-      maxLength > 500)
-  )
-    throw new ScheduleValidationError(
-      `Identity field ${index + 1} has an invalid maxLength`,
-      "INVALID_IDENTITY_FIELDS",
-    );
-  const allowedValues = candidate.allowedValues;
-  if (
-    allowedValues !== undefined &&
-    (!Array.isArray(allowedValues) ||
-      allowedValues.some(
-        (item) => typeof item !== "string" || item.length > 100,
-      ))
-  )
-    throw new ScheduleValidationError(
-      `Identity field ${index + 1} has invalid allowedValues`,
-      "INVALID_IDENTITY_FIELDS",
-    );
-  return {
-    key,
-    label: label.trim(),
-    type: "TEXT",
-    required,
-    ...(typeof maxLength === "number" ? { maxLength } : {}),
-    ...(Array.isArray(allowedValues) ? { allowedValues } : {}),
-  };
+  return normalizeIdentityFieldConfig(value, mode);
 }
 
 function validateTargets(
