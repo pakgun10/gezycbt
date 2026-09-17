@@ -22,6 +22,10 @@ import {
 export interface QuestionDraftRepository {
   findQuestionBank(id: Id): Promise<QuestionBankSummary | null>;
   findRevision(id: Id): Promise<QuestionDraft | null>;
+  /** Resolves a logical question ID to its newest revision. */
+  findLatestRevisionByQuestionId?(
+    questionId: Id,
+  ): Promise<QuestionDraft | null>;
   createDraft(
     input: CreateQuestionDraftInput & {
       readonly createdBy: Id;
@@ -119,6 +123,24 @@ export class SqlQuestionDraftRepository implements QuestionPublishRepository {
     return this.database.transaction((connection) =>
       readRevision(connection, id),
     );
+  }
+
+  findLatestRevisionByQuestionId(
+    questionId: Id,
+  ): Promise<QuestionDraft | null> {
+    return this.database.transaction(async (connection) => {
+      const rows = await connection.query<{ id: unknown }>(
+        `${REVISION_COLUMNS}
+         WHERE q.question_id = ?
+         ORDER BY qr.revision_no DESC, qr.id DESC
+         LIMIT 1`,
+        [questionId],
+      );
+      const revisionId = rows[0]?.id;
+      if (revisionId === undefined) return null;
+      const parsed = parseId(String(revisionId));
+      return parsed ? readRevision(connection, parsed) : null;
+    });
   }
 
   async createDraft(

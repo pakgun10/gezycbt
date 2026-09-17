@@ -1,6 +1,6 @@
 # GezyCBT — Developer dan Operations Runbook
 
-**Status:** Baseline operasional Fase 8 dan agent discovery foundation (ISS-100–ISS-110, ISS-120–ISS-124)
+**Status:** Baseline operasional Fase 8 dan agent foundation/question authoring (ISS-100–ISS-110, ISS-120–ISS-125)
 **Terakhir diperbarui:** 17 September 2026
 
 Dokumen ini menjelaskan cara menjalankan fondasi repository, database lokal,
@@ -23,6 +23,11 @@ cp .env.example .env.local
 
 Shell tidak memuat `.env.local` secara otomatis. Export variabelnya sebelum
 menjalankan command, atau gunakan loader environment yang dipakai tim.
+
+Untuk upload media agent, set `GEZYCBT_MEDIA_ROOT` ke direktori protected di luar
+webroot. Jika tidak diisi, development memakai `.data/media` dan production
+memakai `/var/lib/gezycbt/media`. Direktori ini tidak boleh dipetakan sebagai
+static asset.
 
 ## 2. Database development
 
@@ -174,8 +179,8 @@ Entry gate ini dianggap lulus bila clean checkout dapat:
 6. menjalankan bootstrap admin satu kali;
 7. menjalankan quality gate repository.
 
-Setelah discovery foundation agent lulus, pekerjaan berikutnya adalah `ISS-125`
-untuk question/media authoring. Client agent dikelola dari
+Setelah discovery foundation dan question/media authoring agent lulus, pekerjaan
+berikutnya adalah `ISS-126` untuk exam authoring. Client agent dikelola dari
 `/admin/integrations`; credential plaintext hanya muncul sekali setelah
 re-authentication. Operasi export memakai job durable dan download token satu
 kali yang berlaku maksimal lima menit.

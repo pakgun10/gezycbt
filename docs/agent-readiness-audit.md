@@ -1,4 +1,4 @@
-# Agent-readiness audit — ISS-120 sampai ISS-123
+# Agent-readiness audit — ISS-120 sampai ISS-125
 
 **Tanggal:** 17 September 2026
 **Scope:** baseline machine integration untuk Hivekeep/Hermes pada deployment
@@ -70,10 +70,38 @@ Semua perubahan memakai staff session, exact same-origin CSRF, idempotency key,
 optimistic `updatedAt`/`policyVersion`, dan audit event. Management hanya
 tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
 
+## ISS-124 — discovery dan scope-safe search
+
+- Search subject, class, question bank, question, exam, dan schedule memakai
+  cursor bounded maksimal 20 item.
+- Query dijalankan dengan effective owner/grant scope di SQL; hasil ambigu diberi
+  marker `AMBIGUOUS_RESOURCE` dan tidak dipilih otomatis oleh adapter.
+- Search/list question tidak pernah menyertakan answer key atau metadata storage.
+
+## ISS-125 — question dan media authoring
+
+- Agent dapat membaca question revision melalui `/questions/:id`; response aman
+  menghilangkan `isCorrect`/`correctValue`.
+- Answer key hanya dikembalikan bila request secara eksplisit meminta
+  `includeKey=true` dan client memiliki capability terpisah
+  `questions.read_key`. Akses ini menulis audit sensitif tanpa menyimpan isi key.
+- Create draft, create/update revision, readiness validation, dan publish memakai
+  `QuestionDraftService`, `QuestionPublishService`, dan
+  `QuestionReadinessService` yang sama dengan route web. External agent context
+  didelegasikan ke owner client, lalu teacher ownership/subject scope tetap
+  diterapkan.
+- Upload media agent menggunakan `MediaUploadService`: magic bytes, JPEG/PNG/WebP,
+  maksimum 2 MiB dan 2.500 px, nama file aman, hash, random storage key, dan
+  cleanup on failure. Asset hanya dikembalikan sebagai metadata aman; attachment
+  ke draft memerlukan alt/decorative validation.
+- Mutation membutuhkan `Idempotency-Key` bounded 16–128 karakter dan expected
+  timestamp untuk update/publish. Durable action replay dan prepare/confirm tetap
+  berada di ISS-129.
+
 ## Batasan yang sengaja ditunda
 
 - Action plan prepare/confirm dan web approval: ISS-129.
-- CRUD question/exam/schedule agent: ISS-125–ISS-126.
+- CRUD exam/schedule agent: ISS-126.
 - Result/practice/export agent surface: ISS-127–ISS-128.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
 - Full capability OpenAPI document dan typed Hivekeep/Hermes adapter: ISS-131.

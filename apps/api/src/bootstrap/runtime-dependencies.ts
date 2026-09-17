@@ -28,12 +28,20 @@ import {
 } from "../modules/exams";
 import {
   createIntegrationRoutes,
+  IntegrationQuestionAuthoringService,
   IntegrationRateLimiter,
   IntegrationService,
   SqlIntegrationAuditSink,
   SqlIntegrationDiscoveryRepository,
   SqlIntegrationRepository,
 } from "../modules/integrations";
+import {
+  ContainerImageDecoder,
+  FileSystemMediaStorage,
+  MediaRelationService,
+  MediaUploadService,
+  SqlMediaRelationRepository,
+} from "../modules/media";
 import {
   QuestionDraftService,
   QuestionPublishService,
@@ -99,6 +107,23 @@ export function createRuntimeDependencies(
     authorization,
   );
   const questionReadiness = new QuestionReadinessService(questionRepository);
+  const mediaRepository = new SqlMediaRelationRepository(database);
+  const mediaStorage = new FileSystemMediaStorage(
+    config.mediaRoot ??
+      (config.appEnv === "production"
+        ? "/var/lib/gezycbt/media"
+        : ".data/media"),
+  );
+  const mediaUpload = new MediaUploadService(
+    mediaStorage,
+    mediaRepository,
+    new ContainerImageDecoder(),
+  );
+  const mediaRelations = new MediaRelationService(
+    mediaRepository,
+    authorization,
+    mediaStorage,
+  );
   const examDrafts = new ExamDraftService(examRepository, authorization);
   const examPublish = new ExamPublishService(examRepository, authorization);
   const examReadiness = new ExamReadinessService(examRepository);
@@ -156,6 +181,15 @@ export function createRuntimeDependencies(
       academicRepository.getTeacherScopes(teacherId),
     rateLimiter: new IntegrationRateLimiter(),
   });
+  const agentQuestionAuthoring = new IntegrationQuestionAuthoringService({
+    integration: integrationService,
+    repository: questionRepository,
+    drafts: questionDrafts,
+    publish: questionPublish,
+    readiness: questionReadiness,
+    mediaUpload,
+    mediaRelations,
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -195,6 +229,7 @@ export function createRuntimeDependencies(
             sessionService: sessions,
             isReauthenticated: (userId) => isStaffReauthenticated(userId),
             expectedOrigin: config.appOrigin,
+            questionAuthoring: agentQuestionAuthoring,
           }),
         )
         .use(

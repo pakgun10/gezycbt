@@ -238,6 +238,19 @@ export class IntegrationService {
     return grant;
   }
 
+  /** Records a domain operation performed through a machine credential. */
+  async recordAgentAudit(
+    event: Omit<IntegrationAuditEvent, "actorType"> & {
+      readonly clientId: Id;
+      readonly actorUserId: Id;
+    },
+  ): Promise<void> {
+    await this.options.audit?.record({
+      ...event,
+      actorType: "EXTERNAL_AGENT",
+    });
+  }
+
   async searchSubjects(
     authentication: IntegrationAuthentication,
     query: DiscoveryQuery,

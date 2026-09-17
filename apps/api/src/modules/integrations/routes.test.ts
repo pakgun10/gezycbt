@@ -34,7 +34,7 @@ const session: AuthSession = {
   revokeReason: null,
 };
 
-function auth(): IntegrationAuthentication {
+function auth(capabilities: readonly string[] = []): IntegrationAuthentication {
   return {
     client: {
       id: "10" as Id,
@@ -63,14 +63,34 @@ function auth(): IntegrationAuthentication {
       revokeReason: null,
       createdAt: NOW,
     },
-    grants: [],
+    grants: capabilities.map((capability, index) => ({
+      id: String(100 + index) as Id,
+      integrationClientId: "10" as Id,
+      capability,
+      scopeType: "SCHOOL" as const,
+      scopeIds: [],
+      constraints: {},
+      grantVersion: index + 1,
+      status: "ACTIVE" as const,
+      validFrom: NOW,
+      expiresAt: null,
+      issuedByUserId: admin.id,
+      revokedAt: null,
+      revokeReason: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    })),
   };
 }
 
-function app(reauthenticated = true) {
+function app(
+  reauthenticated = true,
+  capabilities: readonly string[] = [],
+  questionAuthoring?: unknown,
+) {
   const repository = {
     async authenticate() {
-      return auth();
+      return auth(capabilities);
     },
     async touchCredential() {},
   } as unknown as IntegrationRepository;
@@ -120,6 +140,9 @@ function app(reauthenticated = true) {
         },
         isReauthenticated: () => reauthenticated,
         expectedOrigin: "https://cbt.example.test",
+        ...(questionAuthoring
+          ? { questionAuthoring: questionAuthoring as never }
+          : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -180,4 +203,47 @@ test("management mutation requires recent step-up reauthentication", async () =>
     }),
   );
   expect(response.status).toBe(401);
+});
+
+test("agent authoring route delegates safe question reads and enforces mutation idempotency", async () => {
+  const authoring = {
+    async getQuestion() {
+      return { id: "50", answerKeyIncluded: false };
+    },
+    async createQuestion() {
+      throw new Error("should not execute without idempotency key");
+    },
+  };
+  const application = app(
+    true,
+    ["questions.read", "questions.create"],
+    authoring,
+  );
+  const read = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/questions/50",
+      {
+        headers: { authorization: "Bearer integration-token" },
+      },
+    ),
+  );
+  expect(read.status).toBe(200);
+  expect(await read.json()).toMatchObject({
+    data: { answerKeyIncluded: false },
+  });
+
+  const mutation = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/questions",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({}),
+      },
+    ),
+  );
+  expect(mutation.status).toBe(422);
 });

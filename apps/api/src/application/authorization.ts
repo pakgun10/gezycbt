@@ -78,7 +78,7 @@ export class AuthorizationPolicyService {
     actor: ActorContext,
     resource: TeacherScopedResource,
   ): Promise<void> {
-    const role = assertHuman(actor, "TEACHER_SCOPE");
+    const role = assertTeacherActor(actor);
     if (role === "ADMIN") return;
     if (role !== "TEACHER") {
       throw new AuthorizationDeniedError("TEACHER_SCOPE");
@@ -93,7 +93,7 @@ export class AuthorizationPolicyService {
     actor: ActorContext,
     resource: TeacherScopedResource,
   ): Promise<void> {
-    const role = assertHuman(actor, "TEACHER_SCOPE");
+    const role = assertTeacherActor(actor);
     if (role === "ADMIN") return;
     if (role !== "TEACHER") {
       throw new AuthorizationDeniedError("TEACHER_SCOPE");
@@ -117,7 +117,7 @@ export class AuthorizationPolicyService {
     actor: ActorContext,
     resource: TeacherScopedResource,
   ): Promise<void> {
-    const role = assertHuman(actor, "TEACHER_SCOPE");
+    const role = assertTeacherActor(actor);
     if (role === "ADMIN") return;
     if (role !== "TEACHER") {
       throw new AuthorizationDeniedError("TEACHER_SCOPE");
@@ -217,6 +217,29 @@ function assertHuman(
     throw new AuthorizationRequiredError();
   }
   return actor.role;
+}
+
+/**
+ * Question/media authoring is delegated to a verified integration client. The
+ * integration route has already checked the client credential and grant; this
+ * boundary still requires the delegated owner identity and role before the
+ * normal teacher scope rules are applied. Other policies intentionally remain
+ * human-only.
+ */
+function assertTeacherActor(actor: ActorContext): ActorRole {
+  if (actor.actorType === "EXTERNAL_AGENT") {
+    if (
+      !actor.userId ||
+      !actor.role ||
+      !ACTOR_ROLES.includes(actor.role) ||
+      !actor.integrationClientId ||
+      actor.active === false
+    ) {
+      throw new AuthorizationRequiredError();
+    }
+    return actor.role;
+  }
+  return assertHuman(actor, "TEACHER_SCOPE");
 }
 
 function assertHumanRole(

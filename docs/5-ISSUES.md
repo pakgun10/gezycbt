@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-124 selesai pada baseline ini
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-125 selesai pada baseline ini
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 17 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -156,8 +156,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-122` | `DONE` | Machine Bearer authentication, active owner/client/credential checks, capability dan effective owner scope policy, rate limiter 60 read/20 mutation, failure bucket 5/15 menit, audit denial, serta `/me`/`/capabilities` smoke endpoint tersedia di modul integrations. |
 | `ISS-123` | `DONE` | Console admin `/admin/integrations` menyediakan client/credential/grant management, one-time plaintext credential, re-authentication, optimistic version, audit, dan kill switch yang langsung mencabut credential aktif. |
 | `ISS-124` | `DONE` | Discovery API menyediakan `/me`, `/capabilities`, pencarian subject/class/question bank/question/exam/schedule dengan cursor maksimal 20 item, effective scope SQL, serta marker `AMBIGUOUS_RESOURCE` tanpa auto-select. |
+| `ISS-125` | `DONE` | Agent question/media authoring memakai application service dan external-agent context: safe question read, `questions.read_key` terpisah dengan audit sensitif, CRUD draft/revision, readiness, publish, media upload/attachment, optimistic version, scope, dan bounded idempotency header. Test adapter, storage, typecheck, lint, serta unit suite lulus. |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-124` telah selesai. Entry berikutnya adalah `ISS-125`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-125` telah selesai. Entry berikutnya adalah `ISS-126`.
 
 ---
 
@@ -615,11 +616,12 @@ gate `ISS-093–ISS-094` kemudian diselesaikan untuk memastikan API, database,
 dan workflow lokal dapat dijalankan.
 
 Fase 8 `ISS-100–ISS-110` kini selesai sebagai baseline staff web dan service
-adapter. Agent `ISS-120–ISS-124` juga selesai sebagai fondasi machine client,
-credential, grant, policy, management, kill switch, dan discovery/search.
+adapter. Agent `ISS-120–ISS-125` juga selesai sebagai fondasi machine client,
+credential, grant, policy, management, kill switch, discovery/search, dan
+question/media authoring.
 Tabel status pada bagian 1.5 adalah source of truth untuk evidence.
 
-Langkah berikutnya adalah `ISS-125` untuk question/media authoring agent. Browser trace
+Langkah berikutnya adalah `ISS-126` untuk exam authoring agent. Browser trace
 production-like, load test, dan hardening tetap harus dijalankan pada fase
 berikutnya sebelum pilot/production.
 

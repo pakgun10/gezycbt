@@ -8,6 +8,8 @@ export interface AppConfig {
   readonly databaseUrl?: string;
   /** HMAC key for five-character schedule access codes. */
   readonly accessCodeHmacSecret?: string;
+  /** Protected media root; never exposed through the static web handler. */
+  readonly mediaRoot?: string;
   readonly host: string;
   readonly port: number;
   readonly logLevel: "debug" | "info" | "warn" | "error";
@@ -61,6 +63,9 @@ export function loadAppConfig(env: Environment): AppConfig {
     appOrigin: origin,
     ...(databaseUrl === undefined ? {} : { databaseUrl }),
     ...(accessCodeHmacSecret === undefined ? {} : { accessCodeHmacSecret }),
+    ...(env.GEZYCBT_MEDIA_ROOT
+      ? { mediaRoot: env.GEZYCBT_MEDIA_ROOT.trim() }
+      : {}),
     host,
     port,
     logLevel: logLevel as AppConfig["logLevel"],

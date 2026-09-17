@@ -1,15 +1,16 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Fondasi ISS-120–ISS-123 dan discovery ISS-124 diimplementasikan; tool workflow lanjutan masih bertahap
-**Versi dokumen:** 0.3  
+**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, dan question/media authoring ISS-125 diimplementasikan; tool workflow lanjutan masih bertahap
+**Versi dokumen:** 0.4  
 **Terakhir diperbarui:** 17 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
 
 Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp sendiri. Bot, channel, percakapan, memory, LLM, dan agent loop dijalankan oleh Hivekeep atau Hermes sebagai aplikasi terpisah. GezyCBT menyediakan API/tool yang aman agar agent dapat menjalankan pekerjaan CBT.
 
-Fondasi machine client, credential, grant, rate limit, audit, discovery endpoint,
-management console, dan kill switch tersedia pada ISS-120–ISS-124.
+Fondasi machine client, credential, grant, rate limit, audit, management console,
+kill switch, discovery, serta question/media authoring
+tersedia pada ISS-120–ISS-125.
 Tool CRUD, action approval, hasil, dan export dibuka setelah issue lanjutan
 selesai; daftar batasnya ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
 
@@ -596,9 +597,20 @@ PATCH /api/v1/integrations/agent/question-revisions/:id
 POST /api/v1/integrations/agent/question-revisions/:id/validate
 POST /api/v1/integrations/agent/question-revisions/:id/publish
 POST /api/v1/integrations/agent/media
+POST /api/v1/integrations/agent/question-revisions/:id/media
 ~~~
 
 Upload media memakai `multipart/form-data`, capability `media.upload`, body limit khusus upload, dan pipeline keamanan yang sama dengan upload UI. Response hanya memuat asset metadata aman dan stable media ID.
+
+`GET /questions/:id` menerima `includeKey=true` hanya bila client memiliki
+capability `questions.read_key`; tanpa query tersebut response selalu menghapus
+`isCorrect` dan `correctValue`. Setiap pembacaan answer key membuat audit event
+`INTEGRATION_QUESTION_READ_KEY` tanpa menyimpan isi kunci di metadata audit.
+Endpoint create/update/revision/publish/attach/upload wajib membawa
+`Idempotency-Key` sepanjang 16–128 karakter. Upload menghasilkan asset yang
+belum otomatis ditempelkan; agent menempelkan asset ke revision draft melalui
+endpoint `/question-revisions/:id/media` dengan `usage`, `altText`, dan
+`isDecorative` yang tervalidasi. Published revision tetap immutable.
 
 ### 11.3 Exams
 
@@ -831,7 +843,8 @@ Capabilities, search bank/soal/ujian/schedule, summary hasil, OpenAPI integratio
 
 ### I3 — Question authoring
 
-CRUD draft tiga tipe soal, media upload, validation, version conflict, dan idempotency.
+CRUD draft tiga tipe soal, media upload/attachment, validation, version conflict,
+safe answer-key boundary, sensitive audit, dan bounded idempotency header.
 
 ### I4 — Exam authoring
 

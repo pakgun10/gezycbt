@@ -1,6 +1,10 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { DatabasePort } from "@gezycbt/database";
 import { Elysia } from "elysia";
+import {
+  AuthorizationDeniedError,
+  AuthorizationRequiredError,
+} from "../../application/authorization";
 import { AppError } from "../../http/app-error";
 import {
   assertCsrfRequest,
@@ -8,6 +12,25 @@ import {
   CsrfProtectionError,
 } from "../auth/csrf";
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
+import { MediaPersistenceError, MediaValidationError } from "../media/domain";
+import {
+  MEDIA_USAGES,
+  MediaAssetReferencedError,
+  MediaPublishedReferenceError,
+  MediaRelationConflictError,
+  MediaRelationImmutableError,
+  MediaRelationNotFoundError,
+  MediaRelationValidationError,
+  type MediaUsage,
+} from "../media/relation-domain";
+import {
+  QuestionForeignReferenceError,
+  QuestionImmutableError,
+  QuestionNotFoundError,
+  QuestionValidationError,
+  QuestionVersionConflictError,
+} from "../questions/domain";
+import { QuestionPublishBlockedError } from "../questions/publish";
 import type { StoredUser } from "../users";
 import {
   type DiscoveryQuery,
@@ -24,6 +47,10 @@ import {
   type IntegrationService,
   IntegrationValidationError,
 } from "./index";
+import {
+  AgentQuestionNotFoundError,
+  type IntegrationQuestionAuthoringService,
+} from "./question-authoring";
 
 export interface IntegrationRouteOptions {
   readonly database: DatabasePort;
@@ -35,6 +62,7 @@ export interface IntegrationRouteOptions {
   >;
   readonly isReauthenticated: (userId: Id) => boolean;
   readonly expectedOrigin: URL | string;
+  readonly questionAuthoring?: IntegrationQuestionAuthoringService;
 }
 
 export function createIntegrationRoutes(
@@ -153,6 +181,210 @@ export function createIntegrationRoutes(
         throw mapIntegrationError(error);
       }
     },
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/questions/:id",
+    async ({ request, params, query }) => {
+      try {
+        const authoring = requireQuestionAuthoring(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        const queryPayload =
+          query && typeof query === "object" && !Array.isArray(query)
+            ? (query as Record<string, unknown>)
+            : {};
+        const includeKey = queryBoolean(queryPayload.includeKey, "includeKey");
+        return {
+          data: await authoring.getQuestion(
+            authentication,
+            idParam(params),
+            includeKey,
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post("/api/v1/integrations/agent/questions", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const authoring = requireQuestionAuthoring(options);
+      const payload = objectPayload(body);
+      return authoring.createQuestion(
+        authentication,
+        {
+          questionBankId: idValue(payload.questionBankId, "questionBankId"),
+          ...questionContentPayload(payload),
+        },
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/questions/:id/revisions",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireQuestionAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.createRevision(
+            authentication,
+            idParam(params),
+            questionContentPayload(payload),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/question-revisions/:id",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireQuestionAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.updateQuestion(
+            authentication,
+            idParam(params),
+            questionContentPayload(payload),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/question-revisions/:id/validate",
+    async ({ request, params }) => {
+      try {
+        const authoring = requireQuestionAuthoring(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await authoring.validateQuestion(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/question-revisions/:id/publish",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireQuestionAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.publishQuestion(
+            authentication,
+            idParam(params),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post("/api/v1/integrations/agent/media", async ({ request }) => {
+    try {
+      const authoring = requireQuestionAuthoring(options);
+      const requestId = requestIdOf(request);
+      const authentication = await requireAgent(request, options, "mutation");
+      const key = requiredAgentIdempotencyKey(request);
+      const contentLength = request.headers.get("content-length");
+      if (contentLength !== null) {
+        const bytes = Number(contentLength);
+        if (!Number.isSafeInteger(bytes) || bytes > 3 * 1024 * 1024)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Upload media melebihi batas request.",
+          );
+      }
+      const form = await request.formData();
+      const candidate = form.get("file");
+      if (!candidate || typeof candidate === "string")
+        throw new AppError(422, "VALIDATION_FAILED", "File media wajib diisi.");
+      const arrayBuffer = await candidate.arrayBuffer();
+      const originalName =
+        optionalString(form.get("originalName")) ?? candidate.name;
+      if (!originalName)
+        throw new AppError(422, "VALIDATION_FAILED", "Nama file wajib diisi.");
+      const result = await authoring.uploadMedia(
+        authentication,
+        {
+          bytes: new Uint8Array(arrayBuffer),
+          originalName,
+          ...(candidate.type ? { claimedMimeType: candidate.type } : {}),
+        },
+        requestId,
+        key,
+      );
+      return { data: result };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.post(
+    "/api/v1/integrations/agent/question-revisions/:id/media",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireQuestionAuthoring(options);
+          const payload = objectPayload(body);
+          const usage = stringField(payload.usage, "usage");
+          if (!MEDIA_USAGES.includes(usage as MediaUsage))
+            throw new AppError(422, "VALIDATION_FAILED", "usage tidak valid.");
+          const isDecorative = payload.isDecorative;
+          if (typeof isDecorative !== "boolean")
+            throw new AppError(
+              422,
+              "VALIDATION_FAILED",
+              "isDecorative wajib berupa boolean.",
+            );
+          const altText =
+            payload.altText === null || payload.altText === undefined
+              ? null
+              : stringField(payload.altText, "altText");
+          return authoring.attachMedia(
+            authentication,
+            {
+              questionRevisionId: idParam(params),
+              mediaAssetId: idValue(payload.mediaAssetId, "mediaAssetId"),
+              usage: usage as MediaUsage,
+              altText,
+              isDecorative,
+            },
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.get("/api/v1/integrations/agent/exams", async ({ request, query }) => {
@@ -411,6 +643,50 @@ export function createIntegrationRoutes(
   return app;
 }
 
+function requireQuestionAuthoring(
+  options: IntegrationRouteOptions,
+): IntegrationQuestionAuthoringService {
+  if (!options.questionAuthoring)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Question authoring integration belum tersedia.",
+    );
+  return options.questionAuthoring;
+}
+
+async function agentMutation<T>(
+  request: Request,
+  options: IntegrationRouteOptions,
+  operation: (
+    authentication: Awaited<ReturnType<typeof requireAgent>>,
+    requestId: string,
+    idempotencyKey: string,
+  ) => Promise<T>,
+): Promise<{ data: T }> {
+  try {
+    const requestId = requestIdOf(request);
+    const authentication = await requireAgent(request, options, "mutation");
+    const idempotencyKey = requiredAgentIdempotencyKey(request);
+    return {
+      data: await operation(authentication, requestId, idempotencyKey),
+    };
+  } catch (error) {
+    throw mapIntegrationError(error);
+  }
+}
+
+function requiredAgentIdempotencyKey(request: Request): string {
+  const value = request.headers.get("idempotency-key")?.trim() ?? "";
+  if (value.length < 16 || value.length > 128)
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Idempotency-Key wajib berisi 16-128 karakter.",
+    );
+  return value;
+}
+
 type AdminIdentity = {
   readonly user: { readonly id: string; readonly role: string };
   readonly requestId: string;
@@ -522,6 +798,18 @@ async function verifyCsrfIfMutation(
 
 function mapIntegrationError(error: unknown): Error {
   if (error instanceof AppError) return error;
+  if (error instanceof AuthorizationRequiredError)
+    return new AppError(
+      401,
+      "AUTHENTICATION_REQUIRED",
+      "Identitas actor tidak dapat diverifikasi.",
+    );
+  if (error instanceof AuthorizationDeniedError)
+    return new AppError(
+      403,
+      "AUTHORIZATION_DENIED",
+      "Resource berada di luar scope integrasi.",
+    );
   if (error instanceof IntegrationAuthenticationError)
     return new AppError(
       401,
@@ -566,9 +854,175 @@ function mapIntegrationError(error: unknown): Error {
       "VALIDATION_FAILED",
       "Data integrasi tidak valid.",
     );
+  if (
+    error instanceof AgentQuestionNotFoundError ||
+    error instanceof QuestionNotFoundError
+  )
+    return new AppError(
+      404,
+      "NOT_FOUND",
+      "Soal atau revision tidak ditemukan.",
+    );
+  if (error instanceof QuestionPublishBlockedError)
+    return new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Soal belum memenuhi publish readiness.",
+      { report: error.report },
+    );
+  if (error instanceof QuestionVersionConflictError)
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Soal berubah oleh request lain. Muat ulang lalu ulangi.",
+    );
+  if (
+    error instanceof QuestionValidationError ||
+    error instanceof QuestionForeignReferenceError
+  )
+    return new AppError(422, "VALIDATION_FAILED", "Data soal tidak valid.");
+  if (error instanceof QuestionImmutableError)
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Revision published tidak dapat diubah.",
+    );
+  if (
+    error instanceof MediaValidationError ||
+    error instanceof MediaRelationValidationError
+  )
+    return new AppError(422, "VALIDATION_FAILED", "Data media tidak valid.", {
+      mediaCode: error.code,
+    });
+  if (error instanceof MediaRelationNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Media relation tidak ditemukan.");
+  if (
+    error instanceof MediaRelationConflictError ||
+    error instanceof MediaRelationImmutableError ||
+    error instanceof MediaAssetReferencedError ||
+    error instanceof MediaPublishedReferenceError
+  )
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Perubahan media tidak dapat diterapkan.",
+    );
+  if (error instanceof MediaPersistenceError)
+    return new AppError(500, "INTERNAL_ERROR", "Media tidak dapat disimpan.");
   return error instanceof Error
     ? error
     : new Error("Integration request failed");
+}
+
+function questionContentPayload(payload: Record<string, unknown>): {
+  type: "SINGLE_CHOICE" | "MULTIPLE_RESPONSE" | "TRUE_FALSE";
+  stimulusHtml: string;
+  promptHtml: string | null;
+  explanationHtml: string | null;
+  options: readonly {
+    position: number;
+    contentHtml: string;
+    isCorrect: boolean;
+    id?: Id;
+  }[];
+  statements: readonly {
+    position: number;
+    statementHtml: string;
+    correctValue: boolean;
+    id?: Id;
+  }[];
+} {
+  const type = stringField(payload.type, "type");
+  if (
+    type !== "SINGLE_CHOICE" &&
+    type !== "MULTIPLE_RESPONSE" &&
+    type !== "TRUE_FALSE"
+  )
+    throw new AppError(422, "VALIDATION_FAILED", "type tidak valid.");
+  const options = arrayPayload(payload.options, "options").map((value) => {
+    const item = objectPayload(value);
+    return {
+      ...(item.id === undefined ? {} : { id: idValue(item.id, "option.id") }),
+      position: requiredInteger(item.position, "option.position"),
+      contentHtml: stringField(item.contentHtml, "option.contentHtml"),
+      isCorrect: booleanField(item.isCorrect, "option.isCorrect"),
+    };
+  });
+  const statements = arrayPayload(payload.statements, "statements").map(
+    (value) => {
+      const item = objectPayload(value);
+      return {
+        ...(item.id === undefined
+          ? {}
+          : { id: idValue(item.id, "statement.id") }),
+        position: requiredInteger(item.position, "statement.position"),
+        statementHtml: stringField(
+          item.statementHtml,
+          "statement.statementHtml",
+        ),
+        correctValue: booleanField(item.correctValue, "statement.correctValue"),
+      };
+    },
+  );
+  return {
+    type,
+    stimulusHtml: stringField(payload.stimulusHtml, "stimulusHtml"),
+    promptHtml: nullableString(payload.promptHtml, "promptHtml"),
+    explanationHtml: nullableString(payload.explanationHtml, "explanationHtml"),
+    options,
+    statements,
+  };
+}
+
+function arrayPayload(value: unknown, field: string): readonly unknown[] {
+  if (!Array.isArray(value))
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      `${field} harus berupa array.`,
+    );
+  return value;
+}
+
+function booleanField(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean")
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      `${field} harus berupa boolean.`,
+    );
+  return value;
+}
+
+function requiredInteger(value: unknown, field: string): number {
+  if (!Number.isSafeInteger(value) || Number(value) < 1)
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+  return Number(value);
+}
+
+function nullableString(value: unknown, field: string): string | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "string")
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+  return value;
+}
+
+function requiredTimestamp(value: unknown, field: string): UtcTimestamp {
+  const parsed = optionalTimestamp(value);
+  if (!parsed)
+    throw new AppError(422, "VALIDATION_FAILED", `${field} wajib diisi.`);
+  return parsed;
+}
+
+function queryBoolean(value: unknown, field: string): boolean {
+  if (value === undefined || value === null || value === "") return false;
+  if (value === true || value === "true" || value === "1") return true;
+  if (value === false || value === "false" || value === "0") return false;
+  throw new AppError(
+    422,
+    "VALIDATION_FAILED",
+    `Parameter ${field} tidak valid.`,
+  );
 }
 
 function objectPayload(value: unknown): Record<string, unknown> {

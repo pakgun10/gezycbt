@@ -102,6 +102,31 @@ describe("resource authorization policies", () => {
     ).rejects.toMatchObject({ policy: "TEACHER_SCOPE" });
   });
 
+  test("verified external agent delegates teacher scope to its client owner", async () => {
+    const policy = policies();
+    const delegated: ActorContext = {
+      actorType: "EXTERNAL_AGENT",
+      userId: teacherId,
+      role: "TEACHER",
+      integrationClientId: "99" as Id,
+      active: true,
+      requestId: "agent-request",
+    };
+    await expect(
+      policy.assertTeacherScope(delegated, {
+        ownerTeacherId: teacherId,
+        subjectId: "30" as Id,
+      }),
+    ).resolves.toBeUndefined();
+    await expect(
+      policy.assertTeacherScope(
+        (({ integrationClientId: _integrationClientId, ...withoutClient }) =>
+          withoutClient)(delegated),
+        { ownerTeacherId: teacherId },
+      ),
+    ).rejects.toBeInstanceOf(AuthorizationRequiredError);
+  });
+
   test("participant eligibility requires own ID and explicit or class target", async () => {
     const policy = policies();
     const resource = {
