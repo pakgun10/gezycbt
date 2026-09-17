@@ -67,6 +67,10 @@ import {
   AgentQuestionNotFoundError,
   type IntegrationQuestionAuthoringService,
 } from "./question-authoring";
+import {
+  AgentResultNotFoundError,
+  type IntegrationResultReadService,
+} from "./result-reads";
 
 export interface IntegrationRouteOptions {
   readonly database: DatabasePort;
@@ -80,6 +84,7 @@ export interface IntegrationRouteOptions {
   readonly expectedOrigin: URL | string;
   readonly questionAuthoring?: IntegrationQuestionAuthoringService;
   readonly examAuthoring?: IntegrationExamAuthoringService;
+  readonly resultReads?: IntegrationResultReadService;
 }
 
 export function createIntegrationRoutes(
@@ -633,6 +638,67 @@ export function createIntegrationRoutes(
   );
 
   app.get(
+    "/api/v1/integrations/agent/schedules/:id/summary",
+    async ({ request, params }) => {
+      try {
+        const resultReads = requireResultReads(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resultReads.getScheduleSummary(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/schedules/:id/results",
+    async ({ request, params, query }) => {
+      try {
+        const resultReads = requireResultReads(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resultReads.listScheduleResults(
+            authentication,
+            idParam(params),
+            parseAgentResultQuery(query),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/results/:id",
+    async ({ request, params }) => {
+      try {
+        const resultReads = requireResultReads(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resultReads.getResult(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get(
     "/api/v1/integrations/agent/schedules",
     async ({ request, query }) => {
       try {
@@ -894,6 +960,18 @@ function requireExamAuthoring(
       "Exam authoring integration belum tersedia.",
     );
   return options.examAuthoring;
+}
+
+function requireResultReads(
+  options: IntegrationRouteOptions,
+): IntegrationResultReadService {
+  if (!options.resultReads)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Result integration belum tersedia.",
+    );
+  return options.resultReads;
 }
 
 async function agentMutation<T>(
@@ -1170,6 +1248,12 @@ function mapIntegrationError(error: unknown): Error {
     );
   if (error instanceof ExamValidationError)
     return new AppError(422, "VALIDATION_FAILED", "Data ujian tidak valid.");
+  if (error instanceof AgentResultNotFoundError)
+    return new AppError(
+      404,
+      "NOT_FOUND",
+      "Jadwal atau hasil ujian tidak ditemukan.",
+    );
   if (
     error instanceof MediaValidationError ||
     error instanceof MediaRelationValidationError
@@ -1460,6 +1544,43 @@ function parseDiscoveryQuery(
     ...(revisionStatus ? { revisionStatus } : {}),
     ...(type ? { type } : {}),
     ...(mode ? { mode } : {}),
+  };
+}
+
+function parseAgentResultQuery(value: unknown): {
+  readonly cursor?: Id;
+  readonly limit: number;
+  readonly filter?: "RELEASED" | "UNRELEASED";
+} {
+  const candidate =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const cursor = queryId(candidate.cursor, "cursor");
+  const rawLimit =
+    candidate.limit === undefined || candidate.limit === ""
+      ? 50
+      : Number(candidate.limit);
+  if (!Number.isSafeInteger(rawLimit) || rawLimit < 1 || rawLimit > 100)
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Parameter limit harus berupa integer 1-100.",
+    );
+  const rawFilter = candidate.filter;
+  if (
+    rawFilter !== undefined &&
+    rawFilter !== "" &&
+    rawFilter !== "RELEASED" &&
+    rawFilter !== "UNRELEASED"
+  )
+    throw new AppError(422, "VALIDATION_FAILED", "Filter result tidak valid.");
+  return {
+    ...(cursor ? { cursor } : {}),
+    limit: rawLimit,
+    ...(rawFilter === "RELEASED" || rawFilter === "UNRELEASED"
+      ? { filter: rawFilter }
+      : {}),
   };
 }
 

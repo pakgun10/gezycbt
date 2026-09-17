@@ -1,7 +1,7 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, dan exam authoring ISS-126 diimplementasikan; tool workflow lanjutan masih bertahap
-**Versi dokumen:** 0.5
+**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, exam authoring ISS-126, dan result/practice reads ISS-127 diimplementasikan; tool workflow lanjutan masih bertahap
+**Versi dokumen:** 0.6
 **Terakhir diperbarui:** 18 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
@@ -9,10 +9,11 @@
 Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp sendiri. Bot, channel, percakapan, memory, LLM, dan agent loop dijalankan oleh Hivekeep atau Hermes sebagai aplikasi terpisah. GezyCBT menyediakan API/tool yang aman agar agent dapat menjalankan pekerjaan CBT.
 
 Fondasi machine client, credential, grant, rate limit, audit, management console,
-kill switch, discovery, question/media authoring, dan exam authoring
-tersedia pada ISS-120–ISS-126.
-Tool CRUD, action approval, hasil, dan export dibuka setelah issue lanjutan
-selesai; daftar batasnya ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
+kill switch, discovery, question/media authoring, exam authoring, dan result/
+practice reads tersedia pada ISS-120–ISS-127.
+Controlled export, high-risk action approval, dan adapter compatibility masih
+dibuka bertahap; daftar batasnya ada di
+[agent-readiness-audit.md](./agent-readiness-audit.md).
 
 Kata **wajib** berarti aturan correctness atau security yang tidak boleh dilewati. Kata **disarankan** adalah baseline yang dapat diubah melalui Architecture Decision Record.
 
@@ -443,9 +444,25 @@ Published exam tidak diubah langsung.
 
 ### 8.3 Melihat hasil
 
-Summary dapat memuat target, belum mulai, active, submitted, expired, nilai agregat, dan release status. Detail peserta memakai capability terpisah dan pagination. Aggregate response tidak memuat PII.
+Summary mengembalikan target schedule, counter session, nilai agregat, dan
+release status. Detail peserta memakai capability dan pagination yang sesuai
+mode. Aggregate response tidak memuat PII.
 
-Hasil ujian utama memakai `results.read`. Hasil latihan memakai capability terpisah `results.read_practice` karena memuat identity snapshot tamu. Response hasil latihan mengikuti kontrak domain yang sama dengan UI peserta, termasuk `canRetry` dan `canRetryReason` (`SCHEDULE_CLOSED`, `ATTEMPT_LIMIT_REACHED`, atau `TOKEN_INVALID_OR_EXPIRED`), tetapi tidak memuat answer key atau correctness per soal. Identity dan detail result tetap mengikuti scope serta minimisasi PII.
+Hasil ujian utama memakai `results.read`. Hasil latihan memakai capability
+terpisah `results.read_practice` karena memuat identity snapshot tamu.
+`GET /schedules/:id/summary` hanya mengembalikan aggregate tanpa PII.
+`GET /schedules/:id/results` mengembalikan halaman hasil dengan cursor dan
+filter release; mode schedule menentukan capability yang wajib.
+`GET /results/:id` membaca satu result berdasarkan session ID dan selalu diaudit
+sebagai sensitive read.
+
+Response hasil latihan mengikuti kontrak domain yang sama dengan UI peserta,
+termasuk `canRetry` dan `canRetryReason` (`SCHEDULE_CLOSED`,
+`ATTEMPT_LIMIT_REACHED`, atau `TOKEN_INVALID_OR_EXPIRED`), tetapi tidak memuat
+answer key atau correctness per soal. Identity snapshot practice dikembalikan
+sebagai object `identity` (nama, kelas, instansi, dan extra yang tervalidasi),
+sedangkan result MAIN memakai `participantId` dan nama snapshot akun. Tidak ada
+username, password, token, atau raw answer pada response agent.
 
 ### 8.4 Export
 
@@ -654,6 +671,7 @@ operasi berisiko tetap mengikuti ISS-129.
 ~~~text
 GET  /api/v1/integrations/agent/schedules/:id/summary
 GET  /api/v1/integrations/agent/schedules/:id/results
+GET  /api/v1/integrations/agent/results/:id
 POST /api/v1/integrations/agent/schedules/:id/exports
 GET  /api/v1/integrations/agent/exports/:id
 POST /api/v1/integrations/agent/exports/:id/download-token
@@ -878,7 +896,9 @@ Exact action plan/prepare-confirm untuk publish ditambahkan pada ISS-129.
 
 ### I5 — Results/export
 
-Summary/detail sesuai scope, controlled export, one-time download, PII grant, dan load isolation.
+Summary/detail result sesuai scope, separate MAIN/PRACTICE capability,
+`canRetry` contract, cursor pagination, controlled export, one-time download,
+PII grant, audit sensitive read, dan load isolation.
 
 ### I6 — High-risk
 

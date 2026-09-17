@@ -88,6 +88,7 @@ function app(
   capabilities: readonly string[] = [],
   questionAuthoring?: unknown,
   examAuthoring?: unknown,
+  resultReads?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -145,6 +146,7 @@ function app(
           ? { questionAuthoring: questionAuthoring as never }
           : {}),
         ...(examAuthoring ? { examAuthoring: examAuthoring as never } : {}),
+        ...(resultReads ? { resultReads: resultReads as never } : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -287,4 +289,43 @@ test("agent exam authoring exposes safe reads and mutation idempotency", async (
     }),
   );
   expect(mutation.status).toBe(422);
+});
+
+test("agent result routes expose summary and paginated schedule reads", async () => {
+  const resultReads = {
+    async getScheduleSummary() {
+      return { scheduleId: "70", results: { total: 0 } };
+    },
+    async listScheduleResults() {
+      return { items: [], nextCursor: null };
+    },
+  };
+  const application = app(
+    true,
+    ["results.read"],
+    undefined,
+    undefined,
+    resultReads,
+  );
+  const summary = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/schedules/70/summary",
+      { headers: { authorization: "Bearer integration-token" } },
+    ),
+  );
+  expect(summary.status).toBe(200);
+  expect(await summary.json()).toMatchObject({
+    data: { scheduleId: "70" },
+  });
+
+  const results = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/schedules/70/results?limit=10",
+      { headers: { authorization: "Bearer integration-token" } },
+    ),
+  );
+  expect(results.status).toBe(200);
+  expect(await results.json()).toMatchObject({
+    data: { items: [], nextCursor: null },
+  });
 });

@@ -31,6 +31,7 @@ import {
   IntegrationExamAuthoringService,
   IntegrationQuestionAuthoringService,
   IntegrationRateLimiter,
+  IntegrationResultReadService,
   IntegrationService,
   SqlIntegrationAuditSink,
   SqlIntegrationDiscoveryRepository,
@@ -197,6 +198,10 @@ export function createRuntimeDependencies(
     publish: examPublish,
     readiness: examReadiness,
   });
+  const agentResultReads = new IntegrationResultReadService({
+    database,
+    integration: integrationService,
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -238,6 +243,7 @@ export function createRuntimeDependencies(
             expectedOrigin: config.appOrigin,
             questionAuthoring: agentQuestionAuthoring,
             examAuthoring: agentExamAuthoring,
+            resultReads: agentResultReads,
           }),
         )
         .use(

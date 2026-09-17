@@ -1,4 +1,4 @@
-# Agent-readiness audit — ISS-120 sampai ISS-126
+# Agent-readiness audit — ISS-120 sampai ISS-127
 
 **Tanggal:** 18 September 2026
 **Scope:** baseline machine integration untuk Hivekeep/Hermes pada deployment
@@ -115,10 +115,29 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
 - Publish gagal dengan report readiness ketika ada error; published revision
   tetap immutable. Exact action plan dan web approval tetap menjadi ISS-129.
 
+## ISS-127 — result dan practice reads
+
+- Agent result memakai `IntegrationResultReadService` dan tabel result/session
+  authoritative. Summary schedule hanya mengembalikan aggregate dan counter,
+  tanpa nama, username, identity snapshot, jawaban, atau answer key.
+- Hasil MAIN memerlukan capability `results.read` dan mengembalikan stable
+  `participantId` serta nama snapshot akun. Hasil PRACTICE memerlukan capability
+  terpisah `results.read_practice` dan mengembalikan identity snapshot yang
+  sudah diminimalkan (nama, kelas, instansi, extra string tervalidasi).
+- List result memakai cursor dan filter `RELEASED`/`UNRELEASED` dengan batas
+  halaman 1–100. Detail satu result memakai session ID dan sensitive-read audit;
+  list yang memuat hasil juga diaudit satu kali per request, bukan per baris.
+- Scope diperiksa pada owner teacher, subject, dan schedule ID sebelum result
+  dikembalikan. Response tidak pernah memuat raw answer, password, token, atau
+  `finalization_note`.
+- Practice response memuat `canRetry` dan `canRetryReason`. Retry tersedia saat
+  schedule OPEN; schedule CLOSED/ARCHIVED memakai `SCHEDULE_CLOSED`, sedangkan
+  state lain yang belum dapat diakses memakai `TOKEN_INVALID_OR_EXPIRED`.
+
 ## Batasan yang sengaja ditunda
 
 - Action plan prepare/confirm dan web approval: ISS-129.
 - CRUD schedule agent: issue lanjutan setelah exam authoring.
-- Result/practice/export agent surface: ISS-127–ISS-128.
+- Controlled export agent surface: ISS-128.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
 - Full capability OpenAPI document dan typed Hivekeep/Hermes adapter: ISS-131.
