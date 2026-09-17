@@ -24,6 +24,19 @@ import {
   ExamVersionConflictError,
 } from "../exams/domain";
 import { ExamPublishBlockedError } from "../exams/publish";
+import {
+  EXPORT_COLUMNS,
+  EXPORT_FORMATS,
+  ExportActiveError,
+  type ExportColumn,
+  ExportDownloadTokenError,
+  type ExportFormat,
+  ExportIdempotencyConflictError,
+  ExportIdempotencyInProgressError,
+  ExportNotFoundError,
+  ExportNotReadyError,
+  ExportValidationError,
+} from "../exports/service";
 import { MediaPersistenceError, MediaValidationError } from "../media/domain";
 import {
   MEDIA_USAGES,
@@ -48,6 +61,12 @@ import {
   AgentExamNotFoundError,
   type IntegrationExamAuthoringService,
 } from "./exam-authoring";
+import {
+  type AgentExportInput,
+  AgentExportNotFoundError,
+  AgentExportPiiDeniedError,
+  type IntegrationExportService,
+} from "./export-service";
 import {
   type DiscoveryQuery,
   type DiscoveryResourceType,
@@ -85,6 +104,7 @@ export interface IntegrationRouteOptions {
   readonly questionAuthoring?: IntegrationQuestionAuthoringService;
   readonly examAuthoring?: IntegrationExamAuthoringService;
   readonly resultReads?: IntegrationResultReadService;
+  readonly exports?: IntegrationExportService;
 }
 
 export function createIntegrationRoutes(
@@ -698,6 +718,94 @@ export function createIntegrationRoutes(
     },
   );
 
+  app.post(
+    "/api/v1/integrations/agent/schedules/:id/exports",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, idempotencyKey) => {
+          const exportService = requireExportService(options);
+          const payload = parseAgentExportInput(body);
+          return exportService.createExport(
+            authentication,
+            idParam(params),
+            payload,
+            requestId,
+            idempotencyKey,
+          );
+        },
+      ),
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/exports/:id",
+    async ({ request, params }) => {
+      try {
+        const exportService = requireExportService(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await exportService.getStatus(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/exports/:id/download-token",
+    async ({ request, params }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const exportService = requireExportService(options);
+        return exportService.issueDownloadToken(
+          authentication,
+          idParam(params),
+          requestId,
+        );
+      }),
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/exports/:id/download",
+    async ({ request, params, query, set }) => {
+      try {
+        const exportService = requireExportService(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        const token =
+          request.headers.get("x-gezycbt-download-token")?.trim() ||
+          queryTextValue(query, "token");
+        if (!token)
+          throw new AppError(
+            401,
+            "AUTHENTICATION_REQUIRED",
+            "Token download diperlukan.",
+          );
+        const download = await exportService.download(
+          authentication,
+          idParam(params),
+          token,
+          requestId,
+        );
+        set.headers["content-type"] =
+          download.format === "JSON"
+            ? "application/json; charset=utf-8"
+            : "text/csv; charset=utf-8";
+        set.headers["content-disposition"] =
+          `attachment; filename="gezycbt-export-${download.jobId}.${download.format.toLowerCase()}"`;
+        return download.body;
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
   app.get(
     "/api/v1/integrations/agent/schedules",
     async ({ request, query }) => {
@@ -972,6 +1080,18 @@ function requireResultReads(
       "Result integration belum tersedia.",
     );
   return options.resultReads;
+}
+
+function requireExportService(
+  options: IntegrationRouteOptions,
+): IntegrationExportService {
+  if (!options.exports)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Export integration belum tersedia.",
+    );
+  return options.exports;
 }
 
 async function agentMutation<T>(
@@ -1254,6 +1374,46 @@ function mapIntegrationError(error: unknown): Error {
       "NOT_FOUND",
       "Jadwal atau hasil ujian tidak ditemukan.",
     );
+  if (
+    error instanceof AgentExportNotFoundError ||
+    error instanceof ExportNotFoundError
+  )
+    return new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
+  if (error instanceof AgentExportPiiDeniedError)
+    return new AppError(
+      403,
+      "CAPABILITY_DENIED",
+      "Grant integrasi tidak mengizinkan export PII.",
+    );
+  if (error instanceof ExportActiveError)
+    return new AppError(
+      409,
+      "EXPORT_ACTIVE",
+      "Masih ada export aktif untuk client ini.",
+    );
+  if (error instanceof ExportNotReadyError)
+    return new AppError(409, "EXPORT_NOT_READY", "Export belum siap diunduh.");
+  if (error instanceof ExportDownloadTokenError)
+    return new AppError(
+      409,
+      "DOWNLOAD_TOKEN_INVALID",
+      "Token download tidak valid atau sudah digunakan.",
+    );
+  if (
+    error instanceof ExportIdempotencyConflictError ||
+    error instanceof ExportIdempotencyInProgressError
+  )
+    return new AppError(
+      409,
+      error instanceof ExportIdempotencyConflictError
+        ? "IDEMPOTENCY_CONFLICT"
+        : "IDEMPOTENCY_IN_PROGRESS",
+      error instanceof ExportIdempotencyConflictError
+        ? "Idempotency-Key sudah dipakai untuk export berbeda."
+        : "Permintaan export dengan key tersebut masih diproses.",
+    );
+  if (error instanceof ExportValidationError)
+    return new AppError(422, "VALIDATION_FAILED", error.message);
   if (
     error instanceof MediaValidationError ||
     error instanceof MediaRelationValidationError
@@ -1582,6 +1742,69 @@ function parseAgentResultQuery(value: unknown): {
       ? { filter: rawFilter }
       : {}),
   };
+}
+
+function parseAgentExportInput(value: unknown): AgentExportInput {
+  const payload = objectPayload(value);
+  const format = payload.format ?? "CSV";
+  if (
+    typeof format !== "string" ||
+    !EXPORT_FORMATS.includes(format as ExportFormat)
+  )
+    throw new AppError(422, "VALIDATION_FAILED", "Format export tidak valid.");
+  const includePii = payload.includePii ?? false;
+  if (typeof includePii !== "boolean")
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "includePii harus berupa boolean.",
+    );
+  let filter: AgentExportInput["filter"];
+  if (payload.filter !== undefined) {
+    const filterPayload = objectPayload(payload.filter);
+    const release = filterPayload.release;
+    if (release !== "RELEASED" && release !== "UNRELEASED")
+      throw new AppError(
+        422,
+        "VALIDATION_FAILED",
+        "Filter release tidak valid.",
+      );
+    filter = { release };
+  }
+  let columns: readonly ExportColumn[] | undefined;
+  if (payload.columns !== undefined) {
+    if (!Array.isArray(payload.columns) || payload.columns.length === 0)
+      throw new AppError(
+        422,
+        "VALIDATION_FAILED",
+        "columns harus berupa array yang tidak kosong.",
+      );
+    columns = payload.columns.map((column) => {
+      if (
+        typeof column !== "string" ||
+        !EXPORT_COLUMNS.includes(column as ExportColumn)
+      )
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "Kolom export tidak didukung.",
+        );
+      return column as ExportColumn;
+    });
+  }
+  return {
+    format: format as ExportFormat,
+    includePii,
+    ...(filter ? { filter } : {}),
+    ...(columns ? { columns } : {}),
+  };
+}
+
+function queryTextValue(value: unknown, field: string): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string")
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+  return value;
 }
 
 function queryText(value: unknown): string | undefined {

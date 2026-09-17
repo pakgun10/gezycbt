@@ -16,6 +16,15 @@ import type { ExamSessionAdministrationService } from "../exam-sessions/service"
 import type { ExamPublishService } from "../exams/publish";
 import type { ExamReadinessService } from "../exams/readiness";
 import type { ExamDraftService } from "../exams/service";
+import {
+  ExportActiveError,
+  ExportDownloadTokenError,
+  ExportNotFoundError,
+  ExportNotReadyError,
+  ExportService,
+  ExportValidationError,
+  exportJobView,
+} from "../exports";
 import type { QuestionPublishService } from "../questions/publish";
 import type { QuestionReadinessService } from "../questions/readiness";
 import type { QuestionDraftService } from "../questions/service";
@@ -100,12 +109,15 @@ export interface StaffRouteOptions {
       "extendTime" | "endSession" | "closeSchedule" | "resetAttempt"
     >;
   };
+  /** Shared bounded export job/worker used by staff and agent routes. */
+  readonly exports?: ExportService;
   readonly expectedOrigin: URL | string;
 }
 
 /** Staff routes share the application services and never trust role/scope from the browser. */
 export function createStaffRoutes(options: StaffRouteOptions): Elysia {
   const app = new Elysia({ name: "gezycbt-staff-routes" });
+  const exports = options.exports ?? new ExportService(options.database);
   app.get("/api/v1/admin/users", async ({ request, query }) => {
     try {
       const actor = await requireStaff(request, options, "ADMIN");
@@ -1122,26 +1134,13 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
   );
   app.get("/api/v1/teacher/exports", async ({ request, query }) =>
     wrapSqlRead(request, options, "TEACHER", async (identity) => {
-      const limit = boundedLimit(queryValue(query, "limit"));
-      const params: unknown[] = [identity.user.id];
-      const conditions = ["j.requester_user_id = ?"];
       const scheduleId = optionalId(queryValue(query, "scheduleId"));
-      if (scheduleId) {
-        conditions.push("j.schedule_id = ?");
-        params.push(scheduleId);
-      }
-      params.push(limit + 1);
-      const rows = await options.database.query<Record<string, unknown>>(
-        `SELECT j.id, j.format, j.status, j.row_count, j.error_message,
-                j.created_at, j.expires_at
-         FROM export_jobs j WHERE ${conditions.join(" AND ")}
-         ORDER BY j.created_at DESC, j.id DESC LIMIT ?`,
-        params,
-      );
-      return page(
-        rows.slice(0, limit).map(mapExportJob),
-        rows.length > limit ? String(rows[limit]?.id) : null,
-      );
+      const cursor = optionalId(queryValue(query, "cursor"));
+      return exports.listJobs(identity.user.id as Id, {
+        ...(scheduleId ? { scheduleId } : {}),
+        limit: boundedLimit(queryValue(query, "limit")),
+        ...(cursor ? { cursor } : {}),
+      });
     }),
   );
   app.post(
@@ -1167,45 +1166,24 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           "format",
         );
         const includePii = payload.includePii === true;
-        const result = await options.database.transaction(
-          async (connection) => {
-            const inserted = await connection.execute(
-              `INSERT INTO export_jobs
-             (requester_user_id, schedule_id, format, include_pii, status, expires_at)
-             VALUES (?, ?, ?, ?, 'QUEUED', DATE_ADD(UTC_TIMESTAMP(6), INTERVAL 1 HOUR))`,
-              [
-                staffContext.actor.userId,
-                scheduleId,
-                format,
-                includePii ? 1 : 0,
-              ],
-            );
-            if (inserted.insertId === undefined)
-              throw new Error("Export job insert did not return an ID");
-            const rows = await connection.query<Record<string, unknown>>(
-              `SELECT id, format, status, row_count, error_message, created_at, expires_at
-             FROM export_jobs WHERE id = ?`,
-              [inserted.insertId],
-            );
-            if (!rows[0]) throw new Error("Export job could not be read back");
-            return mapExportJob(rows[0]);
-          },
-        );
-        queueMicrotask(
-          () =>
-            void processExportJob(
-              options.database,
-              result.id,
-              format,
-              includePii,
-            ),
-        );
-        return result;
+        const requesterUserId = staffContext.actor.userId;
+        if (!requesterUserId)
+          throw new AppError(
+            401,
+            "AUTHENTICATION_REQUIRED",
+            "Identitas staff tidak dapat diverifikasi.",
+          );
+        return exports.createJob({
+          requesterUserId,
+          scheduleId,
+          format,
+          includePii,
+        });
       }),
   );
   app.get("/api/v1/teacher/exports/:id", async ({ request, params }) =>
     wrapSqlRead(request, options, "TEACHER", async (identity) => {
-      const job = await readExportJob(options.database, idParam(params));
+      const job = await exports.getJob(idParam(params));
       if (!job) throw new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
       await assertStaffScheduleAccess(
         options.database,
@@ -1215,17 +1193,17 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       );
       if (
         identity.user.role !== "ADMIN" &&
-        job.requesterId !== identity.user.id
+        job.requesterUserId !== identity.user.id
       )
         throw new AppError(403, "FORBIDDEN", "Export di luar scope Anda.");
-      return job.data;
+      return exportJobView(job);
     }),
   );
   app.post(
     "/api/v1/teacher/exports/:id/download-token",
     async ({ request, params }) =>
       wrapMutation(request, options, "TEACHER", async (staffContext) => {
-        const job = await readExportJob(options.database, idParam(params));
+        const job = await exports.getJob(idParam(params));
         if (!job)
           throw new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
         await assertStaffScheduleAccess(
@@ -1241,25 +1219,10 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         );
         if (
           staffContext.actor.role !== "ADMIN" &&
-          job.requesterId !== String(staffContext.actor.userId)
+          job.requesterUserId !== staffContext.actor.userId
         )
           throw new AppError(403, "FORBIDDEN", "Export di luar scope Anda.");
-        if (job.data.status !== "READY")
-          throw new AppError(
-            409,
-            "EXPORT_NOT_READY",
-            "Export belum siap diunduh.",
-          );
-        const raw = Buffer.from(
-          crypto.getRandomValues(new Uint8Array(32)),
-        ).toString("base64url");
-        const digest = await sha256Bytes(raw);
-        const expiresAt = new Date(Date.now() + 5 * 60_000).toISOString();
-        await options.database.execute(
-          "UPDATE export_files SET download_token_digest = ?, download_token_expires_at = ?, downloaded_at = NULL WHERE export_job_id = ?",
-          [digest, expiresAt, idParam(params)],
-        );
-        return { token: raw, expiresAt };
+        return exports.issueDownloadToken(job.id);
       }),
   );
   app.get(
@@ -1267,7 +1230,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
     async ({ request, params, query, set }) => {
       try {
         const identity = await requireStaff(request, options, "TEACHER");
-        const job = await readExportJob(options.database, idParam(params));
+        const job = await exports.getJob(idParam(params));
         if (!job)
           throw new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
         await assertStaffScheduleAccess(
@@ -1278,7 +1241,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         );
         if (
           identity.user.role !== "ADMIN" &&
-          job.requesterId !== identity.user.id
+          job.requesterUserId !== identity.user.id
         )
           throw new AppError(403, "FORBIDDEN", "Export di luar scope Anda.");
         const token = queryValue(query, "token");
@@ -1288,36 +1251,14 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
             "AUTHENTICATION_REQUIRED",
             "Token download diperlukan.",
           );
-        const digest = await sha256Bytes(token);
-        const consumed = await options.database.transaction(
-          async (connection) => {
-            const updated = await connection.execute(
-              "UPDATE export_files SET downloaded_at = UTC_TIMESTAMP(6), download_token_digest = NULL, download_token_expires_at = NULL WHERE export_job_id = ? AND download_token_digest = ? AND download_token_expires_at > UTC_TIMESTAMP(6) AND downloaded_at IS NULL",
-              [idParam(params), digest],
-            );
-            if (updated.affectedRows !== 1) return null;
-            const rows = await connection.query<Record<string, unknown>>(
-              "SELECT content_blob FROM export_files WHERE export_job_id = ? LIMIT 1",
-              [idParam(params)],
-            );
-            return rows[0]?.content_blob ?? null;
-          },
-        );
-        if (consumed === null)
-          throw new AppError(
-            409,
-            "DOWNLOAD_TOKEN_INVALID",
-            "Token download tidak valid atau sudah digunakan.",
-          );
+        const download = await exports.consumeDownload(job.id, token);
         set.headers["content-type"] =
-          job.data.format === "JSON"
+          download.format === "JSON"
             ? "application/json; charset=utf-8"
             : "text/csv; charset=utf-8";
         set.headers["content-disposition"] =
-          `attachment; filename="gezycbt-export-${job.data.id}.${job.data.format.toLowerCase()}"`;
-        return typeof consumed === "string"
-          ? consumed
-          : Buffer.from(consumed as Uint8Array);
+          `attachment; filename="gezycbt-export-${download.jobId}.${download.format.toLowerCase()}"`;
+        return download.body;
       } catch (error) {
         throw mapStaffError(error);
       }
@@ -1894,147 +1835,6 @@ function mapRuntimeSession(session: {
   };
 }
 
-function mapExportJob(row: Record<string, unknown>) {
-  return {
-    id: String(row.id),
-    format: String(row.format),
-    status: String(row.status),
-    createdAt: isoValue(row.created_at),
-    expiresAt:
-      row.expires_at === null || row.expires_at === undefined
-        ? null
-        : isoValue(row.expires_at),
-    ...(row.row_count === null || row.row_count === undefined
-      ? {}
-      : { rowCount: Number(row.row_count) }),
-    errorMessage:
-      row.error_message === null || row.error_message === undefined
-        ? null
-        : String(row.error_message),
-  };
-}
-
-async function readExportJob(
-  database: DatabasePort,
-  jobId: Id,
-): Promise<{
-  readonly requesterId: string;
-  readonly scheduleId: Id;
-  readonly data: ReturnType<typeof mapExportJob>;
-} | null> {
-  const rows = await database.query<Record<string, unknown>>(
-    `SELECT id, requester_user_id, schedule_id, format, status, row_count,
-            error_message, created_at, expires_at
-     FROM export_jobs WHERE id = ? LIMIT 1`,
-    [jobId],
-  );
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    requesterId: String(row.requester_user_id),
-    scheduleId: String(row.schedule_id) as Id,
-    data: mapExportJob(row),
-  };
-}
-
-async function processExportJob(
-  database: DatabasePort,
-  jobId: string,
-  format: "CSV" | "JSON",
-  includePii: boolean,
-): Promise<void> {
-  try {
-    const running = await database.execute(
-      "UPDATE export_jobs SET status = 'RUNNING', updated_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'QUEUED'",
-      [jobId],
-    );
-    if (running.affectedRows !== 1) return;
-    const jobs = await database.query<Record<string, unknown>>(
-      "SELECT schedule_id FROM export_jobs WHERE id = ? LIMIT 1",
-      [jobId],
-    );
-    const scheduleId = jobs[0]?.schedule_id;
-    if (scheduleId === undefined) throw new Error("Export schedule missing");
-    const rows = await database.query<Record<string, unknown>>(
-      `SELECT r.id, r.session_id, r.participant_id, s.participant_name_snapshot,
-              u.username, r.correct_count, r.incorrect_count, r.unanswered_count,
-              r.earned_score, r.max_score, r.percentage, r.released_at, r.scored_at
-       FROM exam_results r
-       JOIN exam_sessions s ON s.id = r.session_id
-       LEFT JOIN users u ON u.id = r.participant_id
-       WHERE r.schedule_id = ? ORDER BY r.id ASC LIMIT 10000`,
-      [scheduleId],
-    );
-    const safeRows = rows.map((row) => ({
-      id: String(row.id),
-      sessionId: String(row.session_id),
-      participantName: String(row.participant_name_snapshot),
-      ...(includePii && row.username !== null && row.username !== undefined
-        ? { username: String(row.username) }
-        : {}),
-      correctCount: Number(row.correct_count),
-      incorrectCount: Number(row.incorrect_count),
-      unansweredCount: Number(row.unanswered_count),
-      earnedScore: String(row.earned_score),
-      maxScore: String(row.max_score),
-      percentage: String(row.percentage),
-      releasedAt:
-        row.released_at === null || row.released_at === undefined
-          ? null
-          : isoValue(row.released_at),
-      scoredAt: isoValue(row.scored_at),
-    }));
-    const content =
-      format === "JSON"
-        ? `${JSON.stringify(safeRows)}\n`
-        : renderExportCsv(safeRows);
-    const digest = await sha256Bytes(content);
-    await database.transaction(async (connection) => {
-      await connection.execute(
-        "INSERT INTO export_files (export_job_id, content_blob, content_sha256) VALUES (?, ?, ?)",
-        [jobId, Buffer.from(content), digest],
-      );
-      await connection.execute(
-        "UPDATE export_jobs SET status = 'READY', row_count = ?, updated_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'RUNNING'",
-        [safeRows.length, jobId],
-      );
-    });
-  } catch {
-    await database.execute(
-      "UPDATE export_jobs SET status = 'FAILED', error_message = 'Export gagal diproses.', updated_at = UTC_TIMESTAMP(6) WHERE id = ? AND status IN ('QUEUED', 'RUNNING')",
-      [jobId],
-    );
-  }
-}
-
-function renderExportCsv(rows: readonly Record<string, unknown>[]): string {
-  const keys = [
-    "id",
-    "sessionId",
-    "participantName",
-    "username",
-    "correctCount",
-    "incorrectCount",
-    "unansweredCount",
-    "earnedScore",
-    "maxScore",
-    "percentage",
-    "releasedAt",
-    "scoredAt",
-  ];
-  const csvEscapeValue = (value: unknown) => {
-    const text = value === null || value === undefined ? "" : String(value);
-    return /[",\n\r]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
-  };
-  return `${keys.join(",")}\n${rows.map((row) => keys.map((key) => csvEscapeValue(row[key])).join(",")).join("\n")}\n`;
-}
-
-async function sha256Bytes(value: string): Promise<Uint8Array> {
-  return new Uint8Array(
-    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
-  );
-}
-
 function mapQuestionDraft(draft: {
   readonly id: Id;
   readonly questionId: Id;
@@ -2306,6 +2106,24 @@ function mapStaffError(error: unknown): Error {
       "REAUTH_REQUIRED",
       "Masuk ulang diperlukan untuk operasi ini.",
     );
+  if (error instanceof ExportNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
+  if (error instanceof ExportActiveError)
+    return new AppError(
+      409,
+      "EXPORT_ACTIVE",
+      "Masih ada export aktif untuk requester ini.",
+    );
+  if (error instanceof ExportNotReadyError)
+    return new AppError(409, "EXPORT_NOT_READY", "Export belum siap diunduh.");
+  if (error instanceof ExportDownloadTokenError)
+    return new AppError(
+      409,
+      "DOWNLOAD_TOKEN_INVALID",
+      "Token download tidak valid atau sudah digunakan.",
+    );
+  if (error instanceof ExportValidationError)
+    return new AppError(422, "VALIDATION_FAILED", error.message);
   if (/Import|Credential/u.test(name))
     return new AppError(
       422,

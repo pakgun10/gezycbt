@@ -89,6 +89,7 @@ function app(
   questionAuthoring?: unknown,
   examAuthoring?: unknown,
   resultReads?: unknown,
+  exportService?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -147,6 +148,7 @@ function app(
           : {}),
         ...(examAuthoring ? { examAuthoring: examAuthoring as never } : {}),
         ...(resultReads ? { resultReads: resultReads as never } : {}),
+        ...(exportService ? { exports: exportService as never } : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -328,4 +330,94 @@ test("agent result routes expose summary and paginated schedule reads", async ()
   expect(await results.json()).toMatchObject({
     data: { items: [], nextCursor: null },
   });
+});
+
+test("agent export routes require idempotency and expose status/download token", async () => {
+  const exportService = {
+    async createExport() {
+      return { id: "80", status: "QUEUED" };
+    },
+    async getStatus() {
+      return { id: "80", status: "READY" };
+    },
+    async issueDownloadToken() {
+      return { token: "secret", expiresAt: "2099-01-01T00:00:00.000Z" };
+    },
+    async download() {
+      return {
+        body: new TextEncoder().encode("id\n80\n"),
+        format: "CSV" as const,
+        jobId: "80",
+      };
+    },
+  };
+  const application = app(
+    true,
+    ["results.export"],
+    undefined,
+    undefined,
+    undefined,
+    exportService,
+  );
+  const missingKey = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/schedules/70/exports",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer integration-token" },
+      },
+    ),
+  );
+  expect(missingKey.status).toBe(422);
+  const created = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/schedules/70/exports",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "idempotency-key": "export-route-idempotency-001",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ format: "CSV" }),
+      },
+    ),
+  );
+  expect(created.status).toBe(200);
+  expect(await created.json()).toMatchObject({ data: { id: "80" } });
+  const status = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/exports/80",
+      { headers: { authorization: "Bearer integration-token" } },
+    ),
+  );
+  expect(status.status).toBe(200);
+  const token = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/exports/80/download-token",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "idempotency-key": "export-token-idempotency-001",
+        },
+      },
+    ),
+  );
+  expect(token.status).toBe(200);
+  expect(await token.json()).toMatchObject({ data: { token: "secret" } });
+  const download = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/exports/80/download",
+      {
+        headers: {
+          authorization: "Bearer integration-token",
+          "x-gezycbt-download-token": "secret",
+        },
+      },
+    ),
+  );
+  expect(download.status).toBe(200);
+  expect(download.headers.get("content-type")).toContain("text/csv");
+  expect(await download.text()).toContain("80");
 });

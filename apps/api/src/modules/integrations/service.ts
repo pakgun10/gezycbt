@@ -134,6 +134,10 @@ export class IntegrationRateLimiter {
     this.consume(`client:${clientId}:${kind}`, 60_000, limit);
   }
 
+  checkExport(clientId: Id): void {
+    this.consume(`client:${clientId}:export`, 10 * 60_000, 3);
+  }
+
   checkAuthFailure(fingerprint: string): void {
     this.consume(
       `failure:${fingerprint}`,
@@ -178,6 +182,10 @@ export class IntegrationService {
       readonly discovery?: IntegrationDiscoveryRepository;
     } = {},
   ) {}
+
+  checkExportRateLimit(clientId: Id): void {
+    this.options.rateLimiter?.checkExport(clientId);
+  }
 
   async authenticate(
     token: string,

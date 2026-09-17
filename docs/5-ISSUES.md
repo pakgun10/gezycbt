@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-127 selesai pada baseline ini
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-128 selesai pada baseline ini
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 18 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -159,8 +159,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-125` | `DONE` | Agent question/media authoring memakai application service dan external-agent context: safe question read, `questions.read_key` terpisah dengan audit sensitif, CRUD draft/revision, readiness, publish, media upload/attachment, optimistic version, scope, dan bounded idempotency header. Test adapter, storage, typecheck, lint, serta unit suite lulus. |
 | `ISS-126` | `DONE` | Agent exam authoring menyediakan safe exam/revision read, create revision, metadata update, attach/remove/reorder soal, readiness report, dan publish melalui `ExamDraftService`, `ExamReadinessService`, serta `ExamPublishService` dengan owner/grant scope, external-agent context, optimistic version, idempotency, audit, dan route tests. |
 | `ISS-127` | `DONE` | Agent result/practice reads menyediakan summary aggregate tanpa PII, result list cursor/filter, detail result, capability `results.read` vs `results.read_practice`, practice identity snapshot, `canRetry`/`canRetryReason`, scope, dan sensitive-read audit. |
+| `ISS-128` | `DONE` | Controlled export agent memakai job/worker bounded yang sama dengan web, filter/kolom/scope snapshot, PII grant, satu job aktif per client, durable idempotency, polling status, one-use download token maksimal 5 menit, protected download, migration, dan audit. |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-127` telah selesai. Entry berikutnya adalah `ISS-128`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-128` telah selesai. Entry berikutnya adalah `ISS-129`.
 
 ---
 
@@ -618,12 +619,13 @@ gate `ISS-093–ISS-094` kemudian diselesaikan untuk memastikan API, database,
 dan workflow lokal dapat dijalankan.
 
 Fase 8 `ISS-100–ISS-110` kini selesai sebagai baseline staff web dan service
-adapter. Agent `ISS-120–ISS-127` juga selesai sebagai fondasi machine client,
+adapter. Agent `ISS-120–ISS-128` juga selesai sebagai fondasi machine client,
 credential, grant, policy, management, kill switch, discovery/search,
-question/media authoring, exam authoring, dan result/practice reads.
+question/media authoring, exam authoring, result/practice reads, dan controlled
+export.
 Tabel status pada bagian 1.5 adalah source of truth untuk evidence.
 
-Langkah berikutnya adalah `ISS-128` untuk agent controlled export. Browser trace
+Langkah berikutnya adalah `ISS-129` untuk exact action plan dan approval. Browser trace
 production-like, load test, dan hardening tetap harus dijalankan pada fase
 berikutnya sebelum pilot/production.
 

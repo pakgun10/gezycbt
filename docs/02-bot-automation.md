@@ -1,7 +1,7 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, exam authoring ISS-126, dan result/practice reads ISS-127 diimplementasikan; tool workflow lanjutan masih bertahap
-**Versi dokumen:** 0.6
+**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, exam authoring ISS-126, result/practice reads ISS-127, dan controlled export ISS-128 diimplementasikan; tool workflow lanjutan masih bertahap
+**Versi dokumen:** 0.7
 **Terakhir diperbarui:** 18 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
@@ -9,10 +9,10 @@
 Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp sendiri. Bot, channel, percakapan, memory, LLM, dan agent loop dijalankan oleh Hivekeep atau Hermes sebagai aplikasi terpisah. GezyCBT menyediakan API/tool yang aman agar agent dapat menjalankan pekerjaan CBT.
 
 Fondasi machine client, credential, grant, rate limit, audit, management console,
-kill switch, discovery, question/media authoring, exam authoring, dan result/
-practice reads tersedia pada ISS-120–ISS-127.
-Controlled export, high-risk action approval, dan adapter compatibility masih
-dibuka bertahap; daftar batasnya ada di
+kill switch, discovery, question/media authoring, exam authoring, result/
+practice reads, dan controlled export tersedia pada ISS-120–ISS-128.
+High-risk action approval dan adapter compatibility masih dibuka bertahap;
+daftar batasnya ada di
 [agent-readiness-audit.md](./agent-readiness-audit.md).
 
 Kata **wajib** berarti aturan correctness atau security yang tidak boleh dilewati. Kata **disarankan** adalah baseline yang dapat diubah melalui Architecture Decision Record.
@@ -466,17 +466,30 @@ username, password, token, atau raw answer pada response agent.
 
 ### 8.4 Export
 
-1. Agent meminta export dengan filter, format, dan kolom.
-2. Server memeriksa scope dan risiko PII.
+1. Agent meminta export dengan filter, format, dan kolom memakai capability
+   `results.export`.
+2. Server memeriksa scope, batas baris grant, dan risiko PII. Kolom
+   `participantId`, `username`, `class`, dan `institution` memerlukan
+   `result_pii_export_allowed=true`; nama peserta tetap tersedia sebagai field
+   laporan dasar.
 3. Jika perlu, server membuat action plan.
-4. Export job berjalan asynchronous ke protected storage.
-5. Agent polling dengan backoff.
-6. Server membuat one-time download URL yang berlaku maksimum 5 menit.
-7. Agent mengunduh dan mengirim file melalui channel miliknya.
+4. Server membuat satu job aktif per integration client dengan snapshot filter,
+   kolom, scope, grant version, dan batas baris.
+5. Export job berjalan asynchronous melalui worker bounded yang sama dengan
+   UI web ke protected storage.
+6. Agent polling status dengan backoff.
+7. Server membuat one-time download token yang berlaku maksimum 5 menit.
+8. Agent mengunduh melalui endpoint protected dan mengirim file melalui
+   channel miliknya.
 
 GezyCBT tidak mengirim file langsung ke Telegram/WhatsApp.
 
 Download token hanya dapat dipakai satu kali, terikat pada client, owner, export file, dan scope saat token dibuat. Setelah digunakan atau kedaluwarsa, agent harus meminta token baru dan authorization diperiksa ulang.
+Endpoint download menerima Bearer credential client dan token sekali-pakai yang
+dikembalikan dari `download-token`, sebaiknya melalui header
+`X-GezyCBT-Download-Token` (query `token` hanya fallback kompatibilitas).
+Response berupa file CSV/JSON dengan `Content-Disposition`; token tidak pernah
+ditulis ke audit atau log request.
 
 ### 8.5 Ujian aktif
 
@@ -675,6 +688,7 @@ GET  /api/v1/integrations/agent/results/:id
 POST /api/v1/integrations/agent/schedules/:id/exports
 GET  /api/v1/integrations/agent/exports/:id
 POST /api/v1/integrations/agent/exports/:id/download-token
+GET  /api/v1/integrations/agent/exports/:id/download
 POST /api/v1/integrations/agent/actions/prepare
 GET  /api/v1/integrations/agent/actions?status=:status
 GET  /api/v1/integrations/agent/actions/:id

@@ -26,9 +26,11 @@ import {
   ExamReadinessService,
   SqlExamDraftRepository,
 } from "../modules/exams";
+import { ExportService } from "../modules/exports";
 import {
   createIntegrationRoutes,
   IntegrationExamAuthoringService,
+  IntegrationExportService,
   IntegrationQuestionAuthoringService,
   IntegrationRateLimiter,
   IntegrationResultReadService,
@@ -202,6 +204,12 @@ export function createRuntimeDependencies(
     database,
     integration: integrationService,
   });
+  const exports = new ExportService(database);
+  const agentExports = new IntegrationExportService({
+    database,
+    integration: integrationService,
+    exports,
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -244,6 +252,7 @@ export function createRuntimeDependencies(
             questionAuthoring: agentQuestionAuthoring,
             examAuthoring: agentExamAuthoring,
             resultReads: agentResultReads,
+            exports: agentExports,
           }),
         )
         .use(
@@ -274,6 +283,7 @@ export function createRuntimeDependencies(
               commit: userImportCommit,
             },
             runtime: { administration: examSessionAdministration },
+            exports,
             expectedOrigin: config.appOrigin,
           }),
         );

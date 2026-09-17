@@ -1,11 +1,13 @@
-# Agent-readiness audit — ISS-120 sampai ISS-127
+# Agent-readiness audit — ISS-120 sampai ISS-128
 
 **Tanggal:** 18 September 2026
 **Scope:** baseline machine integration untuk Hivekeep/Hermes pada deployment
 single-tenant GezyCBT.
 
-Dokumen ini mencatat hasil audit fondasi dan keputusan implementasi sebelum
-tool hasil/export dan operasi berisiko agent dibuka pada issue berikutnya.
+Dokumen ini mencatat hasil audit fondasi dan keputusan implementasi setelah
+discovery, authoring, pembacaan hasil, dan controlled export agent tersedia.
+Operasi berisiko yang membutuhkan action plan dan approval tetap menunggu
+issue berikutnya.
 
 ## ISS-120 — application-service readiness
 
@@ -134,10 +136,27 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
   schedule OPEN; schedule CLOSED/ARCHIVED memakai `SCHEDULE_CLOSED`, sedangkan
   state lain yang belum dapat diakses memakai `TOKEN_INVALID_OR_EXPIRED`.
 
+## ISS-128 — controlled export
+
+- Agent export memakai `ExportService` dan bounded worker yang sama dengan
+  route web. Job menyimpan integration client, grant version, scope snapshot,
+  filter, kolom, format, dan row limit di MariaDB.
+- Capability `results.export` wajib tersedia. Kolom tambahan
+  (`participantId`, `username`, `class`, `institution`) memerlukan constraint
+  `result_pii_export_allowed=true`; response status tidak memuat isi file.
+- Satu job `QUEUED`/`RUNNING` aktif dibatasi per client. Pembuatan agent
+  memakai `integration_idempotency_keys` dalam transaction yang sama dengan
+  insert job sehingga retry dengan body sama replay aman dan body berbeda
+  ditolak.
+- Status dipoll melalui endpoint agent tanpa audit row per polling. Token
+  download disimpan sebagai digest, berlaku maksimal 5 menit, terikat client,
+  dan dikonsumsi atomik satu kali. Download berhasil diaudit.
+- Job dan file melewati state `QUEUED` → `RUNNING` → `READY` atau `FAILED`,
+  lalu `EXPIRED` setelah expiry; worker membatasi query dan concurrency satu.
+
 ## Batasan yang sengaja ditunda
 
 - Action plan prepare/confirm dan web approval: ISS-129.
 - CRUD schedule agent: issue lanjutan setelah exam authoring.
-- Controlled export agent surface: ISS-128.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
 - Full capability OpenAPI document dan typed Hivekeep/Hermes adapter: ISS-131.
