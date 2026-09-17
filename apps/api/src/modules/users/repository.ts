@@ -47,6 +47,12 @@ export interface UserRepository {
     expectedUpdatedAt?: UtcTimestamp,
   ): Promise<StoredUser | null>;
   disable(id: Id, expectedUpdatedAt?: UtcTimestamp): Promise<StoredUser | null>;
+  updatePassword(
+    id: Id,
+    passwordHash: string,
+    forcePasswordChange: boolean,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<StoredUser | null>;
 }
 
 type UserRow = Record<string, unknown> & {
@@ -259,6 +265,30 @@ export class SqlUserRepository implements UserRepository {
       await connection.execute(
         "UPDATE users SET status = 'DISABLED', updated_at = UTC_TIMESTAMP(6) WHERE id = ?",
         [id],
+      );
+      return this.findByIdOn(connection, id);
+    });
+  }
+
+  async updatePassword(
+    id: Id,
+    passwordHash: string,
+    forcePasswordChange: boolean,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<StoredUser | null> {
+    const validatedHash = validatePasswordHash(passwordHash);
+    return this.database.transaction(async (connection) => {
+      const current = await this.findByIdOn(connection, id);
+      if (!current) return null;
+      if (expectedUpdatedAt && current.updatedAt !== expectedUpdatedAt) {
+        throw new UserVersionConflictError();
+      }
+      await connection.execute(
+        `UPDATE users
+         SET password_hash = ?, password_changed_at = UTC_TIMESTAMP(6),
+             force_password_change = ?, updated_at = UTC_TIMESTAMP(6)
+         WHERE id = ?`,
+        [validatedHash, forcePasswordChange, id],
       );
       return this.findByIdOn(connection, id);
     });

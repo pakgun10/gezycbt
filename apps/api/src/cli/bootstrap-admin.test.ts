@@ -48,6 +48,9 @@ function repository(): UserRepository & { calls: number } {
     async disable() {
       return storedUser;
     },
+    async updatePassword() {
+      return storedUser;
+    },
   };
 }
 

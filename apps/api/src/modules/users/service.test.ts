@@ -91,6 +91,16 @@ function repository(): UserRepository & {
       state.current = storedUser({ ...state.current, status: "DISABLED" });
       return state.current;
     },
+    async updatePassword(_id, passwordHash, forcePasswordChange) {
+      state.calls.push("password");
+      if (!state.current) return null;
+      state.current = storedUser({
+        ...state.current,
+        passwordHash,
+        forcePasswordChange,
+      });
+      return state.current;
+    },
   };
 }
 

@@ -101,6 +101,28 @@ describe("SqlUserRepository", () => {
     ).toBe(true);
   });
 
+  test("updates password metadata transactionally without exposing a delete path", async () => {
+    const db = database();
+    const repository = new SqlUserRepository(db);
+    const user = await repository.updatePassword(
+      "10" as Id,
+      "$argon2id$v=19$m=19456,t=2,p=1$replacement-hash",
+      true,
+    );
+
+    expect(user?.id).toBe("10" as Id);
+    expect(
+      db.statements.some((statement) =>
+        statement.includes("password_changed_at = UTC_TIMESTAMP(6)"),
+      ),
+    ).toBe(true);
+    expect(
+      db.statements.every(
+        (statement) => !statement.includes("DELETE FROM users"),
+      ),
+    ).toBe(true);
+  });
+
   test("serializes first-admin creation on the system lock row", async () => {
     const db = database(true);
     const repository = new SqlUserRepository(db);

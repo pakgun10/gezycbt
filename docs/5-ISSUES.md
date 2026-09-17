@@ -87,8 +87,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-032` | `DONE` | CSRF/Origin guard tersedia di `apps/api/src/modules/auth/csrf.ts`; safe methods dilewati, mutation wajib exact same-origin `Origin`, session route wajib synchronizer token `X-CSRF-Token`, public route dapat Origin-only, serta error dipetakan ke 401/403 yang aman. Unit API lulus. |
 | `ISS-033` | `DONE` | Login staff dan participant memiliki endpoint terpisah, role/status eligibility, generic authentication failure, dummy verification untuk akun yang tidak eligible, bounded failure limiter sebelum hashing, opaque session cookie, CSRF context, dan trusted client-IP adapter. API typecheck serta 53 test lulus (3 integration test MariaDB ter-skip tanpa database). |
 | `ISS-034` | `DONE` | `AuthorizationPolicyService` dan `ActorContext` role/status boundary tersedia untuk admin/staff, teacher ownership + subject/class scope, participant eligibility, session ownership, serta result release visibility. Negative IDOR, cross-role, cross-scope, disabled actor, dan unpublished result tests lulus. API typecheck serta 57 test lulus (3 integration test MariaDB ter-skip tanpa database). |
+| `ISS-035` | `DONE` | Password management menyediakan self-change dan admin reset dengan re-authentication, role-aware Argon2 hash, optimistic user update, forced password change untuk reset, revoke seluruh session target, replacement session untuk self-change, dan audit contract tanpa secret. API typecheck serta 62 test lulus (3 integration test MariaDB ter-skip tanpa database). |
 
-Gate Fase 0 sampai `ISS-034` telah selesai. Issue berikutnya adalah `ISS-035`: password change/reset dan session revoke.
+Gate Fase 0 sampai `ISS-035` telah selesai. Issue berikutnya adalah `ISS-036`: auth expiry dan participant re-login contract.
 
 ---
 
@@ -590,7 +591,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-32. `ISS-035` — password change/reset dan session revoke.
+32. `ISS-035` — password change/reset dan session revoke (selesai).
+
+Langkah berikutnya:
+
+33. `ISS-036` — auth expiry dan participant re-login contract.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
