@@ -99,6 +99,22 @@ describe("SqlScheduleRepository", () => {
     expect(database.parameters.some(([value]) => value === digest)).toBe(true);
   });
 
+  test("lists only bounded lifecycle candidates using indexed window predicates", async () => {
+    const database = new FakeScheduleDatabase();
+    const rows = await new SqlScheduleRepository(
+      database,
+    ).listLifecycleCandidates("2026-09-17T02:00:00.000Z" as UtcTimestamp, 25);
+    expect(rows).toEqual([{ id: SCHEDULE }]);
+    expect(
+      database.statements.some(
+        (sql) =>
+          sql.includes("status = 'READY' AND starts_at <= ?") &&
+          sql.includes("status = 'OPEN' AND ends_at <= ?") &&
+          sql.includes("LIMIT ?"),
+      ),
+    ).toBe(true);
+  });
+
   test("stores staff close reason and timestamp through the database clock", async () => {
     const database = new FakeScheduleDatabase();
     database.scheduleRow = { ...database.scheduleRow, status: "READY" };

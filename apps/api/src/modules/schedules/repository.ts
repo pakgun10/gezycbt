@@ -27,6 +27,7 @@ import {
   ScheduleValidationError,
   ScheduleVersionConflictError,
 } from "./domain";
+import type { ScheduleLifecycleCandidateRepository } from "./reconciler";
 
 export interface ScheduleRepository {
   findSchedule(id: Id): Promise<Schedule | null>;
@@ -64,7 +65,9 @@ export interface ScheduleTransitionOptions {
 
 export interface ScheduleRepositoryConnection extends DatabaseConnection {}
 
-export class SqlScheduleRepository implements ScheduleRepository {
+export class SqlScheduleRepository
+  implements ScheduleRepository, ScheduleLifecycleCandidateRepository
+{
   constructor(private readonly database: DatabasePort) {}
 
   findSchedule(id: Id): Promise<Schedule | null> {
@@ -83,6 +86,32 @@ export class SqlScheduleRepository implements ScheduleRepository {
       [id],
     );
     return rows[0] ? mapExamReference(rows[0]) : null;
+  }
+
+  async listLifecycleCandidates(
+    now: UtcTimestamp,
+    limit: number,
+  ): Promise<readonly { id: Id }[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100)
+      throw new RangeError(
+        "Lifecycle candidate limit must be between 1 and 100",
+      );
+    const timestamp = parseUtcTimestamp(now);
+    if (!timestamp)
+      throw new ScheduleValidationError(
+        "Invalid lifecycle timestamp",
+        "INVALID_TIMESTAMP",
+      );
+    const rows = await this.database.query<{ id: unknown }>(
+      `SELECT id
+       FROM exam_schedules
+       WHERE (status = 'READY' AND starts_at <= ?)
+          OR (status = 'OPEN' AND ends_at <= ?)
+       ORDER BY ends_at ASC, id ASC
+       LIMIT ?`,
+      [toDatabaseTimestamp(timestamp), toDatabaseTimestamp(timestamp), limit],
+    );
+    return rows.map((row) => ({ id: requiredId(row.id, "schedule ID") }));
   }
 
   async createSchedule(

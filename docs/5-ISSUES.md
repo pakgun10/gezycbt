@@ -108,8 +108,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-054` | `DONE` | `ScheduleService` dan `SqlScheduleRepository` menyediakan create/update draft, teacher scope, published revision guard, MAIN/PRACTICE invariant, optimistic version, lifecycle `DRAFT → READY → OPEN → CLOSED → ARCHIVED`, server/database timestamp authority, close reason/actor, system auto-advance, serta unit dan SQL contract test. |
 | `ISS-055` | `DONE` | `ScheduleAccessCodeService` dan repository menyediakan kode MAIN/PRACTICE lima karakter dengan alfabet tanpa karakter ambigu, normalisasi uppercase/hyphen, generator CSPRNG, HMAC-SHA-256 bernamespace, proposal atau generator server, rotasi berbasis optimistic version, plaintext one-time, safe hint, collision retry bounded, mode/status guard, dan authorization teacher scope. Unit API lulus. |
 | `ISS-056` | `DONE` | `IdentityFieldConfigurationService` menyediakan katalog allowlist (`name`, `institution`, `class`, `student_number`, `department`), validasi konfigurasi practice, `name` wajib, batas panjang per field, allowed values, normalisasi snapshot server-side, penolakan field arbitrer, dan serialisasi deterministik. Unit API lulus. |
+| `ISS-057` | `DONE` | `ScheduleLifecycleReconciler` memproses kandidat READY/OPEN dengan batch bounded, server timestamp, transisi idempotent, delayed-job safety, dan isolasi conflict/not-ready per schedule; repository memakai predicate window terindeks. Unit API lulus. |
 
-Gate Fase 0 sampai `ISS-056` telah selesai. Issue berikutnya adalah `ISS-057` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-057` telah selesai. Issue berikutnya adalah `ISS-058` sesuai urutan backlog.
 
 ---
 
@@ -688,7 +689,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-52. `ISS-057` — implement lifecycle reconciler.
+52. `ISS-057` — implement lifecycle reconciler (selesai).
+
+Langkah berikutnya:
+
+53. `ISS-058` — implement authoring/schedule API contracts.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

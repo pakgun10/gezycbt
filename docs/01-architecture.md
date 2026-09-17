@@ -850,6 +850,16 @@ tidak memperpanjang eligibility dan tidak mengarsipkan otomatis. Semua operasi
 mutation tetap membawa idempotency key pada adapter API dan menghasilkan audit
 event pada layer operasional yang sesuai.
 
+`ScheduleLifecycleReconciler` mengambil kandidat melalui query bounded dengan
+predicate `(READY AND starts_at <= serverNow) OR (OPEN AND ends_at <= serverNow)`,
+urutan `ends_at, id`, dan batas maksimum 100 row per invocation (baseline 50).
+Setiap kandidat diproses melalui `ScheduleService.advanceLifecycle` dalam
+transaction pendeknya sendiri. Conflict optimistic dan schedule yang belum
+ready dihitung sebagai hasil per-item agar satu row bermasalah tidak
+membatalkan batch; error tak dikenal tetap dinaikkan untuk alert. Menjalankan
+worker dua kali aman karena transisi memakai state plus `expected_updated_at`
+dan tidak pernah memindahkan `ends_at` atau memperpanjang deadline.
+
 Repository membaca timestamp schedule dengan presisi `DATETIME(6)` melalui
 format UTC eksplisit, bukan melalui konversi driver ke JavaScript `Date` yang
 hanya mempertahankan milidetik. Ini membuat `updated_at` tetap dapat dipakai
