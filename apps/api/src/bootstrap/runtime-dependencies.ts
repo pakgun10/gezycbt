@@ -31,6 +31,7 @@ import {
   IntegrationRateLimiter,
   IntegrationService,
   SqlIntegrationAuditSink,
+  SqlIntegrationDiscoveryRepository,
   SqlIntegrationRepository,
 } from "../modules/integrations";
 import {
@@ -147,8 +148,10 @@ export function createRuntimeDependencies(
     ),
   });
   const integrationRepository = new SqlIntegrationRepository(database);
+  const integrationDiscovery = new SqlIntegrationDiscoveryRepository(database);
   const integrationService = new IntegrationService(integrationRepository, {
     audit: new SqlIntegrationAuditSink(database),
+    discovery: integrationDiscovery,
     ownerScopeLookup: (teacherId) =>
       academicRepository.getTeacherScopes(teacherId),
     rateLimiter: new IntegrationRateLimiter(),

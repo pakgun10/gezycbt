@@ -1,6 +1,20 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { TeacherScope } from "../academics/domain";
 import {
+  type DiscoveryAccess,
+  type DiscoveryClass,
+  type DiscoveryExam,
+  type DiscoveryPage,
+  type DiscoveryQuery,
+  type DiscoveryQuestion,
+  type DiscoveryQuestionBank,
+  type DiscoveryResourceType,
+  type DiscoverySchedule,
+  type DiscoverySubject,
+  discoveryCapability,
+  type IntegrationDiscoveryRepository,
+} from "./discovery";
+import {
   type CreateIntegrationClientInput,
   type CreateIntegrationGrantInput,
   type IntegrationAuthentication,
@@ -83,6 +97,17 @@ export interface IntegrationRequestMeta {
   readonly kind?: "read" | "mutation";
 }
 
+export interface DiscoveryResponse<T> {
+  readonly items: readonly T[];
+  readonly nextCursor: Id | null;
+  readonly ambiguity: {
+    readonly code: "AMBIGUOUS_RESOURCE";
+    readonly resourceType: DiscoveryResourceType;
+    readonly candidateCount: number;
+    readonly requiresSelection: true;
+  } | null;
+}
+
 export type IntegrationOwnerScopeLookup = (
   teacherId: Id,
 ) => Promise<TeacherScope | null>;
@@ -150,6 +175,7 @@ export class IntegrationService {
       readonly audit?: IntegrationAuditSink;
       readonly ownerScopeLookup?: IntegrationOwnerScopeLookup;
       readonly rateLimiter?: IntegrationRateLimiter;
+      readonly discovery?: IntegrationDiscoveryRepository;
     } = {},
   ) {}
 
@@ -212,6 +238,146 @@ export class IntegrationService {
     return grant;
   }
 
+  async searchSubjects(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoverySubject>> {
+    return this.searchDiscovery(
+      authentication,
+      "subjects",
+      requestId,
+      (access) => this.options.discovery?.searchSubjects(query, access),
+    );
+  }
+
+  async searchClasses(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryClass>> {
+    return this.searchDiscovery(
+      authentication,
+      "classes",
+      requestId,
+      (access) => this.options.discovery?.searchClasses(query, access),
+    );
+  }
+
+  async searchQuestionBanks(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryQuestionBank>> {
+    return this.searchDiscovery(
+      authentication,
+      "question_banks",
+      requestId,
+      (access) => this.options.discovery?.searchQuestionBanks(query, access),
+    );
+  }
+
+  async searchQuestions(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryQuestion>> {
+    return this.searchDiscovery(
+      authentication,
+      "questions",
+      requestId,
+      (access) => this.options.discovery?.searchQuestions(query, access),
+    );
+  }
+
+  async searchExams(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryExam>> {
+    return this.searchDiscovery(authentication, "exams", requestId, (access) =>
+      this.options.discovery?.searchExams(query, access),
+    );
+  }
+
+  async searchSchedules(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoverySchedule>> {
+    return this.searchDiscovery(
+      authentication,
+      "schedules",
+      requestId,
+      (access) => this.options.discovery?.searchSchedules(query, access),
+    );
+  }
+
+  private async searchDiscovery<T>(
+    authentication: IntegrationAuthentication,
+    resource: DiscoveryResourceType,
+    requestId: string | undefined,
+    operation: (
+      access: DiscoveryAccess,
+    ) => Promise<DiscoveryPage<T>> | undefined,
+  ): Promise<DiscoveryResponse<T>> {
+    const capability = discoveryCapability(resource);
+    const grants = authentication.grants.filter(
+      (grant) => grant.capability === capability && this.grantUsable(grant),
+    );
+    if (grants.length === 0) {
+      await this.recordCapabilityDenied(authentication, capability, requestId);
+      throw new IntegrationCapabilityError(capability);
+    }
+    if (!this.options.discovery)
+      throw new Error("Integration discovery repository is not configured");
+    const ownerScope =
+      authentication.client.ownerRole === "TEACHER"
+        ? await this.options.ownerScopeLookup?.(
+            authentication.client.ownerUserId,
+          )
+        : null;
+    const access: DiscoveryAccess = {
+      ownerUserId: authentication.client.ownerUserId,
+      ownerRole: authentication.client.ownerRole,
+      teacherSubjectIds: ownerScope?.subjectIds ?? [],
+      teacherClassIds: ownerScope?.classIds ?? [],
+      grants,
+    };
+    const result = await operation(access);
+    if (!result)
+      throw new Error("Integration discovery operation is not available");
+    const candidateCount = result.items.length + (result.nextCursor ? 1 : 0);
+    const ambiguity =
+      candidateCount > 1
+        ? {
+            code: "AMBIGUOUS_RESOURCE" as const,
+            resourceType: resource,
+            candidateCount,
+            requiresSelection: true as const,
+          }
+        : null;
+    return { ...result, ambiguity };
+  }
+
+  private async recordCapabilityDenied(
+    authentication: IntegrationAuthentication,
+    capability: string,
+    requestId?: string,
+  ): Promise<void> {
+    await this.options.audit?.record({
+      action: "INTEGRATION_CAPABILITY_DENIED",
+      actorType: "EXTERNAL_AGENT",
+      clientId: authentication.client.id,
+      actorUserId: authentication.client.ownerUserId,
+      entityType: "integration_client",
+      entityId: authentication.client.id,
+      requestId,
+      outcome: "FAILURE",
+      metadata: { capability },
+    });
+  }
+
   async assertResourceScope(
     authentication: IntegrationAuthentication,
     grant: IntegrationGrant,
@@ -240,7 +406,8 @@ export class IntegrationService {
       grant.scopeType === "SCHOOL"
         ? true
         : grant.scopeType === "OWNER"
-          ? resource.ownerUserId === authentication.client.ownerUserId
+          ? resource.ownerUserId === authentication.client.ownerUserId &&
+            grant.scopeIds.includes(authentication.client.ownerUserId)
           : grant.scopeType === "SUBJECT"
             ? resource.subjectId !== undefined &&
               grant.scopeIds.includes(resource.subjectId)

@@ -10,6 +10,8 @@ import {
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
 import type { StoredUser } from "../users";
 import {
+  type DiscoveryQuery,
+  type DiscoveryResourceType,
   INTEGRATION_CLIENT_STATUSES,
   INTEGRATION_SCOPE_TYPES,
   IntegrationAuthenticationError,
@@ -82,6 +84,111 @@ export function createIntegrationRoutes(
       throw mapIntegrationError(error);
     }
   });
+
+  app.get("/api/v1/integrations/agent/subjects", async ({ request, query }) => {
+    try {
+      const requestId = requestIdOf(request);
+      const authentication = await requireAgent(request, options, "read");
+      return {
+        data: await options.service.searchSubjects(
+          authentication,
+          parseDiscoveryQuery(query, "subjects"),
+          requestId,
+        ),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.get("/api/v1/integrations/agent/classes", async ({ request, query }) => {
+    try {
+      const requestId = requestIdOf(request);
+      const authentication = await requireAgent(request, options, "read");
+      return {
+        data: await options.service.searchClasses(
+          authentication,
+          parseDiscoveryQuery(query, "classes"),
+          requestId,
+        ),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.get(
+    "/api/v1/integrations/agent/question-banks",
+    async ({ request, query }) => {
+      try {
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await options.service.searchQuestionBanks(
+            authentication,
+            parseDiscoveryQuery(query, "question_banks"),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/questions",
+    async ({ request, query }) => {
+      try {
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await options.service.searchQuestions(
+            authentication,
+            parseDiscoveryQuery(query, "questions"),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get("/api/v1/integrations/agent/exams", async ({ request, query }) => {
+    try {
+      const requestId = requestIdOf(request);
+      const authentication = await requireAgent(request, options, "read");
+      return {
+        data: await options.service.searchExams(
+          authentication,
+          parseDiscoveryQuery(query, "exams"),
+          requestId,
+        ),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.get(
+    "/api/v1/integrations/agent/schedules",
+    async ({ request, query }) => {
+      try {
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await options.service.searchSchedules(
+            authentication,
+            parseDiscoveryQuery(query, "schedules"),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
 
   app.get("/api/v1/admin/integration-clients", async ({ request }) => {
     try {
@@ -506,4 +613,117 @@ function optionalTimestamp(value: unknown): UtcTimestamp | undefined {
   if (typeof value !== "string" || Number.isNaN(Date.parse(value)))
     throw new AppError(422, "VALIDATION_FAILED", "Timestamp tidak valid.");
   return value as UtcTimestamp;
+}
+
+function requestIdOf(request: Request): string {
+  return request.headers.get("x-request-id") ?? crypto.randomUUID();
+}
+
+function parseDiscoveryQuery(
+  value: unknown,
+  resource: DiscoveryResourceType,
+): DiscoveryQuery {
+  const candidate =
+    value && typeof value === "object" && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  const q = queryText(candidate.q);
+  const cursor = queryId(candidate.cursor, "cursor");
+  const limit = queryLimit(candidate.limit);
+  const subjectId = queryId(candidate.subjectId, "subjectId");
+  const questionBankId = queryId(candidate.questionBankId, "questionBankId");
+  const academicYearId = queryId(candidate.academicYearId, "academicYearId");
+  const examId = queryId(candidate.examId, "examId");
+  const status = queryEnum(candidate.status, resourceStatusValues(resource));
+  const revisionStatus = queryEnum(candidate.revisionStatus, [
+    "DRAFT",
+    "PUBLISHED",
+  ]);
+  const type = queryEnum(candidate.type, [
+    "SINGLE_CHOICE",
+    "MULTIPLE_RESPONSE",
+    "TRUE_FALSE",
+  ]);
+  const mode = queryEnum(candidate.mode, ["MAIN", "PRACTICE"]);
+  return {
+    ...(q ? { q } : {}),
+    ...(cursor ? { cursor } : {}),
+    limit,
+    ...(subjectId ? { subjectId } : {}),
+    ...(questionBankId ? { questionBankId } : {}),
+    ...(academicYearId ? { academicYearId } : {}),
+    ...(examId ? { examId } : {}),
+    ...(status ? { status } : {}),
+    ...(revisionStatus ? { revisionStatus } : {}),
+    ...(type ? { type } : {}),
+    ...(mode ? { mode } : {}),
+  };
+}
+
+function queryText(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string")
+    throw new AppError(422, "VALIDATION_FAILED", "Parameter q tidak valid.");
+  const normalized = value.normalize("NFKC").trim();
+  if (normalized.length > 200)
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Parameter q terlalu panjang.",
+    );
+  return normalized || undefined;
+}
+
+function queryId(value: unknown, field: string): Id | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !/^\d+$/u.test(value))
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      `Parameter ${field} tidak valid.`,
+    );
+  return value as Id;
+}
+
+function queryLimit(value: unknown): number {
+  if (value === undefined || value === null || value === "") return 20;
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 20)
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Parameter limit harus berupa integer 1-20.",
+    );
+  return parsed;
+}
+
+function queryEnum(
+  value: unknown,
+  allowed: readonly string[],
+): string | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string" || !allowed.includes(value))
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Filter discovery tidak valid.",
+    );
+  return value;
+}
+
+function resourceStatusValues(
+  resource: DiscoveryResourceType,
+): readonly string[] {
+  switch (resource) {
+    case "subjects":
+    case "classes":
+    case "question_banks":
+      return ["ACTIVE", "ARCHIVED"];
+    case "questions":
+      return ["ACTIVE", "ARCHIVED"];
+    case "exams":
+      return ["DRAFT", "PUBLISHED", "ARCHIVED"];
+    case "schedules":
+      return ["DRAFT", "READY", "OPEN", "CLOSED", "ARCHIVED"];
+  }
 }

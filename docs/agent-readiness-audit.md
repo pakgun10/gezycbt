@@ -46,9 +46,11 @@ secara optimistic melalui kenaikan `policy_version`.
   Kegagalan autentikasi memakai bucket fingerprint 5/15 menit.
 - Capability diperiksa ulang pada setiap request. Scope efektif adalah irisan
   grant dengan scope owner guru; grant `SCHOOL` ditolak untuk client milik guru.
-- `GET /api/v1/integrations/agent/me` dan `/capabilities` sudah tersedia sebagai
-  smoke/discovery foundation. Tool discovery dan resource search lengkap tetap
-  berada pada ISS-124.
+- `GET /api/v1/integrations/agent/me` dan `/capabilities` tersedia sebagai
+  smoke/discovery foundation. Search subjects, classes, question banks,
+  questions, exams, dan schedules tersedia dengan cursor maksimal 20 item;
+  hasil lebih dari satu kandidat ditandai `AMBIGUOUS_RESOURCE` dan tidak
+  dipilih otomatis.
 - Auth failure, capability denial, dan scope denial tercatat sebagai audit
   event; successful read umum tidak membuat row audit per request.
 
@@ -74,4 +76,4 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
 - CRUD question/exam/schedule agent: ISS-125–ISS-126.
 - Result/practice/export agent surface: ISS-127–ISS-128.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
-- Full capability OpenAPI document dan discovery/search pagination: ISS-124.
+- Full capability OpenAPI document dan typed Hivekeep/Hermes adapter: ISS-131.
