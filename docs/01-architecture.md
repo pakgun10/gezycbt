@@ -1405,13 +1405,17 @@ Database `CHECK` membatasi posisi, sedangkan publish transaction memverifikasi j
 | `total_points` | DECIMAL(10,2) | Dihitung saat publish |
 | `published_at` | DATETIME(6) | Nullable saat draft |
 
+Draft menyimpan `total_points = 0.00` sampai readiness service menghitung total
+bobot. Status `PUBLISHED` wajib memiliki `published_at`; status `DRAFT` wajib
+memiliki nilai null.
+
 #### `exam_questions`
 
 | Kolom | Tipe logis | Aturan |
 |---|---|---|
 | `id` | BIGINT UNSIGNED | Primary key |
 | `exam_revision_id` | BIGINT UNSIGNED | FK exam revision |
-| `question_revision_id` | BIGINT UNSIGNED | FK published question revision |
+| `question_revision_id` | BIGINT UNSIGNED | FK published question revision; unik per exam revision |
 | `position` | INT UNSIGNED | Unique per exam revision |
 | `points` | DECIMAL(10,2) | Lebih besar dari nol |
 
@@ -1622,7 +1626,7 @@ Application service tetap memeriksa lifecycle sebelum delete. Foreign key adalah
 | `media_assets` | `UNIQUE(storage_key)`, `(sha256)`, `(status, created_at)` |
 | `question_revision_media` | `UNIQUE(question_revision_id, media_asset_id)` |
 | `exam_revisions` | `UNIQUE(exam_id, revision_no)` |
-| `exam_questions` | `UNIQUE(exam_revision_id, position)` |
+| `exam_questions` | `UNIQUE(exam_revision_id, position)`, `UNIQUE(exam_revision_id, question_revision_id)` |
 | `exam_schedules` | `(status, starts_at)`, `(exam_revision_id, starts_at)`, `UNIQUE(practice_token_hash)`, `UNIQUE(main_access_code_hash)` untuk nilai non-null |
 | `exam_schedule_classes` | `UNIQUE(schedule_id, class_id)` |
 | `exam_schedule_participants` | `UNIQUE(schedule_id, participant_id)`, `(participant_id, schedule_id)` |

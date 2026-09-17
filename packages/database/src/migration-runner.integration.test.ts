@@ -14,6 +14,7 @@ import { authThrottlesMigration } from "./migrations/0007_auth_throttles";
 import { questionBanksMigration } from "./migrations/0008_question_banks";
 import { questionOptionsMigration } from "./migrations/0009_question_options";
 import { mediaMigration } from "./migrations/0010_media";
+import { examsMigration } from "./migrations/0011_exams";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -32,9 +33,15 @@ integration("migration runner with MariaDB", () => {
   });
 
   afterAll(async () => {
+    // exams <-> exam_revisions has a deliberate pointer cycle. Disable FK
+    // checks only for disposable test cleanup; production migrations never do.
+    await database.execute("SET FOREIGN_KEY_CHECKS = 0");
     await database.execute("DROP TABLE IF EXISTS audit_logs");
     await database.execute("DROP TABLE IF EXISTS question_revision_media");
     await database.execute("DROP TABLE IF EXISTS media_assets");
+    await database.execute("DROP TABLE IF EXISTS exam_questions");
+    await database.execute("DROP TABLE IF EXISTS exams");
+    await database.execute("DROP TABLE IF EXISTS exam_revisions");
     await database.execute("DROP TABLE IF EXISTS auth_throttles");
     await database.execute("DROP TABLE IF EXISTS true_false_statements");
     await database.execute("DROP TABLE IF EXISTS question_options");
@@ -58,6 +65,7 @@ integration("migration runner with MariaDB", () => {
     await database.execute("DROP TABLE IF EXISTS school_settings");
     await database.execute("DROP TABLE IF EXISTS migration_runner_test");
     await database.execute("DROP TABLE IF EXISTS schema_migrations");
+    await database.execute("SET FOREIGN_KEY_CHECKS = 1");
     await database.close();
   });
 
@@ -105,6 +113,7 @@ integration("migration runner with MariaDB", () => {
         questionBanksMigration,
         questionOptionsMigration,
         mediaMigration,
+        examsMigration,
       ],
       options,
     );
@@ -177,6 +186,14 @@ integration("migration runner with MariaDB", () => {
     expect(mediaTables.map((row) => row.table_name).sort()).toEqual([
       "media_assets",
       "question_revision_media",
+    ]);
+    const examTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('exams', 'exam_revisions', 'exam_questions')",
+    );
+    expect(examTables.map((row) => row.table_name).sort()).toEqual([
+      "exam_questions",
+      "exam_revisions",
+      "exams",
     ]);
   });
 });

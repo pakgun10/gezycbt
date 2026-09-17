@@ -9,6 +9,7 @@ import { authThrottlesMigration } from "./0007_auth_throttles";
 import { questionBanksMigration } from "./0008_question_banks";
 import { questionOptionsMigration } from "./0009_question_options";
 import { mediaMigration } from "./0010_media";
+import { examsMigration } from "./0011_exams";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -21,4 +22,5 @@ export const migrations: readonly Migration[] = [
   questionBanksMigration,
   questionOptionsMigration,
   mediaMigration,
+  examsMigration,
 ];

@@ -101,8 +101,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-047` | `DONE` | Migration `media_assets` dan `question_revision_media`, repository transaksional, serta service relasi media tersedia. Informative alt text wajib, decorative media harus eksplisit, published revision immutable, asset yang masih direferensikan tidak dapat dihapus, dan ownership media diperiksa. Unit API serta SQL contract test lulus. |
 | `ISS-048` | `DONE` | Participant-safe presenter menghasilkan DTO terpisah untuk tiga tipe soal dengan child ID/order dan media aman, menolak draft/shape tidak valid, serta tidak pernah memuat answer key, explanation, content hash, question bank, atau metadata authoring. Negative leakage test lulus. |
 | `ISS-049` | `DONE` | Elysia/TypeBox question API contract mencakup list/search/detail bank dan revision, draft/update/validate/publish, upload/attach/detach/delete media, serta OpenAPI 3.1 route inventory yang tersedia di `/openapi.json` non-production. Discriminated shape test, optimistic version test, route coverage, JSON serialization, dan participant negative leakage lulus. |
+| `ISS-050` | `DONE` | Migration `exams`, `exam_revisions`, dan `exam_questions` tersedia dengan logical/revision split, revision pointer, unique revision number, unique question position/reference, positive points, total points, publish timestamp invariant, FK `RESTRICT`, dan indexes untuk scope/order/read path. DDL serta constraint smoke test MariaDB lulus. |
 
-Gate Fase 0 sampai `ISS-049` telah selesai. Issue berikutnya adalah `ISS-050` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-050` telah selesai. Issue berikutnya adalah `ISS-051` sesuai urutan backlog.
 
 ---
 
@@ -653,7 +654,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-45. `ISS-050` — migration exams, revisions, dan exam questions.
+45. `ISS-050` — migration exams, revisions, dan exam questions (selesai).
+
+Langkah berikutnya:
+
+46. `ISS-051` — implement exam draft service.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
