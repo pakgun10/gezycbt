@@ -16,6 +16,7 @@ import { answersResultsMigration } from "./0014_answers_results";
 import { attemptGrantsMigration } from "./0015_attempt_grants";
 import { examSessionCredentialsMigration } from "./0016_exam_session_credentials";
 import { exportsMigration } from "./0017_exports";
+import { integrationsMigration } from "./0018_integrations";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -35,4 +36,5 @@ export const migrations: readonly Migration[] = [
   attemptGrantsMigration,
   examSessionCredentialsMigration,
   exportsMigration,
+  integrationsMigration,
 ];

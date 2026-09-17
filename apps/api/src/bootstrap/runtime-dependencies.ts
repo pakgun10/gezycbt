@@ -27,6 +27,13 @@ import {
   SqlExamDraftRepository,
 } from "../modules/exams";
 import {
+  createIntegrationRoutes,
+  IntegrationRateLimiter,
+  IntegrationService,
+  SqlIntegrationAuditSink,
+  SqlIntegrationRepository,
+} from "../modules/integrations";
+import {
   QuestionDraftService,
   QuestionPublishService,
   QuestionReadinessService,
@@ -139,6 +146,13 @@ export function createRuntimeDependencies(
       new SqlAuthThrottleRepository(database),
     ),
   });
+  const integrationRepository = new SqlIntegrationRepository(database);
+  const integrationService = new IntegrationService(integrationRepository, {
+    audit: new SqlIntegrationAuditSink(database),
+    ownerScopeLookup: (teacherId) =>
+      academicRepository.getTeacherScopes(teacherId),
+    rateLimiter: new IntegrationRateLimiter(),
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -169,37 +183,48 @@ export function createRuntimeDependencies(
     ],
     registerRoutes: (app: Elysia) => {
       const withAuth = registerAuthRoutes(app, authOptions);
-      return withAuth.use(
-        createStaffRoutes({
-          database,
-          users,
-          sessionService: sessions,
-          academics,
-          teacherScopeLookup: (teacherId) =>
-            academicRepository.getTeacherScopes(teacherId),
-          authorization,
-          questions: {
-            drafts: questionDrafts,
-            publish: questionPublish,
-            readiness: questionReadiness,
-          },
-          exams: {
-            drafts: examDrafts,
-            publish: examPublish,
-            readiness: examReadiness,
-          },
-          schedules: {
-            drafts: scheduleDrafts,
-            accessCodes,
-          },
-          userImports: {
-            preview: userImportPreview,
-            commit: userImportCommit,
-          },
-          runtime: { administration: examSessionAdministration },
-          expectedOrigin: config.appOrigin,
-        }),
-      );
+      return withAuth
+        .use(
+          createIntegrationRoutes({
+            database,
+            service: integrationService,
+            users,
+            sessionService: sessions,
+            isReauthenticated: (userId) => isStaffReauthenticated(userId),
+            expectedOrigin: config.appOrigin,
+          }),
+        )
+        .use(
+          createStaffRoutes({
+            database,
+            users,
+            sessionService: sessions,
+            academics,
+            teacherScopeLookup: (teacherId) =>
+              academicRepository.getTeacherScopes(teacherId),
+            authorization,
+            questions: {
+              drafts: questionDrafts,
+              publish: questionPublish,
+              readiness: questionReadiness,
+            },
+            exams: {
+              drafts: examDrafts,
+              publish: examPublish,
+              readiness: examReadiness,
+            },
+            schedules: {
+              drafts: scheduleDrafts,
+              accessCodes,
+            },
+            userImports: {
+              preview: userImportPreview,
+              commit: userImportCommit,
+            },
+            runtime: { administration: examSessionAdministration },
+            expectedOrigin: config.appOrigin,
+          }),
+        );
     },
     shutdown: async () => {
       if (closed) return;

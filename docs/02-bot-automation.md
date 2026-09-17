@@ -1,12 +1,17 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Baseline rancangan untuk development; belum diimplementasikan  
+**Status:** Fondasi ISS-120–ISS-123 diimplementasikan; tool workflow lanjutan masih bertahap
 **Versi dokumen:** 0.3  
-**Terakhir diperbarui:** 16 September 2026  
+**Terakhir diperbarui:** 17 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
 
 Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp sendiri. Bot, channel, percakapan, memory, LLM, dan agent loop dijalankan oleh Hivekeep atau Hermes sebagai aplikasi terpisah. GezyCBT menyediakan API/tool yang aman agar agent dapat menjalankan pekerjaan CBT.
+
+Fondasi machine client, credential, grant, rate limit, audit, discovery smoke
+endpoint, management console, dan kill switch tersedia pada ISS-120–ISS-123.
+Tool CRUD, action approval, hasil, dan export dibuka setelah issue lanjutan
+selesai; daftar batasnya ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
 
 Kata **wajib** berarti aturan correctness atau security yang tidak boleh dilewati. Kata **disarankan** adalah baseline yang dapat diubah melalui Architecture Decision Record.
 

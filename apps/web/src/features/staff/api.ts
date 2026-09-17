@@ -8,6 +8,8 @@ import type {
   ExamRevision,
   ExamSummary,
   ExportJob,
+  IntegrationClient,
+  IntegrationClientDetail,
   MonitorPage,
   QuestionBankSummary,
   QuestionDraft,
@@ -200,6 +202,37 @@ export interface StaffApi {
     id: string,
   ): Promise<{ token: string; expiresAt: string }>;
   audit(query?: string): Promise<CursorPage<AuditRow>>;
+  integrationClients(): Promise<CursorPage<IntegrationClient>>;
+  integrationClient(id: string): Promise<IntegrationClientDetail>;
+  createIntegrationClient(
+    input: Record<string, unknown>,
+  ): Promise<IntegrationClient>;
+  updateIntegrationClient(
+    id: string,
+    input: Record<string, unknown>,
+  ): Promise<IntegrationClient>;
+  issueIntegrationCredential(
+    id: string,
+    input?: Record<string, unknown>,
+  ): Promise<{
+    credential: IntegrationClientDetail["credentials"][number];
+    token: string;
+    warning: string;
+  }>;
+  revokeIntegrationCredential(
+    clientId: string,
+    credentialId: string,
+    reason: string,
+  ): Promise<{ revoked: boolean }>;
+  createIntegrationGrant(
+    clientId: string,
+    input: Record<string, unknown>,
+  ): Promise<IntegrationClientDetail["grants"][number]>;
+  revokeIntegrationGrant(
+    clientId: string,
+    grantId: string,
+    reason: string,
+  ): Promise<{ revoked: boolean }>;
 }
 
 export interface MonitorSessionLike {
@@ -646,6 +679,64 @@ export class HttpStaffApi implements StaffApi {
   audit(query = "") {
     return this.getPage<AuditRow>(
       `/api/v1/admin/audit-logs?search=${encodeURIComponent(query)}`,
+    );
+  }
+  integrationClients() {
+    return this.getPage<IntegrationClient>("/api/v1/admin/integration-clients");
+  }
+  integrationClient(id: string) {
+    return this.getData<IntegrationClientDetail>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(id)}`,
+    );
+  }
+  createIntegrationClient(input: Record<string, unknown>) {
+    return this.mutate<IntegrationClient>(
+      "/api/v1/admin/integration-clients",
+      "POST",
+      input,
+    );
+  }
+  updateIntegrationClient(id: string, input: Record<string, unknown>) {
+    return this.mutate<IntegrationClient>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(id)}`,
+      "PATCH",
+      input,
+    );
+  }
+  issueIntegrationCredential(id: string, input: Record<string, unknown> = {}) {
+    return this.mutate<{
+      credential: IntegrationClientDetail["credentials"][number];
+      token: string;
+      warning: string;
+    }>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(id)}/credentials`,
+      "POST",
+      input,
+    );
+  }
+  revokeIntegrationCredential(
+    clientId: string,
+    credentialId: string,
+    reason: string,
+  ) {
+    return this.mutate<{ revoked: boolean }>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(clientId)}/credentials/${encodeURIComponent(credentialId)}`,
+      "DELETE",
+      { reason },
+    );
+  }
+  createIntegrationGrant(clientId: string, input: Record<string, unknown>) {
+    return this.mutate<IntegrationClientDetail["grants"][number]>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(clientId)}/grants`,
+      "POST",
+      input,
+    );
+  }
+  revokeIntegrationGrant(clientId: string, grantId: string, reason: string) {
+    return this.mutate<{ revoked: boolean }>(
+      `/api/v1/admin/integration-clients/${encodeURIComponent(clientId)}/grants/${encodeURIComponent(grantId)}`,
+      "DELETE",
+      { reason },
     );
   }
   private async getData<T>(path: string): Promise<T> {

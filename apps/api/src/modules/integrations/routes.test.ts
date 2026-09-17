@@ -1,0 +1,183 @@
+import { expect, test } from "bun:test";
+import type { Id, UtcTimestamp } from "@gezycbt/contracts";
+import { Elysia } from "elysia";
+import type { AuthSession } from "../auth/session";
+import type { IntegrationAuthentication } from "./domain";
+import type { IntegrationRepository } from "./repository";
+import { createIntegrationRoutes } from "./routes";
+import { IntegrationService } from "./service";
+
+const NOW = "2026-09-17T00:00:00.000Z" as UtcTimestamp;
+const admin = {
+  id: "1" as Id,
+  username: "admin",
+  usernameNormalized: "admin",
+  passwordHash: "$argon2id$v=19$m=1,t=1,p=1$hash",
+  role: "ADMIN" as const,
+  status: "ACTIVE" as const,
+  displayName: "Admin",
+  forcePasswordChange: false,
+  passwordChangedAt: null,
+  lastLoginAt: null,
+  createdAt: NOW,
+  updatedAt: NOW,
+};
+const session: AuthSession = {
+  id: "3" as Id,
+  userId: admin.id,
+  role: "ADMIN",
+  createdAt: NOW,
+  lastSeenAt: NOW,
+  idleExpiresAt: "2026-09-17T12:00:00.000Z" as UtcTimestamp,
+  absoluteExpiresAt: "2026-09-18T00:00:00.000Z" as UtcTimestamp,
+  revokedAt: null,
+  revokeReason: null,
+};
+
+function auth(): IntegrationAuthentication {
+  return {
+    client: {
+      id: "10" as Id,
+      name: "Agent",
+      platformHint: "HIVEKEEP",
+      ownerUserId: admin.id,
+      ownerDisplayName: admin.displayName,
+      ownerRole: "ADMIN",
+      status: "ACTIVE",
+      description: null,
+      policyVersion: 1,
+      createdByUserId: admin.id,
+      lastUsedAt: null,
+      createdAt: NOW,
+      updatedAt: NOW,
+    },
+    credential: {
+      id: "11" as Id,
+      integrationClientId: "10" as Id,
+      tokenPrefix: "prefix",
+      status: "ACTIVE",
+      validFrom: NOW,
+      expiresAt: null,
+      lastUsedAt: null,
+      revokedAt: null,
+      revokeReason: null,
+      createdAt: NOW,
+    },
+    grants: [],
+  };
+}
+
+function app(reauthenticated = true) {
+  const repository = {
+    async authenticate() {
+      return auth();
+    },
+    async touchCredential() {},
+  } as unknown as IntegrationRepository;
+  const service = new IntegrationService(repository);
+  type FakeConnection = {
+    query<T extends Record<string, unknown>>(
+      sql: string,
+      parameters?: readonly unknown[],
+    ): Promise<readonly T[]>;
+    execute(
+      sql: string,
+      parameters?: readonly unknown[],
+    ): Promise<{ affectedRows: number }>;
+  };
+  const connection: FakeConnection = {
+    async query<_T extends Record<string, unknown>>() {
+      return [];
+    },
+    async execute() {
+      return { affectedRows: 1 };
+    },
+  };
+  const database = {
+    ...connection,
+    async transaction<T>(operation: (tx: FakeConnection) => Promise<T>) {
+      return operation(connection);
+    },
+    async close() {},
+  };
+  return new Elysia()
+    .use(
+      createIntegrationRoutes({
+        database,
+        service,
+        users: {
+          async findById() {
+            return admin;
+          },
+        },
+        sessionService: {
+          async resolve(token: string) {
+            return token === "a".repeat(43) ? session : null;
+          },
+          async verifyCsrfSecret() {
+            return true;
+          },
+        },
+        isReauthenticated: () => reauthenticated,
+        expectedOrigin: "https://cbt.example.test",
+      }),
+    )
+    .onError(({ error, set }) => {
+      set.status = (error as { status?: number }).status ?? 500;
+      return {
+        error: { code: (error as { code?: string }).code ?? "INTERNAL_ERROR" },
+      };
+    });
+}
+
+test("agent routes require Bearer credential and never use the staff cookie", async () => {
+  const application = app();
+  const missing = await application.handle(
+    new Request("https://cbt.example.test/api/v1/integrations/agent/me"),
+  );
+  expect(missing.status).toBe(401);
+  const valid = await application.handle(
+    new Request("https://cbt.example.test/api/v1/integrations/agent/me", {
+      headers: { authorization: "Bearer integration-token" },
+    }),
+  );
+  expect(valid.status).toBe(200);
+  expect(await valid.json()).toMatchObject({ data: { client: { id: "10" } } });
+});
+
+test("management endpoint requires admin session and CSRF for mutations", async () => {
+  const application = app();
+  const unauthenticated = await application.handle(
+    new Request("https://cbt.example.test/api/v1/admin/integration-clients"),
+  );
+  expect(unauthenticated.status).toBe(401);
+  const missingHeaders = await application.handle(
+    new Request("https://cbt.example.test/api/v1/admin/integration-clients", {
+      method: "POST",
+      headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+    }),
+  );
+  expect(missingHeaders.status).toBe(403);
+});
+
+test("management mutation requires recent step-up reauthentication", async () => {
+  const application = app(false);
+  const response = await application.handle(
+    new Request("https://cbt.example.test/api/v1/admin/integration-clients", {
+      method: "POST",
+      headers: {
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        origin: "https://cbt.example.test",
+        "x-csrf-token": "csrf",
+        "idempotency-key": "integration-test-idempotency",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        name: "Agent",
+        platformHint: "HERMES",
+        ownerUserId: "1",
+      }),
+    }),
+  );
+  expect(response.status).toBe(401);
+});

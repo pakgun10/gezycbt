@@ -213,3 +213,53 @@ export interface AuditRow {
   readonly createdAt: string;
   readonly requestId: string;
 }
+
+export interface IntegrationClient {
+  readonly id: string;
+  readonly name: string;
+  readonly platformHint: string;
+  readonly ownerUserId: string;
+  readonly ownerDisplayName: string;
+  readonly ownerRole: "ADMIN" | "TEACHER";
+  readonly status: "ACTIVE" | "DISABLED";
+  readonly description: string | null;
+  readonly policyVersion: number;
+  readonly updatedAt: string;
+}
+
+export interface IntegrationCredential {
+  readonly id: string;
+  readonly integrationClientId: string;
+  readonly tokenPrefix: string;
+  readonly status: "ACTIVE" | "REVOKED";
+  readonly validFrom: string;
+  readonly expiresAt: string | null;
+  readonly lastUsedAt: string | null;
+  readonly revokedAt: string | null;
+  readonly revokeReason: string | null;
+  readonly createdAt: string;
+}
+
+export interface IntegrationGrant {
+  readonly id: string;
+  readonly integrationClientId: string;
+  readonly capability: string;
+  readonly scopeType: string;
+  readonly scopeIds: readonly string[];
+  readonly constraints: Readonly<Record<string, unknown>>;
+  readonly grantVersion: number;
+  readonly status: "ACTIVE" | "REVOKED";
+  readonly validFrom: string;
+  readonly expiresAt: string | null;
+  readonly issuedByUserId: string;
+  readonly revokedAt: string | null;
+  readonly revokeReason: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface IntegrationClientDetail {
+  readonly client: IntegrationClient;
+  readonly credentials: readonly IntegrationCredential[];
+  readonly grants: readonly IntegrationGrant[];
+}

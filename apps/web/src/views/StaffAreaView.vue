@@ -12,6 +12,7 @@ import MonitoringView from "./MonitoringView.vue";
 import ResultsView from "./ResultsView.vue";
 import ExportsView from "./ExportsView.vue";
 import AuditView from "./AuditView.vue";
+import IntegrationsView from "./IntegrationsView.vue";
 
 const route = useRoute();
 const path = computed(() => route.path);
@@ -25,6 +26,7 @@ const page = computed(() => {
   if (path.value.includes("/results")) return ResultsView;
   if (path.value.includes("/exports")) return ExportsView;
   if (path.value.endsWith("/audit")) return AuditView;
+  if (path.value.endsWith("/integrations")) return IntegrationsView;
   return StaffDashboardView;
 });
 const title = computed(() => path.value.startsWith("/admin") ? "Admin" : "Guru");
