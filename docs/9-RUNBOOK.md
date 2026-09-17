@@ -1,6 +1,6 @@
 # GezyCBT — Developer dan Operations Runbook
 
-**Status:** Baseline operasional untuk entry gate Fase 8  
+**Status:** Baseline operasional Fase 8 (ISS-100–ISS-110)
 **Terakhir diperbarui:** 17 September 2026
 
 Dokumen ini menjelaskan cara menjalankan fondasi repository, database lokal,
@@ -104,9 +104,10 @@ Pada terminal kedua:
 bun run dev:web -- --host 127.0.0.1 --port 5173
 ```
 
-Web shell tersedia di `http://127.0.0.1:5173`. Route fitur staff masih
-dikerjakan pada Fase 8; server ini saat entry gate hanya memverifikasi shell,
-theme, dan route boundary.
+Web shell tersedia di `http://127.0.0.1:5173`. Route staff tersedia setelah
+login di `/admin/*` dan `/teacher/*`. Workflow authoring, jadwal, monitoring,
+hasil, export, dan audit memakai API yang sama dengan service domain; jalankan
+migration terbaru sebelum membuka halaman tersebut.
 
 ## 5. Bootstrap akun admin pertama
 
@@ -131,9 +132,9 @@ username. Bootstrap hanya boleh berhasil sekali. Akun admin pertama diberi
 `forcePasswordChange`; perubahan password dilakukan melalui workflow staff
 setelah route manajemen password tersedia.
 
-Pembuatan akun guru dan peserta dilakukan melalui service/import pipeline yang
-sudah diuji, tetapi UI/API administrasinya belum menjadi workflow operasional
-sebelum ISS-100 dan issue terkait selesai.
+Pembuatan akun guru dan peserta tersedia melalui form serta import preview.
+Commit import meminta re-authentication admin dan menghasilkan artifact
+credential sekali pakai yang berumur pendek.
 
 ## 6. Quality gate sebelum mengambil issue Fase 8
 
@@ -173,5 +174,6 @@ Entry gate ini dianggap lulus bila clean checkout dapat:
 6. menjalankan bootstrap admin satu kali;
 7. menjalankan quality gate repository.
 
-Setelah gate ini lulus, pekerjaan dapat dimulai pada **ISS-100 — admin users
-dan academic UI** tanpa memakai akses database manual sebagai workflow produk.
+Setelah Fase 8 lulus, pekerjaan berikutnya adalah entry gate integrasi external
+agent (ISS-120 dan seterusnya). Operasi export menggunakan job durable dan
+download token satu kali yang berlaku maksimal lima menit.

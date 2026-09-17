@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, dan entry gate ISS-093–ISS-094 selesai pada baseline ini; issue Fase 8 setelah ISS-094 tetap backlog
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, dan Fase 8 ISS-100–ISS-110 selesai pada baseline ini
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 17 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -140,9 +140,19 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-092` | `DONE` | Matriks acceptance E2E 23 skenario pada viewport 360/390/768/1366, light/dark/reduced motion, reliability, privacy, dan accessibility tersedia di [`participant-e2e-matrix.md`](./participant-e2e-matrix.md); controller/API/router tests lulus. |
 | `ISS-093` | `DONE` | Runtime composition menyediakan konfigurasi database tervalidasi, readiness MariaDB, lifecycle shutdown, serta route authentication SQL-backed pada proses API. |
 | `ISS-094` | `DONE` | Local development dan migration workflow tersedia melalui `.env.example`, Compose MariaDB development, scripts root, migration CLI, README, dan [`9-RUNBOOK.md`](./9-RUNBOOK.md). |
+| `ISS-100` | `DONE` | Staff shell, admin user/import wizard, academic master UI, re-auth commit, loading/empty/error states, dan role menu tersedia pada `apps/web/src/views/AdminUsersView.vue` serta `AcademicView.vue`; route admin memakai SQL-backed services. |
+| `ISS-101` | `DONE` | `ScopeSwitcher.vue` menyimpan `subjectId`/`classId` di URL, membersihkan cursor/page saat scope berubah, dan meminta konfirmasi ketika editor memiliki perubahan lokal. |
+| `ISS-102` | `DONE` | Question bank CRUD ringan, editor tiga tipe soal, exact-match key, readiness validation, publish guard, optimistic update, dan preview ringkas tersedia pada `QuestionsView.vue`; media validation/relationship tetap memakai service domain ISS-046/047. |
+| `ISS-103` | `DONE` | Exam editor memakai selected tray, add/remove/reorder berbasis revision ID, kontrol naik/turun yang keyboard-accessible, readiness report, dan publish guard pada `ExamsView.vue`. |
+| `ISS-104` | `DONE` | Schedule UI mendukung MAIN/PRACTICE, target ID, UTC window, lifecycle DRAFT/READY/OPEN/CLOSED, rotasi kode/token lima karakter dengan plaintext one-time, dan safe hint. |
+| `ISS-105` | `DONE` | Monitoring server-side menampilkan aggregate counts, halaman session 50 row, polling 15±3 detik, pause/visibility handling, stale indicator, drawer detail, extend/end/reset sesuai role, dan Tutup Jadwal terpisah. |
+| `ISS-106` | `DONE` | Results UI mendukung filter release, subset selection, release/unrelease dengan reason, outcome count, dan backend update transactional dengan row lock. |
+| `ISS-107` | `DONE` | Export job durable (`export_jobs`/`export_files`, migration `0017_exports`) mendukung QUEUED/RUNNING/READY/FAILED/EXPIRED, polling history, re-create, dan one-time download token lima menit. |
+| `ISS-108` | `DONE` | Audit viewer admin menyediakan search, cursor page, safe summary, detail drawer, request ID, dan marker metadata redacted tanpa secret/raw answer. |
+| `ISS-109` | `DONE` | `StaffSectionBoundary` mengisolasi error per staff route group, memulihkan focus ke heading fallback, menampilkan request ID, dan menyediakan reload tanpa menaruh data sensitif di telemetry. |
+| `ISS-110` | `DONE` | Matrix acceptance staff tersedia di [`staff-e2e-matrix.md`](./staff-e2e-matrix.md) untuk admin/guru, mobile, keyboard, focus, theme, scope, import, monitoring, results, export, audit, dan boundary security. Repository gate typecheck/lint/test/build lulus; browser trace production-like tetap menjadi gate operasional sebelum pilot. |
 
-Gate Fase 7 sampai `ISS-092` dan entry gate Fase 8 sampai `ISS-094` telah
-selesai. Issue berikutnya adalah `ISS-100` sesuai urutan backlog.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, dan Fase 8 `ISS-100–ISS-110` telah selesai. Entry berikutnya adalah Fase 8B dengan `ISS-120`.
 
 ---
 
@@ -597,21 +607,16 @@ Jika salah satu dipromosikan, buat PRD delta dan ADR/migration analysis sebelum 
 Issue sampai `ISS-092` telah dikerjakan berurutan sesuai dependency, termasuk
 runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`. Entry
 gate `ISS-093–ISS-094` kemudian diselesaikan untuk memastikan API, database,
-dan workflow lokal dapat dijalankan sebelum UI staff dimulai.
+dan workflow lokal dapat dijalankan.
 
-Gate berikutnya adalah Fase 8. Tabel pada bagian 15 adalah source of truth untuk
-ID dan scope issue; urutannya:
+Fase 8 `ISS-100–ISS-110` kini selesai sebagai baseline staff web dan service
+adapter. Tabel status pada bagian 1.5 adalah source of truth untuk evidence;
+ringkasan implementasinya meliputi admin/academic, scope, authoring, schedule,
+monitoring, results, export, audit, error boundary, serta matrix E2E/a11y.
 
-1. `ISS-100` — admin users dan academic UI.
-2. `ISS-101` — teacher scope switcher.
-3. `ISS-102` — question bank/editor UI.
-4. `ISS-103` — exam editor dan picker.
-5. `ISS-104` — schedule UI.
-6. `ISS-105` — monitoring ujian dan operasi session.
-7. `ISS-106` — result release dan export UI.
-
-Setiap issue berikutnya tetap harus memperbarui evidence pada tabel status dan
-menjalankan gate repository sebelum dinyatakan `DONE`.
+Langkah berikutnya adalah entry gate Fase 8B `ISS-120`. Browser trace pada
+environment production-like, load test, dan hardening tetap harus dijalankan
+pada fase berikutnya sebelum pilot/production.
 
 ---
 

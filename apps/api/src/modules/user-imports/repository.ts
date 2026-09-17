@@ -218,7 +218,7 @@ export class SqlUserImportRepository implements UserImportRepository {
         }
         await connection.execute(
           `INSERT INTO user_import_preview_rows
-           (preview_id, row_number, username, display_name, class_code,
+          (preview_id, \`row_number\`, username, display_name, class_code,
              class_id, existing_user_id, classification, blocking, error_json)
            VALUES ${values}`,
           parameters,

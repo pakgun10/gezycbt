@@ -620,6 +620,7 @@ function requiredString(value: unknown, field: string): string {
 }
 
 function requiredDate(value: unknown, field: string): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
   return validateDate(requiredString(value, field), field);
 }
 

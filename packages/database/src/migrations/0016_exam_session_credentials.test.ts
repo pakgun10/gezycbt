@@ -14,6 +14,10 @@ describe("exam session credential migration", () => {
     expect(examSessionCredentialsMigration.statements[1]).toContain(
       "version INT UNSIGNED",
     );
-    expect(migrations.at(-1)).toBe(examSessionCredentialsMigration);
+    expect(
+      migrations.find(
+        (migration) => migration.id === examSessionCredentialsMigration.id,
+      ),
+    ).toBe(examSessionCredentialsMigration);
   });
 });

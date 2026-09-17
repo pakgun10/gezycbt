@@ -158,11 +158,15 @@ class FakeExamDatabase implements DatabasePort {
       return { affectedRows: 1, insertId: 30n };
     if (sql.includes("INSERT INTO exam_revisions"))
       return { affectedRows: 1, insertId: 40n };
-    if (sql.includes("UPDATE exam_revisions")) {
+    if (
+      sql.includes("UPDATE exam_revisions") &&
+      sql.includes("SET status = 'PUBLISHED'")
+    ) {
       this.totalPoints = String(parameters[0]);
       this.revisionStatus = "PUBLISHED";
       return { affectedRows: 1 };
     }
+    if (sql.includes("UPDATE exam_revisions")) return { affectedRows: 1 };
     if (sql.includes("INSERT INTO exam_questions")) {
       this.questions.push({
         ...questionRow(

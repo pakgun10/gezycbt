@@ -32,24 +32,13 @@ describe("exams migration", () => {
   });
 
   test("is registered after the question and media migrations", () => {
-    expect(migrations.at(-6)).toBe(examsMigration);
-    expect(migrations.map((migration) => migration.id)).toEqual([
-      "0001_identity",
-      "0002_academic",
-      "0003_subjects",
-      "0004_system_locks",
-      "0005_user_import_previews",
-      "0006_import_commit",
-      "0007_auth_throttles",
-      "0008_question_banks",
-      "0009_question_options",
-      "0010_media",
-      "0011_exams",
-      "0012_schedules",
-      "0013_exam_sessions",
-      "0014_answers_results",
-      "0015_attempt_grants",
-      "0016_exam_session_credentials",
-    ]);
+    expect(
+      migrations.find((migration) => migration.id === examsMigration.id),
+    ).toBe(examsMigration);
+    const ids = migrations.map((migration) => migration.id);
+    expect(ids.indexOf("0011_exams")).toBeGreaterThan(
+      ids.indexOf("0010_media"),
+    );
+    expect(ids.indexOf("0011_exams")).toBeLessThan(ids.indexOf("0017_exports"));
   });
 });

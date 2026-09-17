@@ -27,12 +27,12 @@ describe("exam sessions migration", () => {
   });
 
   test("is registered after schedules", () => {
-    expect(migrations.at(-4)).toBe(examSessionsMigration);
-    expect(migrations.map((migration) => migration.id).slice(-5, -1)).toEqual([
-      "0012_schedules",
-      "0013_exam_sessions",
-      "0014_answers_results",
-      "0015_attempt_grants",
-    ]);
+    expect(
+      migrations.find((migration) => migration.id === examSessionsMigration.id),
+    ).toBe(examSessionsMigration);
+    const ids = migrations.map((migration) => migration.id);
+    expect(ids.indexOf("0013_exam_sessions")).toBe(
+      ids.indexOf("0012_schedules") + 1,
+    );
   });
 });

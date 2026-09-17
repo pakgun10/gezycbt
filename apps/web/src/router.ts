@@ -1,5 +1,6 @@
 import { createRouter, type RouterHistory } from "vue-router";
 import { useParticipantAuth } from "./features/participant/auth-store";
+import { useStaffAuth } from "./features/staff/auth-store";
 
 const AreaView = () => import("./views/AreaView.vue");
 const NotFoundView = () => import("./views/NotFoundView.vue");
@@ -11,12 +12,35 @@ const PracticeIdentityView = () => import("./views/PracticeIdentityView.vue");
 const PreExamView = () => import("./views/PreExamView.vue");
 const ExamView = () => import("./views/ExamView.vue");
 const ResultView = () => import("./views/ResultView.vue");
+const StaffLoginView = () => import("./views/StaffLoginView.vue");
+const StaffAreaView = () => import("./views/StaffAreaView.vue");
+const ForbiddenView = () => import("./views/ForbiddenView.vue");
 
 export function createGezyRouter(history: RouterHistory) {
   const router = createRouter({
     history,
     routes: [
       { path: "/", redirect: "/participant/login" },
+      {
+        path: "/staff/login",
+        name: "staff-login",
+        component: StaffLoginView,
+        meta: { area: "Staff" },
+      },
+      {
+        path: "/staff/forbidden",
+        name: "staff-forbidden",
+        component: ForbiddenView,
+        meta: { area: "Staff" },
+      },
+      {
+        path: "/admin/login",
+        redirect: (to) => ({ name: "staff-login", query: to.query }),
+      },
+      {
+        path: "/teacher/login",
+        redirect: (to) => ({ name: "staff-login", query: to.query }),
+      },
       {
         path: "/participant/login",
         name: "participant-login",
@@ -74,14 +98,14 @@ export function createGezyRouter(history: RouterHistory) {
       {
         path: "/admin/:pathMatch(.*)*",
         name: "admin",
-        component: AreaView,
-        meta: { area: "Admin" },
+        component: StaffAreaView,
+        meta: { area: "Admin", requiresStaff: true, staffRole: "ADMIN" },
       },
       {
         path: "/teacher/:pathMatch(.*)*",
         name: "teacher",
-        component: AreaView,
-        meta: { area: "Guru" },
+        component: StaffAreaView,
+        meta: { area: "Guru", requiresStaff: true, staffRole: "TEACHER" },
       },
       {
         path: "/participant/:pathMatch(.*)*",
@@ -99,12 +123,20 @@ export function createGezyRouter(history: RouterHistory) {
     ],
   });
   const auth = useParticipantAuth();
+  const staffAuth = useStaffAuth();
   router.beforeEach((to) => {
     if (to.meta.requiresParticipant && !auth.user.value)
       return {
         name: "participant-login",
         query: { redirect: to.fullPath },
       };
+    if (to.meta.requiresStaff) {
+      const current = staffAuth.user.value;
+      if (!current)
+        return { name: "staff-login", query: { redirect: to.fullPath } };
+      if (to.meta.staffRole === "ADMIN" && current.role !== "ADMIN")
+        return { name: "staff-forbidden" };
+    }
     return true;
   });
   return router;

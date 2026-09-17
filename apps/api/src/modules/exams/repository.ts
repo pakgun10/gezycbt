@@ -382,6 +382,10 @@ export class SqlExamDraftRepository implements ExamDraftRepository {
             normalizePoints(input.points),
           ],
         );
+        await connection.execute(
+          "UPDATE exam_revisions SET updated_at = UTC_TIMESTAMP(6) WHERE id = ?",
+          [revisionId],
+        );
         return readRevision(connection, revisionId);
       });
     } catch (error) {
@@ -415,6 +419,10 @@ export class SqlExamDraftRepository implements ExamDraftRepository {
         revisionId,
         existing.filter((row) => row !== target),
       );
+      await connection.execute(
+        "UPDATE exam_revisions SET updated_at = UTC_TIMESTAMP(6) WHERE id = ?",
+        [revisionId],
+      );
       return readRevision(connection, revisionId);
     });
   }
@@ -444,6 +452,10 @@ export class SqlExamDraftRepository implements ExamDraftRepository {
         revisionId,
         existing,
         orderedQuestionRevisionIds,
+      );
+      await connection.execute(
+        "UPDATE exam_revisions SET updated_at = UTC_TIMESTAMP(6) WHERE id = ?",
+        [revisionId],
       );
       return readRevision(connection, revisionId);
     });

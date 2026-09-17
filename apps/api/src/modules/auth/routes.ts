@@ -13,7 +13,11 @@ import {
   LoginRateLimitedError,
 } from "./login";
 import { PasswordBusyError } from "./password";
-import { type AuthSessionService, readAuthCookie } from "./session";
+import {
+  AUTH_COOKIE_NAME,
+  type AuthSessionService,
+  readAuthCookie,
+} from "./session";
 
 export interface AuthCurrentUser {
   readonly id: Id;
@@ -30,6 +34,7 @@ export interface AuthRoutesOptions {
     "resolve" | "verifyCsrfSecret"
   > & {
     readonly rotate?: AuthSessionService["rotate"];
+    readonly logout?: AuthSessionService["logout"];
   };
   readonly currentUser?: (userId: Id) => Promise<AuthCurrentUser | null>;
   readonly expectedOrigin: URL | string;
@@ -75,6 +80,16 @@ export function registerAuthRoutes(
       );
       set.headers["set-cookie"] = result.session.cookie;
       return loginResponse(result);
+    })
+    .post("/api/v1/auth/logout", async ({ request, set }) => {
+      const token = readAuthCookie(request.headers.get("cookie"));
+      if (token) await assertAuthMutation(request, options);
+      if (token && options.sessionService.logout) {
+        await options.sessionService.logout(token);
+      }
+      set.headers["set-cookie"] =
+        `${AUTH_COOKIE_NAME}=; Path=/; Secure; HttpOnly; SameSite=Strict; Max-Age=0`;
+      return { data: { loggedOut: true } };
     })
     .get("/api/v1/auth/me", async ({ request, set }) => {
       const token = readAuthCookie(request.headers.get("cookie"));

@@ -6,6 +6,8 @@ export interface AppConfig {
   readonly appOrigin: URL;
   /** Optional for in-memory tests; required by staging and production. */
   readonly databaseUrl?: string;
+  /** HMAC key for five-character schedule access codes. */
+  readonly accessCodeHmacSecret?: string;
   readonly host: string;
   readonly port: number;
   readonly logLevel: "debug" | "info" | "warn" | "error";
@@ -40,6 +42,14 @@ export function loadAppConfig(env: Environment): AppConfig {
     throw new Error("GEZYCBT_DATABASE_URL is required in staging/production");
   }
   if (databaseUrl !== undefined) validateDatabaseUrl(databaseUrl);
+  const accessCodeHmacSecret = env.GEZYCBT_ACCESS_CODE_HMAC_SECRET;
+  if (
+    appEnv === "production" &&
+    (!accessCodeHmacSecret || accessCodeHmacSecret.length < 32)
+  )
+    throw new Error(
+      "GEZYCBT_ACCESS_CODE_HMAC_SECRET must be at least 32 characters in production",
+    );
   const host = required(env, "HOST");
   const port = positiveInteger(required(env, "PORT"), "PORT");
   const logLevel = env.LOG_LEVEL ?? "info";
@@ -50,6 +60,7 @@ export function loadAppConfig(env: Environment): AppConfig {
     appRelease,
     appOrigin: origin,
     ...(databaseUrl === undefined ? {} : { databaseUrl }),
+    ...(accessCodeHmacSecret === undefined ? {} : { accessCodeHmacSecret }),
     host,
     port,
     logLevel: logLevel as AppConfig["logLevel"],
