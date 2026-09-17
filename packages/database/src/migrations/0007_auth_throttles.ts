@@ -13,7 +13,7 @@ export const authThrottlesMigration: Migration = {
       blocked_until DATETIME(6) NULL,
       last_failure_at DATETIME(6) NOT NULL,
       created_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
-      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6) ON UPDATE UTC_TIMESTAMP(6),
+      updated_at DATETIME(6) NOT NULL DEFAULT UTC_TIMESTAMP(6),
       CONSTRAINT pk_auth_throttles PRIMARY KEY (id),
       CONSTRAINT uq_auth_throttles_category_key UNIQUE (category, key_hash),
       CONSTRAINT chk_auth_throttles_category CHECK (category IN ('LOGIN_ACCOUNT', 'LOGIN_IP', 'PRACTICE_TOKEN', 'PRACTICE_IP', 'MAIN_CODE_IP')),

@@ -10,6 +10,7 @@ import { questionBanksMigration } from "./0008_question_banks";
 import { questionOptionsMigration } from "./0009_question_options";
 import { mediaMigration } from "./0010_media";
 import { examsMigration } from "./0011_exams";
+import { schedulesMigration } from "./0012_schedules";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -23,4 +24,5 @@ export const migrations: readonly Migration[] = [
   questionOptionsMigration,
   mediaMigration,
   examsMigration,
+  schedulesMigration,
 ];

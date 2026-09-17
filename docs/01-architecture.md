@@ -801,6 +801,14 @@ Schedule mempunyai dua jenis target:
 - `MAIN`: satu atau lebih kelas dan/atau participant account eksplisit;
 - `PRACTICE`: siapa pun yang memiliki token valid dan memenuhi form identitas.
 
+`duration_seconds` pada schedule adalah snapshot durasi yang dipakai saat
+session dimulai. Nilai ini dibatasi 1 detik sampai 24 jam dan tidak boleh
+melebihi hard stop `ends_at`; perubahan setelah session ada mengikuti aturan
+operasional extension dan audit. Untuk `MAIN`, `max_attempts` selalu 1 sesuai
+P-02. `PRACTICE` boleh dikonfigurasi satu atau lebih attempt sesuai batas
+kolom, dan memakai release policy `IMMEDIATE_SCORE`, sedangkan `MAIN` memakai
+`MANUAL`.
+
 Schedule state:
 
 ```text
@@ -1501,10 +1509,11 @@ memiliki nilai null.
 | `mode` | VARCHAR(20) | `MAIN`, `PRACTICE` |
 | `status` | VARCHAR(20) | `DRAFT`, `READY`, `OPEN`, `CLOSED`, `ARCHIVED` |
 | `starts_at`, `ends_at` | DATETIME(6) | UTC, start lebih kecil dari end |
+| `duration_seconds` | INT UNSIGNED | Snapshot durasi, 1 detik–24 jam |
 | `max_attempts` | SMALLINT UNSIGNED | Default sesuai mode |
-| `hard_end` | BOOLEAN | Baseline true |
+| `hard_end` | BOOLEAN | Wajib `TRUE` pada baseline |
 | `allow_late_start` | BOOLEAN | Baseline true selama belum ends_at |
-| `result_release_policy` | VARCHAR(30) | `MANUAL`, `IMMEDIATE_SCORE` |
+| `result_release_policy` | VARCHAR(30) | `MAIN=MANUAL`, `PRACTICE=IMMEDIATE_SCORE` |
 | `practice_token_hash` | BINARY(32) | Nullable, unique untuk practice |
 | `practice_token_hint` | VARCHAR(20) | Petunjuk tersamarkan untuk UI guru/admin, misalnya `••••-AB7K`; bukan credential |
 | `main_access_code_hash` | BINARY(32) | Nullable, unique untuk MAIN |
@@ -1519,10 +1528,15 @@ Kode plaintext hanya tampil saat dibuat/dirotasi. Setelah itu UI hanya menerima 
 
 #### Target schedule
 
-- `exam_schedule_classes`: unique `(schedule_id, class_id)`.
-- `exam_schedule_participants`: unique `(schedule_id, participant_id)`.
+- `exam_schedule_classes`: primary/unique `(schedule_id, class_id)` dan index balik `(class_id, schedule_id)`.
+- `exam_schedule_participants`: primary/unique `(schedule_id, participant_id)` dan index balik `(participant_id, schedule_id)`.
 - Main participant eligible bila termasuk target participant eksplisit atau anggota aktif kelas target pada policy snapshot yang ditetapkan.
 - Baseline mengevaluasi membership saat start dan menyimpan snapshot; bila sekolah membutuhkan roster yang dibekukan sejak schedule dibuat, keputusan tersebut harus mengganti P/ADR terkait.
+
+Foreign key target memakai `RESTRICT` agar schedule historis tidak kehilangan
+referensi. Role `PARTICIPANT` pada `participant_id` dan status kelas aktif
+divalidasi oleh schedule service; constraint database menjaga keberadaan row,
+bukan predicate role atau eligibility lintas tabel.
 
 ### D.1.5 Runtime ujian
 

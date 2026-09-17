@@ -15,6 +15,7 @@ import { questionBanksMigration } from "./migrations/0008_question_banks";
 import { questionOptionsMigration } from "./migrations/0009_question_options";
 import { mediaMigration } from "./migrations/0010_media";
 import { examsMigration } from "./migrations/0011_exams";
+import { schedulesMigration } from "./migrations/0012_schedules";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -37,6 +38,9 @@ integration("migration runner with MariaDB", () => {
     // checks only for disposable test cleanup; production migrations never do.
     await database.execute("SET FOREIGN_KEY_CHECKS = 0");
     await database.execute("DROP TABLE IF EXISTS audit_logs");
+    await database.execute("DROP TABLE IF EXISTS exam_schedule_participants");
+    await database.execute("DROP TABLE IF EXISTS exam_schedule_classes");
+    await database.execute("DROP TABLE IF EXISTS exam_schedules");
     await database.execute("DROP TABLE IF EXISTS question_revision_media");
     await database.execute("DROP TABLE IF EXISTS media_assets");
     await database.execute("DROP TABLE IF EXISTS exam_questions");
@@ -114,6 +118,7 @@ integration("migration runner with MariaDB", () => {
         questionOptionsMigration,
         mediaMigration,
         examsMigration,
+        schedulesMigration,
       ],
       options,
     );
@@ -194,6 +199,14 @@ integration("migration runner with MariaDB", () => {
       "exam_questions",
       "exam_revisions",
       "exams",
+    ]);
+    const scheduleTables = await database.query<{ table_name: string }>(
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('exam_schedules', 'exam_schedule_classes', 'exam_schedule_participants')",
+    );
+    expect(scheduleTables.map((row) => row.table_name).sort()).toEqual([
+      "exam_schedule_classes",
+      "exam_schedule_participants",
+      "exam_schedules",
     ]);
   });
 });

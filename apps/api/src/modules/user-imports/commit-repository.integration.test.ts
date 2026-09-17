@@ -31,7 +31,16 @@ integration("user import commit repository with MariaDB", () => {
   });
 
   afterAll(async () => {
+    // The disposable schema now includes the exam pointer cycle and schedule
+    // targets. Disable FK checks only for test cleanup; production never does.
+    await database.execute("SET FOREIGN_KEY_CHECKS = 0");
     await database.execute("DROP TABLE IF EXISTS audit_logs");
+    await database.execute("DROP TABLE IF EXISTS exam_schedule_participants");
+    await database.execute("DROP TABLE IF EXISTS exam_schedule_classes");
+    await database.execute("DROP TABLE IF EXISTS exam_schedules");
+    await database.execute("DROP TABLE IF EXISTS exam_questions");
+    await database.execute("DROP TABLE IF EXISTS exams");
+    await database.execute("DROP TABLE IF EXISTS exam_revisions");
     await database.execute(
       "DROP TABLE IF EXISTS user_import_credential_artifacts",
     );
@@ -48,6 +57,7 @@ integration("user import commit repository with MariaDB", () => {
     await database.execute("DROP TABLE IF EXISTS users");
     await database.execute("DROP TABLE IF EXISTS school_settings");
     await database.execute("DROP TABLE IF EXISTS schema_migrations");
+    await database.execute("SET FOREIGN_KEY_CHECKS = 1");
     await database.close();
   });
 
