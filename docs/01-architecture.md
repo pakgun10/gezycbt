@@ -1163,6 +1163,13 @@ route admin terautentikasi yang akan ditentukan kemudian.
 | `POST /api/v1/teacher/exam-sessions/:id/end` | Akhiri satu session dan nilai answer committed |
 | `POST /api/v1/admin/exam-sessions/:id/reset-attempt` | Admin override membuat attempt baru |
 
+Contract schedule berada di `apps/api/src/modules/schedules/api-contract.ts`
+dan `openapi.ts`. Body schedule memakai field identity terstruktur yang diubah
+adapter menjadi konfigurasi canonical domain; mutation wajib membawa
+`expectedUpdatedAt`, CSRF, dan idempotency key. Response access-code hanya
+memuat plaintext pada response rotasi saat itu, sedangkan resource schedule
+selalu memakai `has*` dan hint tanpa digest.
+
 #### Results dan exports
 
 | Method dan path | Kegunaan |

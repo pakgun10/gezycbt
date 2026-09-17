@@ -109,8 +109,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-055` | `DONE` | `ScheduleAccessCodeService` dan repository menyediakan kode MAIN/PRACTICE lima karakter dengan alfabet tanpa karakter ambigu, normalisasi uppercase/hyphen, generator CSPRNG, HMAC-SHA-256 bernamespace, proposal atau generator server, rotasi berbasis optimistic version, plaintext one-time, safe hint, collision retry bounded, mode/status guard, dan authorization teacher scope. Unit API lulus. |
 | `ISS-056` | `DONE` | `IdentityFieldConfigurationService` menyediakan katalog allowlist (`name`, `institution`, `class`, `student_number`, `department`), validasi konfigurasi practice, `name` wajib, batas panjang per field, allowed values, normalisasi snapshot server-side, penolakan field arbitrer, dan serialisasi deterministik. Unit API lulus. |
 | `ISS-057` | `DONE` | `ScheduleLifecycleReconciler` memproses kandidat READY/OPEN dengan batch bounded, server timestamp, transisi idempotent, delayed-job safety, dan isolasi conflict/not-ready per schedule; repository memakai predicate window terindeks. Unit API lulus. |
+| `ISS-058` | `DONE` | Kontrak Elysia/TypeBox schedule authoring dan lifecycle tersedia dengan schema request/response, optimistic version, CSRF/idempotency headers, pagination, safe access-code response, route inventory, dan OpenAPI gabungan non-production. Unit API lulus. |
 
-Gate Fase 0 sampai `ISS-057` telah selesai. Issue berikutnya adalah `ISS-058` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-058` telah selesai. Issue berikutnya adalah `ISS-060` sesuai urutan backlog.
 
 ---
 
@@ -693,7 +694,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-53. `ISS-058` — implement authoring/schedule API contracts.
+53. `ISS-058` — implement authoring/schedule API contracts (selesai).
+
+Langkah berikutnya:
+
+54. `ISS-060` — migration exam sessions dan session questions.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 

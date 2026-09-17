@@ -4,10 +4,32 @@ import { Elysia } from "elysia";
 import { AppError } from "../http/app-error";
 import { type AppLogger, consoleLogger } from "../http/logger";
 import { questionApiOpenApi } from "../modules/questions/openapi";
+import { scheduleApiOpenApi } from "../modules/schedules/openapi";
 import { checkReadiness, type ReadinessCheck } from "../observability/health";
 import { createMetrics, renderMetrics } from "../observability/metrics";
 
 const trustedRequestId = /^[a-zA-Z0-9_-]{8,128}$/;
+
+const apiOpenApi = {
+  ...questionApiOpenApi,
+  info: {
+    ...questionApiOpenApi.info,
+    title: "GezyCBT API",
+    description:
+      "GezyCBT authoring and schedule contracts. Participant payloads remain separate from staff resources.",
+  },
+  paths: { ...questionApiOpenApi.paths, ...scheduleApiOpenApi.paths },
+  components: {
+    schemas: {
+      ...questionApiOpenApi.components.schemas,
+      ...scheduleApiOpenApi.components.schemas,
+    },
+    securitySchemes: {
+      ...questionApiOpenApi.components.securitySchemes,
+      ...scheduleApiOpenApi.components.securitySchemes,
+    },
+  },
+};
 
 export interface AppDependencies {
   readonly readinessChecks?: readonly ReadinessCheck[];
@@ -45,7 +67,7 @@ export function createApp(
     app.get("/openapi.json", ({ set }) => {
       set.headers["content-type"] = "application/json; charset=utf-8";
       set.headers["cache-control"] = "no-store";
-      return questionApiOpenApi;
+      return apiOpenApi;
     });
   }
 
