@@ -821,6 +821,38 @@ DRAFT -> READY -> OPEN -> CLOSED -> ARCHIVED
 - `CLOSED`: tidak menerima start atau save baru; session aktif difinalisasi dari answer terakhir yang sudah committed.
 - `ARCHIVED`: hanya untuk histori.
 
+Schedule service menjaga lifecycle di application layer; route atau job tidak
+boleh mengubah kolom `status` secara langsung. Transisi yang diizinkan hanya:
+
+| Dari | Ke | Syarat utama | Actor |
+|---|---|---|---|
+| `DRAFT` | `READY` | exam revision dan exam berstatus `PUBLISHED`, window valid, policy mode valid, target MAIN tersedia, serta access/identity configuration lengkap | admin atau guru pemilik dengan subject/class scope |
+| `READY` | `OPEN` | `starts_at <= serverNow < ends_at` dan readiness check masih lulus | admin/guru berwenang atau system reconciler |
+| `READY` | `CLOSED` | penutupan manual dengan alasan; atau auto-close ketika `serverNow >= ends_at` | staff untuk manual; system untuk auto-close |
+| `OPEN` | `CLOSED` | penutupan manual dengan alasan; atau `serverNow >= ends_at` | staff untuk manual; system untuk auto-close |
+| `CLOSED` | `ARCHIVED` | histori tidak lagi membutuhkan operasi runtime | admin |
+
+Tidak ada transisi mundur, `DRAFT -> OPEN`, atau pembukaan setelah `ends_at`.
+`ScheduleService` selalu membaca row terbaru sebelum mutation, mengunci row pada
+repository, lalu mengirim `expectedUpdatedAt` ke update bersyarat. Versi yang
+berbeda menghasilkan conflict tanpa menimpa perubahan pihak lain. Timestamp
+penutupan dan `updated_at` dibuat oleh database (`UTC_TIMESTAMP(6)`); nilai
+`now` dari request hanya dipakai untuk keputusan window dan tidak pernah ditulis
+sebagai waktu efektif. Close manual menyimpan `closed_by_user_id` dan alasan
+1--500 karakter; auto-close system menyimpan actor dan alasan sebagai `NULL`.
+
+`advanceLifecycle` boleh dipanggil oleh reconciler system secara berulang. Job
+yang terlambat hanya mengejar state berdasarkan `serverNow`: ia dapat membuka
+schedule yang berada di window atau menutup schedule yang sudah lewat, tetapi
+tidak memperpanjang eligibility dan tidak mengarsipkan otomatis. Semua operasi
+mutation tetap membawa idempotency key pada adapter API dan menghasilkan audit
+event pada layer operasional yang sesuai.
+
+Repository membaca timestamp schedule dengan presisi `DATETIME(6)` melalui
+format UTC eksplisit, bukan melalui konversi driver ke JavaScript `Date` yang
+hanya mempertahankan milidetik. Ini membuat `updated_at` tetap dapat dipakai
+sebagai optimistic version ketika dua mutation terjadi sangat berdekatan.
+
 Perubahan target, `starts_at`, `ends_at`, duration, atau attempt policy setelah ada session wajib dibatasi. Default-nya perubahan hanya boleh memperpanjang waktu atau menambah target; perubahan yang dapat merugikan session aktif ditolak dan memerlukan admin override dengan alasan audit.
 
 `identity_fields_json` practice hanya boleh memilih field dari katalog server: `name` wajib; `institution`, `class`, dan field tambahan yang telah didefinisikan sekolah dapat optional/wajib. Nama berisi 1–200 karakter Unicode setelah trim; baseline tidak memaksakan minimum dua karakter agar nama sah yang sangat pendek tidak ditolak. Setiap definisi memuat key stabil, label, type, required, batas panjang, serta optional allowed values. Client tidak dapat mengirim field arbitrer di luar konfigurasi schedule. Nilai divalidasi dan dinormalisasi server sebelum menjadi identity snapshot. Setelah session berhasil dibuat, snapshot tidak dapat diedit; koreksi identitas memerlukan session latihan baru bila attempt policy mengizinkan, tanpa mengubah histori session lama.
@@ -1793,6 +1825,9 @@ Aturan transaksi:
 | End session | Exam session | Session finalization, result, actor/reason, audit | Request key + final state + result unique |
 | Close schedule | Schedule | Effective close metadata, audit, finalizer candidates | Request key + closed state |
 | Reset attempt | Session lalu attempt grant set | Optional finalization, new grant, audit | Reset key + unique granted attempt |
+| Create schedule | Exam revision lalu schedule | Schedule row dan seluruh class/participant target | Request key pada adapter |
+| Update schedule draft | Schedule | Policy fields dan target replacement dalam satu transaction | Expected `updated_at` + request key |
+| Advance schedule lifecycle | Schedule | Status dan close metadata bila auto-close | State transition + expected `updated_at` |
 
 Semua transaction memiliki batas waktu. Lock wait timeout dan deadlock dipetakan ke application error yang dapat di-retry hanya untuk use case aman. Retry memakai transaction baru dan membaca ulang state; connection lama tidak digunakan setelah fatal database error.
 

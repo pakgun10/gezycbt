@@ -105,8 +105,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-051` | `DONE` | `ExamDraftService` dan `SqlExamDraftRepository` menyediakan create exam/revision, metadata update, add/remove/reorder question, decimal points, expected `updatedAt`, teacher owner+subject scope, published-question dan same-subject enforcement, duplicate/order rejection, immutable published revision, transactional temporary position range, serta unit/SQL contract test. |
 | `ISS-052` | `DONE` | `ExamReadinessService` menghasilkan report deterministik untuk metadata, question reference, status/subject, posisi, duplicate, points, dan total decimal; `ExamPublishService` serta repository memvalidasi ulang dan melakukan publish atomik dengan expected version, `published_at`, total points, logical pointer, serta immutable published revision. Unit dan SQL contract test lulus. |
 | `ISS-053` | `DONE` | Migration `exam_schedules`, `exam_schedule_classes`, dan `exam_schedule_participants` menyediakan mode MAIN/PRACTICE, lifecycle state, UTC window, duration snapshot, hard stop, attempt/release policy, hashed access fields, close metadata, FK `RESTRICT`, mode-aware CHECK, target uniqueness, dan query indexes. Unit migration serta integration migration MariaDB disposable lulus. |
+| `ISS-054` | `DONE` | `ScheduleService` dan `SqlScheduleRepository` menyediakan create/update draft, teacher scope, published revision guard, MAIN/PRACTICE invariant, optimistic version, lifecycle `DRAFT → READY → OPEN → CLOSED → ARCHIVED`, server/database timestamp authority, close reason/actor, system auto-advance, serta unit dan SQL contract test. |
 
-Gate Fase 0 sampai `ISS-053` telah selesai. Issue berikutnya adalah `ISS-054` sesuai urutan backlog.
+Gate Fase 0 sampai `ISS-054` telah selesai. Issue berikutnya adalah `ISS-055` sesuai urutan backlog.
 
 ---
 
@@ -673,7 +674,11 @@ Langkah berikutnya:
 
 Langkah berikutnya:
 
-49. `ISS-054` — implement schedule service dan lifecycle.
+49. `ISS-054` — implement schedule service dan lifecycle (selesai).
+
+Langkah berikutnya:
+
+50. `ISS-055` — implement schedule access code lifecycle.
 
 **Coding production tidak dimulai dari halaman login atau UI.** Kode pertama yang layak dibuat adalah harness compatibility spike `ISS-003`. Skeleton aplikasi production dimulai pada `ISS-010` setelah hasil spike dan ADR-003 diterima.
 
