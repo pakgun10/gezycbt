@@ -7,9 +7,9 @@ Wants=network-online.target
 Type=simple
 User=gezycbt
 Group=gezycbt
-WorkingDirectory=/opt/gezycbt/current
+WorkingDirectory=/home/ubuntu/gezycbt/current
 EnvironmentFile=/etc/gezycbt/gezycbt.env
-ExecStart=/usr/local/bin/bun --cwd /opt/gezycbt/current/apps/api src/index.ts
+ExecStart=/usr/local/bin/bun --cwd /home/ubuntu/gezycbt/current/apps/api src/index.ts
 Restart=on-failure
 RestartSec=3s
 TimeoutStopSec=30s
@@ -18,7 +18,7 @@ LimitNOFILE=65536
 MemoryMax=512M
 NoNewPrivileges=true
 PrivateTmp=true
-ProtectHome=true
+ProtectHome=read-only
 ReadWritePaths=/var/lib/gezycbt /var/log/gezycbt
 
 [Install]

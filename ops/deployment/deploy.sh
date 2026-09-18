@@ -3,7 +3,7 @@ set -euo pipefail
 umask 077
 release_id="${1:?usage: deploy.sh <release-id> <artifact-dir> }"
 artifact_dir="${2:?usage: deploy.sh <release-id> <artifact-dir> }"
-root="${GEZYCBT_APP_ROOT:-/opt/gezycbt}"
+root="${GEZYCBT_APP_ROOT:-/home/ubuntu/gezycbt}"
 release="$root/releases/$release_id"
 lock="/run/lock/gezycbt-deploy.lock"
 [[ "$release_id" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || { echo 'invalid release id' >&2; exit 2; }

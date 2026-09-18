@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 job="${1:?job name required}"
-release="${GEZYCBT_RELEASE_ROOT:-/opt/gezycbt/current}"
+release="${GEZYCBT_RELEASE_ROOT:-/home/ubuntu/gezycbt/current}"
 exec /usr/local/bin/bun --cwd "$release/apps/api" src/cli/jobs.ts "$job"
