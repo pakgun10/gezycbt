@@ -217,6 +217,52 @@ Install unit systemd setelah menyesuaikan user, hostname, paths, dan environment
 Jangan menyalin secrets ke repository. Production mutable data tetap berada di
 `/var/lib/gezycbt`, sedangkan release code berada di `/home/ubuntu/gezycbt/releases`.
 
+### 9.1 Host VPS GezyCBT
+
+Baseline VPS memakai layout berikut:
+
+| Komponen | Lokasi/nilai |
+|---|---|
+| Application root | `/home/ubuntu/gezycbt` |
+| Active release | `/home/ubuntu/gezycbt/current` |
+| Environment | `/etc/gezycbt/gezycbt.env` (mode `0640`, `root:gezycbt`) |
+| Backup key | `/etc/gezycbt/backup.key` (mode `0640`, `root:gezycbt`) |
+| Media dan export | `/var/lib/gezycbt/media`, `/var/lib/gezycbt/exports` |
+| Public hostname | `cbt.gezytech.web.id` |
+
+Perintah operasional utama dijalankan melalui SSH sebagai `ubuntu` dengan
+`sudo`:
+
+```bash
+sudo systemctl status gezycbt-api nginx mariadb
+sudo systemctl restart gezycbt-api
+sudo systemctl stop gezycbt-api
+sudo systemctl start gezycbt-api
+sudo journalctl -u gezycbt-api -n 100 --no-pager
+curl -i https://cbt.gezytech.web.id/health/ready
+```
+
+Migration dilakukan sebelum mengganti symlink release. Akun admin pertama
+belum dibuat otomatis; buat setelah memilih kredensial sekolah melalui release
+aktif, tanpa menaruh password di command history:
+
+```bash
+read -rsp 'Password admin: ' ADMIN_PASSWORD; printf '\n'
+printf '%s' "$ADMIN_PASSWORD" | sudo bash -c \
+  'set -a; . /etc/gezycbt/gezycbt.env; set +a; \
+   /usr/local/bin/bun --cwd /home/ubuntu/gezycbt/current/apps/api \
+   src/cli/bootstrap-admin.ts --username admin \
+   --display-name "Administrator" --password-stdin'
+unset ADMIN_PASSWORD
+```
+
+Sertifikat TLS disimpan oleh Certbot di
+`/etc/letsencrypt/live/cbt.gezytech.web.id/` dan renewal dikelola oleh timer
+Certbot. Jika HTTPS dari internet timeout sementara health check lokal lulus,
+periksa rule port `443/tcp` pada Security Group provider dan mode Cloudflare
+(DNS-only memerlukan port 443 terbuka langsung; proxy Cloudflare dapat dipakai
+dengan SSL mode **Full (strict)**).
+
 ## 10. Disk protection dan worker recovery
 
 API menolak upload media dan pembuatan export ketika filesystem data memiliki
