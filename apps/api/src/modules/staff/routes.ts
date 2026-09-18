@@ -999,13 +999,17 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           title: String(row.title),
           mode: String(row.mode),
           status: String(row.status),
-          startsAt: String(row.starts_at),
-          endsAt: String(row.ends_at),
+          // Bun.SQL returns DATETIME columns as Date objects.  Do not expose
+          // Date#toString() here: the client sends updatedAt back as the
+          // optimistic-lock token for lifecycle transitions, and the
+          // schedule service accepts canonical UTC timestamps only.
+          startsAt: isoValue(row.starts_at),
+          endsAt: isoValue(row.ends_at),
           durationSeconds: Number(row.duration_seconds),
           maxAttempts: Number(row.max_attempts),
           hasAccessCode: Boolean(row.has_access_code),
           accessHint: row.access_hint === null ? null : String(row.access_hint),
-          updatedAt: String(row.updated_at),
+          updatedAt: isoValue(row.updated_at),
         })),
         rows.length > limit ? String(rows[limit]?.id) : null,
       );
@@ -1496,8 +1500,12 @@ async function wrapRead<T>(
   required: "ADMIN" | "TEACHER" | "STAFF",
   operation: (context: UseCaseContext) => Promise<T>,
 ): Promise<{ data: T }> {
-  const identity = await requireStaff(request, options, required);
-  return { data: await operation(actorContext(request, identity)) };
+  try {
+    const identity = await requireStaff(request, options, required);
+    return { data: await operation(actorContext(request, identity)) };
+  } catch (error) {
+    throw mapStaffError(error);
+  }
 }
 async function wrapMutation<T>(
   request: Request,
@@ -1505,20 +1513,24 @@ async function wrapMutation<T>(
   required: "ADMIN" | "TEACHER" | "STAFF",
   operation: (context: UseCaseContext) => Promise<T>,
 ): Promise<{ data: T }> {
-  const actor = await requireStaff(request, options, required);
-  await requireCsrf(request, actor.session, options);
-  const key = request.headers.get("idempotency-key");
-  if (!key)
-    throw new AppError(
-      422,
-      "VALIDATION_FAILED",
-      "Idempotency-Key wajib diisi.",
-    );
-  return {
-    data: await operation(
-      actorContext(request, actor, request.headers.get("idempotency-key")),
-    ),
-  };
+  try {
+    const actor = await requireStaff(request, options, required);
+    await requireCsrf(request, actor.session, options);
+    const key = request.headers.get("idempotency-key");
+    if (!key)
+      throw new AppError(
+        422,
+        "VALIDATION_FAILED",
+        "Idempotency-Key wajib diisi.",
+      );
+    return {
+      data: await operation(
+        actorContext(request, actor, request.headers.get("idempotency-key")),
+      ),
+    };
+  } catch (error) {
+    throw mapStaffError(error);
+  }
 }
 async function wrapSqlRead<T>(
   request: Request,

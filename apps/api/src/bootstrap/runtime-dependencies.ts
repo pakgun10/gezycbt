@@ -587,8 +587,8 @@ async function loadParticipantSchedules(
       : { subjectName: String(row.subject_name) }),
     mode: String(row.mode) as ParticipantScheduleSummary["mode"],
     status: String(row.status) as ParticipantScheduleSummary["status"],
-    startsAt: String(row.starts_at) as ParticipantScheduleSummary["startsAt"],
-    endsAt: String(row.ends_at) as ParticipantScheduleSummary["endsAt"],
+    startsAt: isoValue(row.starts_at) as ParticipantScheduleSummary["startsAt"],
+    endsAt: isoValue(row.ends_at) as ParticipantScheduleSummary["endsAt"],
     durationSeconds: Number(row.duration_seconds),
     maxAttempts: Number(row.max_attempts),
     attemptsUsed: Number(row.attempts_used ?? 0),
@@ -614,6 +614,16 @@ async function loadParticipantSchedules(
 
 function databaseBooleanValue(value: unknown): boolean {
   return value === true || value === 1 || value === "1";
+}
+
+/** Normalize MariaDB DATETIME values before they cross the HTTP boundary. */
+function isoValue(value: unknown): string {
+  if (value instanceof Date) return value.toISOString();
+  const raw = String(value);
+  const parsed = new Date(
+    raw.includes("T") ? raw : `${raw.replace(" ", "T")}Z`,
+  );
+  return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString();
 }
 
 function planRecord(
