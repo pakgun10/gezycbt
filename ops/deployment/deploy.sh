@@ -8,6 +8,13 @@ release="$root/releases/$release_id"
 lock="/run/lock/gezycbt-deploy.lock"
 [[ "$release_id" =~ ^[A-Za-z0-9._-]{1,80}$ ]] || { echo 'invalid release id' >&2; exit 2; }
 [[ -d "$artifact_dir" ]] || { echo 'artifact directory not found' >&2; exit 2; }
+# Nginx serves the Vite build from the immutable release. Refuse an
+# incomplete artifact instead of switching traffic to a release that would
+# return a redirect loop for browser routes.
+[[ -f "$artifact_dir/apps/web/dist/index.html" ]] || {
+  echo 'frontend build artifact missing: run bun run build before packaging' >&2
+  exit 2
+}
 mkdir -p "$root/releases" /run/lock
 exec 9>"$lock"
 flock -n 9 || { echo 'another deployment is running' >&2; exit 3; }
