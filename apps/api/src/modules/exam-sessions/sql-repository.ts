@@ -130,7 +130,20 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       const session = await insertSession(
         connection,
         schedule,
-        { ...input, participantName },
+        {
+          participantId: input.participant.participantId,
+          participantName,
+          startIdempotencyKey: input.startIdempotencyKey,
+          ...(input.classSnapshot === undefined
+            ? {}
+            : { classSnapshot: input.classSnapshot }),
+          ...(input.institutionSnapshot === undefined
+            ? {}
+            : { institutionSnapshot: input.institutionSnapshot }),
+          ...(input.identityExtra === undefined
+            ? {}
+            : { identityExtra: input.identityExtra }),
+        },
         now,
         attemptNo,
         undefined,
