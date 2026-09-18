@@ -134,3 +134,29 @@ test("teacher subject options include only the authenticated teacher scope", asy
   expect(response.status).toBe(200);
   expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
 });
+
+test("teacher target pickers include class and participant scope predicates", async () => {
+  const { app, queries } = appFor("TEACHER");
+  const headers = { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` };
+  expect(
+    (
+      await app.handle(
+        new Request("https://cbt.example.test/api/v1/teacher/classes", {
+          headers,
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await app.handle(
+        new Request(
+          "https://cbt.example.test/api/v1/teacher/participants?search=ani",
+          { headers },
+        ),
+      )
+    ).status,
+  ).toBe(200);
+  expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
+  expect(queries.some((parameters) => parameters.includes("%ani%"))).toBe(true);
+});

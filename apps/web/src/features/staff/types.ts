@@ -41,6 +41,12 @@ export interface ClassRecord {
   readonly updatedAt: string;
 }
 
+export interface ParticipantOption {
+  readonly id: string;
+  readonly username: string;
+  readonly displayName: string;
+}
+
 export interface Subject {
   readonly id: string;
   readonly code: string;

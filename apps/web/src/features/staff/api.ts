@@ -12,6 +12,7 @@ import type {
   IntegrationClient,
   IntegrationClientDetail,
   MonitorPage,
+  ParticipantOption,
   QuestionBankSummary,
   QuestionDraft,
   QuestionSummary,
@@ -82,6 +83,8 @@ export interface StaffApi {
   createClass(input: Record<string, unknown>): Promise<ClassRecord>;
   subjects(): Promise<CursorPage<Subject>>;
   teacherSubjects(): Promise<CursorPage<Subject>>;
+  teacherClasses(): Promise<CursorPage<ClassRecord>>;
+  teacherParticipants(search?: string): Promise<CursorPage<ParticipantOption>>;
   createSubject(input: Record<string, unknown>): Promise<Subject>;
   teacherScope(teacherId?: string): Promise<TeacherScope>;
   updateTeacherScope(
@@ -386,6 +389,14 @@ export class HttpStaffApi implements StaffApi {
   }
   teacherSubjects() {
     return this.getPage<Subject>("/api/v1/teacher/subjects");
+  }
+  teacherClasses() {
+    return this.getPage<ClassRecord>("/api/v1/teacher/classes");
+  }
+  teacherParticipants(search = "") {
+    return this.getPage<ParticipantOption>(
+      `/api/v1/teacher/participants${search ? `?search=${encodeURIComponent(search)}` : ""}`,
+    );
   }
   createSubject(input: Record<string, unknown>) {
     return this.mutate<Subject>("/api/v1/admin/subjects", "POST", input);

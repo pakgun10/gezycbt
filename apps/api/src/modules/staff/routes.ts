@@ -400,6 +400,83 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       );
     }),
   );
+  app.get("/api/v1/teacher/classes", async ({ request, query }) =>
+    wrapSqlRead(request, options, "TEACHER", async (identity) => {
+      const limit = boundedLimit(queryValue(query, "limit"));
+      const cursor = queryValue(query, "cursor");
+      const conditions = ["c.status = 'ACTIVE'"];
+      const parameters: unknown[] = [];
+      if (identity.user.role !== "ADMIN") {
+        conditions.push(
+          "EXISTS (SELECT 1 FROM teacher_classes tc WHERE tc.teacher_id = ? AND tc.class_id = c.id)",
+        );
+        parameters.push(identity.user.id);
+      }
+      if (cursor && /^\d+$/u.test(cursor)) {
+        conditions.push("c.id > ?");
+        parameters.push(cursor);
+      }
+      parameters.push(limit + 1);
+      const rows = await options.database.query<Record<string, unknown>>(
+        `SELECT c.id, c.academic_year_id, c.code, c.name, c.status, c.updated_at
+         FROM classes c
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY c.id ASC LIMIT ?`,
+        parameters,
+      );
+      return page(
+        rows.slice(0, limit).map((row) => ({
+          id: String(row.id),
+          academicYearId: String(row.academic_year_id),
+          code: String(row.code),
+          name: String(row.name),
+          status: String(row.status),
+          updatedAt: String(row.updated_at),
+        })),
+        rows.length > limit ? String(rows[limit]?.id) : null,
+      );
+    }),
+  );
+  app.get("/api/v1/teacher/participants", async ({ request, query }) =>
+    wrapSqlRead(request, options, "TEACHER", async (identity) => {
+      const limit = boundedLimit(queryValue(query, "limit"));
+      const cursor = queryValue(query, "cursor");
+      const search = queryValue(query, "search") ?? queryValue(query, "q");
+      const conditions = ["u.role = 'PARTICIPANT'", "u.status = 'ACTIVE'"];
+      const parameters: unknown[] = [];
+      if (identity.user.role !== "ADMIN") {
+        conditions.push(
+          "EXISTS (SELECT 1 FROM class_members scope_cm JOIN teacher_classes scope_tc ON scope_tc.class_id = scope_cm.class_id WHERE scope_cm.participant_id = u.id AND scope_cm.left_at IS NULL AND scope_tc.teacher_id = ?)",
+        );
+        parameters.push(identity.user.id);
+      }
+      if (search?.trim()) {
+        conditions.push("(u.username LIKE ? OR u.display_name LIKE ?)");
+        const term = `%${search.trim().slice(0, 100)}%`;
+        parameters.push(term, term);
+      }
+      if (cursor && /^\d+$/u.test(cursor)) {
+        conditions.push("u.id > ?");
+        parameters.push(cursor);
+      }
+      parameters.push(limit + 1);
+      const rows = await options.database.query<Record<string, unknown>>(
+        `SELECT u.id, u.username, u.display_name
+         FROM users u
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY u.display_name ASC, u.id ASC LIMIT ?`,
+        parameters,
+      );
+      return page(
+        rows.slice(0, limit).map((row) => ({
+          id: String(row.id),
+          username: String(row.username),
+          displayName: String(row.display_name),
+        })),
+        rows.length > limit ? String(rows[limit]?.id) : null,
+      );
+    }),
+  );
   app.get("/api/v1/teacher/scopes/:id", async ({ request, params }) =>
     wrapRead(request, options, "STAFF", async () => {
       const id = String((params as Record<string, unknown>).id ?? "");
