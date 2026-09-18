@@ -18,6 +18,7 @@ import { examSessionCredentialsMigration } from "./0016_exam_session_credentials
 import { exportsMigration } from "./0017_exports";
 import { integrationsMigration } from "./0018_integrations";
 import { agentExportsMigration } from "./0019_agent_exports";
+import { agentActionsMigration } from "./0020_agent_actions";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -39,4 +40,5 @@ export const migrations: readonly Migration[] = [
   exportsMigration,
   integrationsMigration,
   agentExportsMigration,
+  agentActionsMigration,
 ];

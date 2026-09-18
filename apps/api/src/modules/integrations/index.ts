@@ -1,3 +1,5 @@
+export * from "./action-service";
+export * from "./compatibility";
 export * from "./discovery";
 export * from "./domain";
 export * from "./exam-authoring";

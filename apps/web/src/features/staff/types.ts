@@ -263,3 +263,26 @@ export interface IntegrationClientDetail {
   readonly credentials: readonly IntegrationCredential[];
   readonly grants: readonly IntegrationGrant[];
 }
+
+export interface IntegrationAction {
+  readonly id: string;
+  readonly clientId: string;
+  readonly ownerUserId: string;
+  readonly capability: string;
+  readonly operation: string;
+  readonly targetType: string;
+  readonly targetId: string;
+  readonly plan: Readonly<Record<string, unknown>>;
+  readonly planHash: string;
+  readonly riskLevel: "R0" | "R1" | "R2" | "R3" | "R4";
+  readonly expectedVersions: Readonly<Record<string, unknown>>;
+  readonly grantVersion: number;
+  readonly status: string;
+  readonly approvalMethod: string;
+  readonly expiresAt: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+  readonly executedAt: string | null;
+  readonly result: Readonly<Record<string, unknown>> | null;
+  readonly errorCode: string | null;
+}

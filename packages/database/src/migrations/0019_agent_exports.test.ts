@@ -15,6 +15,8 @@ describe("agent exports migration", () => {
     expect(agentExportsMigration.statements[0]).toContain(
       "scope_snapshot_json",
     );
-    expect(migrations.at(-1)).toBe(agentExportsMigration);
+    expect(
+      migrations.find((migration) => migration.id === agentExportsMigration.id),
+    ).toBe(agentExportsMigration);
   });
 });

@@ -90,6 +90,7 @@ function app(
   examAuthoring?: unknown,
   resultReads?: unknown,
   exportService?: unknown,
+  actionService?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -149,6 +150,7 @@ function app(
         ...(examAuthoring ? { examAuthoring: examAuthoring as never } : {}),
         ...(resultReads ? { resultReads: resultReads as never } : {}),
         ...(exportService ? { exports: exportService as never } : {}),
+        ...(actionService ? { actions: actionService as never } : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -420,4 +422,142 @@ test("agent export routes require idempotency and expose status/download token",
   expect(download.status).toBe(200);
   expect(download.headers.get("content-type")).toContain("text/csv");
   expect(await download.text()).toContain("80");
+});
+
+test("agent action routes prepare and confirm exact plan with idempotency", async () => {
+  const actionService = {
+    async prepare() {
+      return {
+        id: "300",
+        operation: "exams.publish",
+        targetType: "exam_revision",
+        targetId: "30",
+        status: "AWAITING_CONFIRMATION",
+        planHash: "a".repeat(64),
+      };
+    },
+    async get() {
+      return { id: "300", status: "AWAITING_CONFIRMATION" };
+    },
+    async list() {
+      return { items: [], nextCursor: null };
+    },
+    async confirm() {
+      return { id: "300", status: "SUCCEEDED" };
+    },
+    async cancel() {
+      return { id: "300", status: "CANCELLED" };
+    },
+  };
+  const application = app(
+    true,
+    ["exams.publish"],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actionService,
+  );
+  const missingKey = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/actions/prepare",
+      {
+        method: "POST",
+        headers: { authorization: "Bearer integration-token" },
+        body: JSON.stringify({
+          operation: "exams.publish",
+          target: { type: "exam_revision", id: "30" },
+        }),
+      },
+    ),
+  );
+  expect(missingKey.status).toBe(422);
+  const prepared = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/actions/prepare",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "idempotency-key": "action-route-idempotency-001",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          operation: "exams.publish",
+          target: { type: "exam_revision", id: "30" },
+        }),
+      },
+    ),
+  );
+  expect(prepared.status).toBe(200);
+  expect(await prepared.json()).toMatchObject({
+    data: { id: "300", status: "AWAITING_CONFIRMATION" },
+  });
+  const confirmed = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/actions/300/confirm",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "idempotency-key": "action-route-confirm-001",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ planHash: "a".repeat(64) }),
+      },
+    ),
+  );
+  expect(confirmed.status).toBe(200);
+  expect(await confirmed.json()).toMatchObject({
+    data: { status: "SUCCEEDED" },
+  });
+});
+
+test("admin action approval keeps CSRF, re-auth, and exact plan hash boundary", async () => {
+  let approved: { id: string; planHash: string; adminUserId: string } | null =
+    null;
+  const actionService = {
+    async listForAdmin() {
+      return { items: [], nextCursor: null };
+    },
+    async getForAdmin() {
+      return { id: "301", status: "AWAITING_APPROVAL" };
+    },
+    async approve(id: string, planHash: string, adminUserId: string) {
+      approved = { id, planHash, adminUserId };
+      return { id, status: "SUCCEEDED", planHash };
+    },
+  };
+  const application = app(
+    true,
+    [],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    actionService,
+  );
+  const response = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/admin/integration-actions/301/approve",
+      {
+        method: "POST",
+        headers: {
+          cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+          origin: "https://cbt.example.test",
+          "x-csrf-token": "csrf",
+          "idempotency-key": "admin-action-approval-001",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ planHash: "b".repeat(64) }),
+      },
+    ),
+  );
+  expect(response.status).toBe(200);
+  if (!approved) throw new Error("Expected admin approval callback");
+  expect(approved as unknown).toEqual({
+    id: "301",
+    planHash: "b".repeat(64),
+    adminUserId: "1",
+  });
 });

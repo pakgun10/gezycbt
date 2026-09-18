@@ -1,7 +1,7 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** Fondasi ISS-120–ISS-123, discovery ISS-124, question/media authoring ISS-125, exam authoring ISS-126, result/practice reads ISS-127, dan controlled export ISS-128 diimplementasikan; tool workflow lanjutan masih bertahap
-**Versi dokumen:** 0.7
+**Status:** ISS-120–ISS-132 selesai pada baseline machine integration; adapter runtime Hivekeep/Hermes tetap mengikuti external compatibility spike sebelum pilot
+**Versi dokumen:** 0.8
 **Terakhir diperbarui:** 18 September 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
@@ -10,10 +10,11 @@ Dokumen ini menggantikan asumsi bahwa GezyCBT membuat bot Telegram/WhatsApp send
 
 Fondasi machine client, credential, grant, rate limit, audit, management console,
 kill switch, discovery, question/media authoring, exam authoring, result/
-practice reads, dan controlled export tersedia pada ISS-120–ISS-128.
-High-risk action approval dan adapter compatibility masih dibuka bertahap;
-daftar batasnya ada di
-[agent-readiness-audit.md](./agent-readiness-audit.md).
+practice reads, controlled export, exact action plan, approval, operasi berisiko,
+dan contract/security suite tersedia pada ISS-120–ISS-132.
+Kontrak dan rencana evidence adapter external dirinci pada
+[agent-compatibility-spike.md](./agent-compatibility-spike.md); ringkasan audit
+implementasi ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
 
 Kata **wajib** berarti aturan correctness atau security yang tidak boleh dilewati. Kata **disarankan** adalah baseline yang dapat diubah melalui Architecture Decision Record.
 
@@ -594,7 +595,7 @@ Audit agent mengikuti retention audit sekolah, minimal satu tahun. Detail `agent
 | integration_credentials | token_prefix unique, client+status+expiry |
 | integration_grants | client+capability+status+expiry, scope lookup |
 | integration_idempotency_keys | client+key unique, expiry |
-| agent_action_requests | client+created, status+expiry, owner+created |
+| agent_action_requests | client+created, status+expiry, owner+created, target+created, plan_hash |
 | agent_action_approvals | action+outcome, approved_by+created |
 | export_jobs | requester/client+created, status+created, expiry |
 
@@ -800,6 +801,10 @@ Limit diterapkan setelah Nginx connection/body protection dan sebelum pekerjaan 
 - reset attempt membuat satu grant yang hanya dikonsumsi satu replacement session;
 - Akhiri Sesi dan Tutup Jadwal menghasilkan finalization reason yang tepat;
 - rate limit agent mengembalikan `429` dan `Retry-After`.
+- action plan yang berubah, capability revoked, dan result redaction ditolak/
+  disanitasi sebelum keluar dari boundary agent;
+- burst 1.000 read agent memakai bucket terpisah dan tidak mengubah mutation
+  bucket atau jalur exam runtime.
 
 ### Contract dan E2E
 
@@ -815,6 +820,10 @@ Limit diterapkan setelah Nginx connection/body protection dan sebelum pekerjaan 
 - `questions.read_key` menghasilkan sensitive-read audit;
 - practice result memuat `canRetry`/`canRetryReason` tanpa answer key atau correctness per soal;
 - canonical plan fixtures menghasilkan hash stabil dan perubahan satu parameter mengubah hash.
+
+Manifest kontrak executable dan bukti lokal untuk Hivekeep/Hermes berada di
+[agent-compatibility-spike.md](./agent-compatibility-spike.md). Verifikasi
+external host wajib dilakukan sebelum adapter dipakai pada pilot.
 
 `GET /api/v1/integrations/agent/me` menjadi self-service smoke test tanpa mutation. Response memuat identity client, owner summary aman, status, effective grant version, dan nama effective capabilities; `/capabilities` memberi rincian scope/constraint. Admin atau operator menjalankannya sebelum memasang tool mutation. Test setup dinyatakan berhasil hanya jika kedua response sesuai grant yang terlihat pada web admin.
 
@@ -906,7 +915,9 @@ safe answer-key boundary, sensitive audit, dan bounded idempotency header.
 
 Exam/revision, attach/remove/reorder, points, readiness validation, safe exam
 view, optimistic version, dan R2 publish langsung melalui application service.
-Exact action plan/prepare-confirm untuk publish ditambahkan pada ISS-129.
+Exact action plan/prepare-confirm untuk publish dan operasi berisiko tersedia
+melalui `IntegrationActionService` pada ISS-129–ISS-130. R3 selalu menunggu
+approval web; agent hanya mem-poll status action.
 
 ### I5 — Results/export
 
@@ -916,11 +927,19 @@ PII grant, audit sensitive read, dan load isolation.
 
 ### I6 — High-risk
 
-Prepare/confirm, web approval, schedule close, result release, session extension, session end, reset attempt, dan incident runbook.
+Prepare/confirm, web approval, schedule close, result release, session extension,
+session end, reset attempt, dan operation callbacks melalui application service
+tersedia pada ISS-129–ISS-130. Contract, redaction, revoke, rate-limit, dan
+load-isolation tests tersedia pada ISS-132.
 
 ### I7 — Production adapters
 
-Typed Hivekeep tool/plugin atau MCP bridge, Hermes MCP/custom tool, skills/tool descriptions, vault setup, allowed-user policy, contract/E2E/security tests, dan pinned compatibility versions.
+Kontrak adapter typed, manifest endpoint/header/polling, serta spike plan
+Hivekeep/Hermes tersedia pada ISS-131 dan
+[agent-compatibility-spike.md](./agent-compatibility-spike.md). Instalasi
+platform, vault setup, allowed-user policy, dan pinned external versions tetap
+harus menghasilkan evidence pada staging sebelum pilot; GezyCBT tidak mengklaim
+platform external lulus hanya dari test lokal.
 
 I0 dibangun bersama core. I1–I2 dimulai setelah auth/read models stabil. I3
 mengikuti question bank, I4 mengikuti exam authoring, I5 mengikuti results, dan

@@ -467,7 +467,7 @@ function assertStaffContext(
 } {
   assertActorContext(actor);
   if (
-    actor.actorType !== "HUMAN" ||
+    (actor.actorType !== "HUMAN" && actor.actorType !== "EXTERNAL_AGENT") ||
     (actor.role !== "ADMIN" && actor.role !== "TEACHER") ||
     !actor.userId ||
     actor.active === false

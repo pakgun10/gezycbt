@@ -58,6 +58,22 @@ import {
 import { QuestionPublishBlockedError } from "../questions/publish";
 import type { StoredUser } from "../users";
 import {
+  AGENT_ACTION_OPERATIONS,
+  AGENT_ACTION_STATUSES,
+  AGENT_ACTION_TARGET_TYPES,
+  AgentActionApprovalRequiredError,
+  AgentActionConflictError,
+  AgentActionExecutionError,
+  AgentActionExpiredError,
+  AgentActionGrantChangedError,
+  AgentActionNotFoundError,
+  type AgentActionOperation,
+  AgentActionPlanMismatchError,
+  type AgentActionStatus,
+  AgentActionValidationError,
+  type IntegrationActionService,
+} from "./action-service";
+import {
   AgentExamNotFoundError,
   type IntegrationExamAuthoringService,
 } from "./exam-authoring";
@@ -105,6 +121,7 @@ export interface IntegrationRouteOptions {
   readonly examAuthoring?: IntegrationExamAuthoringService;
   readonly resultReads?: IntegrationResultReadService;
   readonly exports?: IntegrationExportService;
+  readonly actions?: IntegrationActionService;
 }
 
 export function createIntegrationRoutes(
@@ -806,6 +823,87 @@ export function createIntegrationRoutes(
     },
   );
 
+  app.post(
+    "/api/v1/integrations/agent/actions/prepare",
+    async ({ request, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const actions = requireActionService(options);
+          return actions.prepare(
+            authentication,
+            parseAgentActionPrepareInput(body),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.get("/api/v1/integrations/agent/actions", async ({ request, query }) => {
+    try {
+      const actions = requireActionService(options);
+      const authentication = await requireAgent(request, options, "read");
+      const status = queryEnumValue(query, "status", AGENT_ACTION_STATUSES);
+      const cursor = queryIdValue(query, "cursor", "cursor");
+      const limit = queryLimitValue(query, "limit");
+      return {
+        data: await actions.list(authentication, {
+          ...(status ? { status: status as AgentActionStatus } : {}),
+          ...(cursor ? { cursor } : {}),
+          limit,
+        }),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.get(
+    "/api/v1/integrations/agent/actions/:id",
+    async ({ request, params }) => {
+      try {
+        const actions = requireActionService(options);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await actions.get(authentication, idParam(params)),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/actions/:id/confirm",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const actions = requireActionService(options);
+          const payload = objectPayload(body);
+          return actions.confirm(
+            authentication,
+            idParam(params),
+            stringField(payload.planHash, "planHash"),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/actions/:id/cancel",
+    async ({ request, params }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const actions = requireActionService(options);
+        return actions.cancel(authentication, idParam(params), requestId);
+      }),
+  );
+
   app.get(
     "/api/v1/integrations/agent/schedules",
     async ({ request, query }) => {
@@ -1043,6 +1141,55 @@ export function createIntegrationRoutes(
       }),
   );
 
+  app.get("/api/v1/admin/integration-actions", async ({ request, query }) => {
+    try {
+      await requireAdmin(request, options);
+      const actions = requireActionService(options);
+      const status = queryEnumValue(query, "status", AGENT_ACTION_STATUSES);
+      const clientId = queryIdValue(query, "clientId", "clientId");
+      const cursor = queryIdValue(query, "cursor", "cursor");
+      return {
+        data: await actions.listForAdmin({
+          ...(status ? { status: status as AgentActionStatus } : {}),
+          ...(clientId ? { clientId } : {}),
+          ...(cursor ? { cursor } : {}),
+          limit: queryLimitValue(query, "limit"),
+        }),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.get(
+    "/api/v1/admin/integration-actions/:id",
+    async ({ request, params }) => {
+      try {
+        await requireAdmin(request, options);
+        const actions = requireActionService(options);
+        return { data: await actions.getForAdmin(idParam(params)) };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/admin/integration-actions/:id/approve",
+    async ({ request, params, body }) =>
+      adminMutation(request, options, async (admin) => {
+        const actions = requireActionService(options);
+        const payload = objectPayload(body);
+        return actions.approve(
+          idParam(params),
+          stringField(payload.planHash, "planHash"),
+          admin.user.id as Id,
+          admin.requestId,
+          request.headers.get("idempotency-key") ?? "admin-action-approval",
+        );
+      }),
+  );
+
   return app;
 }
 
@@ -1092,6 +1239,18 @@ function requireExportService(
       "Export integration belum tersedia.",
     );
   return options.exports;
+}
+
+function requireActionService(
+  options: IntegrationRouteOptions,
+): IntegrationActionService {
+  if (!options.actions)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Action integration belum tersedia.",
+    );
+  return options.actions;
 }
 
 async function agentMutation<T>(
@@ -1413,6 +1572,42 @@ function mapIntegrationError(error: unknown): Error {
         : "Permintaan export dengan key tersebut masih diproses.",
     );
   if (error instanceof ExportValidationError)
+    return new AppError(422, "VALIDATION_FAILED", error.message);
+  if (error instanceof AgentActionNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Action tidak ditemukan.");
+  if (error instanceof AgentActionPlanMismatchError)
+    return new AppError(
+      409,
+      "ACTION_PLAN_MISMATCH",
+      "Plan action sudah berubah. Buat plan baru.",
+    );
+  if (error instanceof AgentActionGrantChangedError)
+    return new AppError(
+      409,
+      "ACTION_GRANT_CHANGED",
+      "Grant berubah. Buat plan baru terhadap grant terbaru.",
+    );
+  if (error instanceof AgentActionApprovalRequiredError)
+    return new AppError(
+      409,
+      "ACTION_APPROVAL_REQUIRED",
+      "Action menunggu persetujuan admin melalui web.",
+    );
+  if (error instanceof AgentActionExpiredError)
+    return new AppError(409, "ACTION_EXPIRED", "Action sudah kedaluwarsa.");
+  if (error instanceof AgentActionExecutionError)
+    return new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Action belum dapat diselesaikan. Coba periksa status action lalu ulangi bila masih pending.",
+    );
+  if (error instanceof AgentActionConflictError)
+    return new AppError(
+      409,
+      error.code,
+      "Action tidak dapat diproses pada state saat ini.",
+    );
+  if (error instanceof AgentActionValidationError)
     return new AppError(422, "VALIDATION_FAILED", error.message);
   if (
     error instanceof MediaValidationError ||
@@ -1800,11 +1995,87 @@ function parseAgentExportInput(value: unknown): AgentExportInput {
   };
 }
 
+function parseAgentActionPrepareInput(value: unknown) {
+  const payload = objectPayload(value);
+  const operation = stringField(payload.operation, "operation");
+  if (!AGENT_ACTION_OPERATIONS.includes(operation as AgentActionOperation))
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Operation action tidak didukung.",
+    );
+  const target =
+    payload.target &&
+    typeof payload.target === "object" &&
+    !Array.isArray(payload.target)
+      ? (payload.target as Record<string, unknown>)
+      : payload;
+  const targetType = stringField(
+    target.type ?? target.targetType,
+    "target.type",
+  );
+  if (!AGENT_ACTION_TARGET_TYPES.includes(targetType as never))
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Target type action tidak didukung.",
+    );
+  const targetId = idValue(target.id ?? target.targetId, "target.id");
+  let parameters: Readonly<Record<string, unknown>> | undefined;
+  if (payload.parameters !== undefined) {
+    if (
+      !payload.parameters ||
+      typeof payload.parameters !== "object" ||
+      Array.isArray(payload.parameters)
+    )
+      throw new AppError(
+        422,
+        "VALIDATION_FAILED",
+        "parameters harus berupa object.",
+      );
+    parameters = payload.parameters as Readonly<Record<string, unknown>>;
+  }
+  return {
+    operation: operation as AgentActionOperation,
+    targetType: targetType as never,
+    targetId,
+    ...(parameters ? { parameters } : {}),
+  };
+}
+
 function queryTextValue(value: unknown, field: string): string | undefined {
   if (value === undefined || value === null || value === "") return undefined;
   if (typeof value !== "string")
     throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
   return value;
+}
+
+function queryParam(query: unknown, field: string): unknown {
+  if (!query || typeof query !== "object" || Array.isArray(query))
+    return undefined;
+  return (query as Record<string, unknown>)[field];
+}
+
+function queryIdValue(
+  query: unknown,
+  field: string,
+  label: string,
+): Id | undefined {
+  return queryId(queryParam(query, field), label);
+}
+
+function queryLimitValue(query: unknown, field: string): number {
+  const value = queryParam(query, field);
+  if (value === undefined || value === null || value === "") return 20;
+  return queryLimit(value);
+}
+
+function queryEnumValue(
+  query: unknown,
+  field: string,
+  allowed: readonly string[],
+): string | undefined {
+  return queryEnum(queryParam(query, field), allowed);
 }
 
 function queryText(value: unknown): string | undefined {

@@ -1,6 +1,6 @@
 # GezyCBT — Developer dan Operations Runbook
 
-**Status:** Baseline operasional Fase 8 dan agent foundation/question/exam/result/export authoring (ISS-100–ISS-110, ISS-120–ISS-128)
+**Status:** Baseline operasional Fase 8 dan agent foundation/tool stages/action approval (ISS-100–ISS-110, ISS-120–ISS-132)
 **Terakhir diperbarui:** 18 September 2026
 
 Dokumen ini menjelaskan cara menjalankan fondasi repository, database lokal,
@@ -180,8 +180,11 @@ Entry gate ini dianggap lulus bila clean checkout dapat:
 7. menjalankan quality gate repository.
 
 Setelah discovery foundation, question/media authoring, exam authoring,
-result/practice reads, dan controlled export agent lulus, pekerjaan berikutnya
-adalah `ISS-129` untuk exact action plan dan approval. Client agent dikelola dari
-`/admin/integrations`; credential plaintext hanya muncul sekali setelah
-re-authentication. Operasi export memakai job durable dan download token satu
-kali yang berlaku maksimal lima menit.
+result/practice reads, controlled export, exact action approval, dan high-risk
+callbacks agent lulus, pekerjaan berikutnya adalah Fase 9 untuk security dan
+operations hardening. Client agent dikelola dari `/admin/integrations`;
+credential plaintext hanya muncul sekali setelah re-authentication. Pending R3
+action disetujui pada panel yang sama, sedangkan agent mem-poll status tanpa
+webhook. Operasi export memakai job durable dan download token satu kali yang
+berlaku maksimal lima menit. Kontrak compatibility dan format evidence ada di
+[`agent-compatibility-spike.md`](./agent-compatibility-spike.md).

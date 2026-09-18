@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-128 selesai pada baseline ini
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-132 selesai pada baseline ini
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 18 September 2026
 **Sumber requirement:** [4-PRD.md](./4-PRD.md)  
@@ -160,8 +160,12 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-126` | `DONE` | Agent exam authoring menyediakan safe exam/revision read, create revision, metadata update, attach/remove/reorder soal, readiness report, dan publish melalui `ExamDraftService`, `ExamReadinessService`, serta `ExamPublishService` dengan owner/grant scope, external-agent context, optimistic version, idempotency, audit, dan route tests. |
 | `ISS-127` | `DONE` | Agent result/practice reads menyediakan summary aggregate tanpa PII, result list cursor/filter, detail result, capability `results.read` vs `results.read_practice`, practice identity snapshot, `canRetry`/`canRetryReason`, scope, dan sensitive-read audit. |
 | `ISS-128` | `DONE` | Controlled export agent memakai job/worker bounded yang sama dengan web, filter/kolom/scope snapshot, PII grant, satu job aktif per client, durable idempotency, polling status, one-use download token maksimal 5 menit, protected download, migration, dan audit. |
+| `ISS-129` | `DONE` | `IntegrationActionService` menyediakan exact action plan immutable, canonical SHA-256 `planHash`, expected target/grant version recheck, 30-minute expiry, idempotent prepare, agent confirm, web approval, cancellation, migration `0020_agent_actions`, dan admin approval route/UI. |
+| `ISS-130` | `DONE` | Publish, release/unrelease, Tutup Jadwal, extend time, Akhiri Sesi, reset attempt, dan disable user memakai callback application/domain service dengan actor `EXTERNAL_AGENT`, reason/attempt invariant, row lock, dan safe action result. |
+| `ISS-131` | `DONE` | Manifest executable REST/Bearer/header/approval/download/polling tersedia bersama contract tests dan [`agent-compatibility-spike.md`](./agent-compatibility-spike.md); versi exact Hivekeep/Hermes tetap diverifikasi pada staging host sebelum pilot. |
+| `ISS-132` | `DONE` | Contract/security/load-isolation suite menguji Bearer boundary, revoked capability/audit, secret-answer-finalization redaction, isolated rate buckets, action/export routes, canonical hash, dan burst 1.000 agent read. |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-128` telah selesai. Entry berikutnya adalah `ISS-129`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-132` telah selesai. Entry berikutnya adalah Fase 9 (`ISS-140`) untuk security dan operations hardening.
 
 ---
 
@@ -619,15 +623,17 @@ gate `ISS-093–ISS-094` kemudian diselesaikan untuk memastikan API, database,
 dan workflow lokal dapat dijalankan.
 
 Fase 8 `ISS-100–ISS-110` kini selesai sebagai baseline staff web dan service
-adapter. Agent `ISS-120–ISS-128` juga selesai sebagai fondasi machine client,
+adapter. Agent `ISS-120–ISS-132` juga selesai sebagai fondasi machine client,
 credential, grant, policy, management, kill switch, discovery/search,
-question/media authoring, exam authoring, result/practice reads, dan controlled
-export.
+question/media authoring, exam authoring, result/practice reads, controlled
+export, exact action approval, high-risk callbacks, compatibility contract, dan
+security/load-isolation suite.
 Tabel status pada bagian 1.5 adalah source of truth untuk evidence.
 
-Langkah berikutnya adalah `ISS-129` untuk exact action plan dan approval. Browser trace
-production-like, load test, dan hardening tetap harus dijalankan pada fase
-berikutnya sebelum pilot/production.
+Langkah berikutnya adalah Fase 9, dimulai dari `ISS-140` untuk security dan
+operations hardening. Browser trace production-like, external Hivekeep/Hermes
+adapter evidence, load test, dan hardening tetap harus lulus sebelum
+pilot/production.
 
 ---
 

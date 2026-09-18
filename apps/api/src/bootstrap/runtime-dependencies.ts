@@ -40,6 +40,10 @@ import {
   SqlIntegrationRepository,
 } from "../modules/integrations";
 import {
+  type AgentActionExecutionContext,
+  IntegrationActionService,
+} from "../modules/integrations/action-service";
+import {
   ContainerImageDecoder,
   FileSystemMediaStorage,
   MediaRelationService,
@@ -67,7 +71,7 @@ import {
   UserImportCommitService,
   UserImportPreviewService,
 } from "../modules/user-imports";
-import { SqlUserRepository } from "../modules/users";
+import { SqlUserRepository, UserApplicationService } from "../modules/users";
 import type { AppDependencies } from "./create-app";
 
 export interface RuntimeDependencies extends AppDependencies {
@@ -92,6 +96,7 @@ export function createRuntimeDependencies(
 
   const database = createBunSqlDatabase(config.databaseUrl);
   const users = new SqlUserRepository(database);
+  const userApplication = new UserApplicationService(users);
   const academics = new AcademicMasterService(
     new SqlAcademicRepository(database),
   );
@@ -210,6 +215,72 @@ export function createRuntimeDependencies(
     integration: integrationService,
     exports,
   });
+  const agentActions = new IntegrationActionService({
+    database,
+    integration: integrationService,
+    executor: {
+      async publishExam(context) {
+        return agentExamAuthoring.publishRevision(
+          context.authentication,
+          planTargetId(context.plan),
+          planVersion(context.plan, "updatedAt") as never,
+          context.useCase.actor.requestId,
+          context.useCase.idempotencyKey ?? "agent-action-publish",
+        );
+      },
+      async releaseResults(context, release) {
+        return releaseAgentResults(database, context, release);
+      },
+      async closeSchedule(context) {
+        const targetId = planTargetId(context.plan);
+        const parameters = planParameters(context.plan);
+        return examSessionAdministration.closeSchedule(context.useCase, {
+          scheduleId: targetId,
+          expectedUpdatedAt: planVersion(context.plan, "updatedAt") as never,
+          reason: String(parameters.reason),
+        });
+      },
+      async extendTime(context) {
+        const parameters = planParameters(context.plan);
+        return examSessionAdministration.extendTime(context.useCase, {
+          sessionId: planTargetId(context.plan),
+          additionalMinutes: Number(parameters.minutes),
+          reason: String(parameters.reason),
+          expectedVersion: planVersion(context.plan, "version") as number,
+        });
+      },
+      async endSession(context) {
+        const parameters = planParameters(context.plan);
+        const expectedVersion = planVersion(context.plan, "version");
+        return examSessionAdministration.endSession(context.useCase, {
+          sessionId: planTargetId(context.plan),
+          reason: String(parameters.reason),
+          ...(expectedVersion === undefined
+            ? {}
+            : { expectedVersion: expectedVersion as number }),
+        });
+      },
+      async resetAttempt(context) {
+        const parameters = planParameters(context.plan);
+        const impact = planImpact(context.plan);
+        return examSessionAdministration.resetAttempt(context.useCase, {
+          scheduleId: String(impact.scheduleId) as Id,
+          participantId: String(impact.participantId) as Id,
+          reason: String(parameters.reason),
+          resetIdempotencyKey: `agent-action-${context.actionId}`,
+        });
+      },
+      async disableUser(context) {
+        const userId = planTargetId(context.plan);
+        const expectedUpdatedAt = planVersion(context.plan, "updatedAt");
+        return userApplication.disableUser(
+          context.useCase,
+          userId,
+          expectedUpdatedAt as never,
+        );
+      },
+    },
+  });
   const authOptions = {
     loginService: login,
     sessionService: sessions,
@@ -253,6 +324,7 @@ export function createRuntimeDependencies(
             examAuthoring: agentExamAuthoring,
             resultReads: agentResultReads,
             exports: agentExports,
+            actions: agentActions,
           }),
         )
         .use(
@@ -294,4 +366,89 @@ export function createRuntimeDependencies(
       await database.close();
     },
   };
+}
+
+function planRecord(
+  plan: Readonly<Record<string, unknown>>,
+  key: string,
+): Readonly<Record<string, unknown>> {
+  const value = plan[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return value as Readonly<Record<string, unknown>>;
+}
+
+function planTargetId(plan: Readonly<Record<string, unknown>>): Id {
+  return String(planRecord(plan, "target").id ?? "") as Id;
+}
+
+function planParameters(
+  plan: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return planRecord(plan, "parameters");
+}
+
+function planImpact(
+  plan: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return planRecord(plan, "impact");
+}
+
+function planVersion(
+  plan: Readonly<Record<string, unknown>>,
+  key: string,
+): unknown {
+  return planRecord(plan, "expectedVersions")[key];
+}
+
+async function releaseAgentResults(
+  database: DatabasePort,
+  context: AgentActionExecutionContext,
+  release: boolean,
+): Promise<Readonly<Record<string, number>>> {
+  const target = planRecord(context.plan, "target");
+  const impact = planImpact(context.plan);
+  const parameters = planParameters(context.plan);
+  const scheduleId = String(
+    target.type === "schedule" ? target.id : (impact.scheduleId ?? ""),
+  ) as Id;
+  if (!/^\d+$/u.test(scheduleId))
+    throw new Error("Action schedule target invalid");
+  const allFiltered = parameters.allFiltered === true;
+  const filter = parameters.filter;
+  const resultIds = Array.isArray(parameters.resultIds)
+    ? parameters.resultIds.map((id) => String(id))
+    : [];
+  return database.transaction(async (connection) => {
+    const where = ["schedule_id = ?"];
+    const values: unknown[] = [scheduleId];
+    if (allFiltered && filter === "RELEASED")
+      where.push("released_at IS NOT NULL");
+    if (allFiltered && filter === "UNRELEASED")
+      where.push("released_at IS NULL");
+    if (!allFiltered) {
+      if (resultIds.length === 0)
+        throw new Error("Action result target is empty");
+      where.push(`id IN (${resultIds.map(() => "?").join(",")})`);
+      values.push(...resultIds);
+    }
+    const rows = await connection.query<Record<string, unknown>>(
+      `SELECT id, released_at FROM exam_results WHERE ${where.join(" AND ")} FOR UPDATE`,
+      values,
+    );
+    const changed = rows.filter((row) =>
+      release ? row.released_at === null : row.released_at !== null,
+    );
+    if (changed.length) {
+      const changedIds = changed.map((row) => row.id);
+      await connection.execute(
+        `UPDATE exam_results SET released_at = ${release ? "UTC_TIMESTAMP(6)" : "NULL"}
+         WHERE schedule_id = ? AND id IN (${changedIds.map(() => "?").join(",")})`,
+        [scheduleId, ...changedIds],
+      );
+    }
+    return {
+      changed: changed.length,
+      skipped: rows.length - changed.length,
+    };
+  });
 }

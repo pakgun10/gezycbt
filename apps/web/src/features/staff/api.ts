@@ -8,6 +8,7 @@ import type {
   ExamRevision,
   ExamSummary,
   ExportJob,
+  IntegrationAction,
   IntegrationClient,
   IntegrationClientDetail,
   MonitorPage,
@@ -233,6 +234,11 @@ export interface StaffApi {
     grantId: string,
     reason: string,
   ): Promise<{ revoked: boolean }>;
+  integrationActions(status?: string): Promise<CursorPage<IntegrationAction>>;
+  approveIntegrationAction(
+    id: string,
+    planHash: string,
+  ): Promise<IntegrationAction>;
 }
 
 export interface MonitorSessionLike {
@@ -737,6 +743,18 @@ export class HttpStaffApi implements StaffApi {
       `/api/v1/admin/integration-clients/${encodeURIComponent(clientId)}/grants/${encodeURIComponent(grantId)}`,
       "DELETE",
       { reason },
+    );
+  }
+  integrationActions(status = "AWAITING_APPROVAL") {
+    return this.getPage<IntegrationAction>(
+      `/api/v1/admin/integration-actions?status=${encodeURIComponent(status)}`,
+    );
+  }
+  approveIntegrationAction(id: string, planHash: string) {
+    return this.mutate<IntegrationAction>(
+      `/api/v1/admin/integration-actions/${encodeURIComponent(id)}/approve`,
+      "POST",
+      { planHash },
     );
   }
   private async getData<T>(path: string): Promise<T> {
