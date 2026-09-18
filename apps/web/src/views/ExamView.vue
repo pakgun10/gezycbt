@@ -161,7 +161,10 @@ async function retryAuth(): Promise<void> {
     auth.setLogin(result);
     exam.setCsrfToken(result.csrfToken);
     authPassword.value = "";
-    await exam.refresh();
+    // The initial session request may have failed before the controller had a
+    // session object. Resume from the route ID so re-login works in that case
+    // as well as when authentication expires during an active exam.
+    await exam.resume(await api.session(String(route.params.id)));
     authExpired.value = false;
   } catch (cause) {
     authError.value = cause instanceof ApiClientError
