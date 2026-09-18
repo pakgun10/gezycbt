@@ -3,6 +3,7 @@ import { onMounted, ref } from "vue";
 import { HttpStaffApi } from "../features/staff/api";
 import type { AcademicYear, ClassRecord, Subject } from "../features/staff/types";
 import { messageFrom, formatShortDate } from "../features/staff/helpers";
+import { preserveAcademicYearSelection } from "../features/staff/master-data-policies";
 
 const api = new HttpStaffApi();
 const tab = ref<"years" | "classes" | "subjects">("years");
@@ -18,13 +19,26 @@ const academicYearId = ref("");
 async function load(): Promise<void> {
   loading.value = true; error.value = "";
   try {
-    const [yearPage, classPage, subjectPage] = await Promise.all([api.academicYears(), api.classes(), api.subjects()]);
-    years.value = yearPage.items; classes.value = classPage.items; subjects.value = subjectPage.items;
-    academicYearId.value = years.value.find((year) => year.isActive)?.id ?? years.value[0]?.id ?? "";
+    const yearPage = await api.academicYears();
+    years.value = yearPage.items;
+    academicYearId.value = preserveAcademicYearSelection(academicYearId.value, years.value);
+    const [classPage, subjectPage] = await Promise.all([
+      api.classes(academicYearId.value || undefined),
+      api.subjects(),
+    ]);
+    classes.value = classPage.items; subjects.value = subjectPage.items;
   } catch (cause) { error.value = messageFrom(cause, "Data akademik belum tersedia."); } finally { loading.value = false; }
 }
 async function saveYear(): Promise<void> { saving.value = true; try { await api.createAcademicYear({ name: form.value.name, startsOn: form.value.startsOn, endsOn: form.value.endsOn, isActive: false }); form.value.name = ""; await load(); } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; } }
-async function saveClass(): Promise<void> { saving.value = true; try { await api.createClass({ academicYearId: academicYearId.value, code: form.value.code, name: form.value.className }); form.value.code = ""; form.value.className = ""; await load(); } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; } }
+async function saveClass(): Promise<void> {
+  const selectedYearId = academicYearId.value;
+  if (!selectedYearId) { error.value = "Pilih tahun ajaran terlebih dahulu."; return; }
+  saving.value = true; error.value = "";
+  try {
+    await api.createClass({ academicYearId: selectedYearId, code: form.value.code, name: form.value.className });
+    form.value.code = ""; form.value.className = ""; await load();
+  } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; }
+}
 async function saveSubject(): Promise<void> { saving.value = true; try { await api.createSubject({ code: form.value.subjectCode, name: form.value.subjectName }); form.value.subjectCode = ""; form.value.subjectName = ""; await load(); } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; } }
 async function activate(year: AcademicYear): Promise<void> { try { await api.activateAcademicYear(year.id); await load(); } catch (cause) { error.value = messageFrom(cause); } }
 onMounted(() => { void load(); });

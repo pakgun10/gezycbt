@@ -81,6 +81,7 @@ export interface StaffApi {
   classes(academicYearId?: string): Promise<CursorPage<ClassRecord>>;
   createClass(input: Record<string, unknown>): Promise<ClassRecord>;
   subjects(): Promise<CursorPage<Subject>>;
+  teacherSubjects(): Promise<CursorPage<Subject>>;
   createSubject(input: Record<string, unknown>): Promise<Subject>;
   teacherScope(teacherId?: string): Promise<TeacherScope>;
   updateTeacherScope(
@@ -382,6 +383,9 @@ export class HttpStaffApi implements StaffApi {
   }
   subjects() {
     return this.getPage<Subject>("/api/v1/admin/subjects");
+  }
+  teacherSubjects() {
+    return this.getPage<Subject>("/api/v1/teacher/subjects");
   }
   createSubject(input: Record<string, unknown>) {
     return this.mutate<Subject>("/api/v1/admin/subjects", "POST", input);

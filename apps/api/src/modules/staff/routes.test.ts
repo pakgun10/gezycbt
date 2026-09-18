@@ -123,3 +123,14 @@ test("teacher list queries include the authenticated owner scope", async () => {
   expect(response.status).toBe(200);
   expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
 });
+
+test("teacher subject options include only the authenticated teacher scope", async () => {
+  const { app, queries } = appFor("TEACHER");
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/teacher/subjects", {
+      headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
+});

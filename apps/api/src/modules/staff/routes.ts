@@ -364,6 +364,42 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       options.academics.createSubject(staffContext, body as never),
     ),
   );
+  app.get("/api/v1/teacher/subjects", async ({ request, query }) =>
+    wrapSqlRead(request, options, "TEACHER", async (identity) => {
+      const limit = boundedLimit(queryValue(query, "limit"));
+      const cursor = queryValue(query, "cursor");
+      const conditions = ["s.status = 'ACTIVE'"];
+      const parameters: unknown[] = [];
+      if (identity.user.role !== "ADMIN") {
+        conditions.push(
+          "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = s.id)",
+        );
+        parameters.push(identity.user.id);
+      }
+      if (cursor && /^\d+$/u.test(cursor)) {
+        conditions.push("s.id > ?");
+        parameters.push(cursor);
+      }
+      parameters.push(limit + 1);
+      const rows = await options.database.query<Record<string, unknown>>(
+        `SELECT s.id, s.code, s.name, s.status, s.updated_at
+         FROM subjects s
+         WHERE ${conditions.join(" AND ")}
+         ORDER BY s.id ASC LIMIT ?`,
+        parameters,
+      );
+      return page(
+        rows.slice(0, limit).map((row) => ({
+          id: String(row.id),
+          code: String(row.code),
+          name: String(row.name),
+          status: String(row.status),
+          updatedAt: String(row.updated_at),
+        })),
+        rows.length > limit ? String(rows[limit]?.id) : null,
+      );
+    }),
+  );
   app.get("/api/v1/teacher/scopes/:id", async ({ request, params }) =>
     wrapRead(request, options, "STAFF", async () => {
       const id = String((params as Record<string, unknown>).id ?? "");
