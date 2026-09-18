@@ -17,6 +17,7 @@ import type {
   QuestionDraft,
   QuestionSummary,
   ResultRow,
+  ScheduleDetail,
   ScheduleSummary,
   StaffLoginResponse,
   StaffUser,
@@ -145,12 +146,17 @@ export interface StaffApi {
   }>;
   publishExam(id: string, expectedUpdatedAt: string): Promise<ExamRevision>;
   schedules(): Promise<CursorPage<ScheduleSummary>>;
+  schedule(id: string): Promise<ScheduleDetail>;
   createSchedule(input: Record<string, unknown>): Promise<ScheduleSummary>;
   updateSchedule(
     id: string,
     input: Record<string, unknown>,
     expectedUpdatedAt: string,
   ): Promise<ScheduleSummary>;
+  deleteSchedule(
+    id: string,
+    expectedUpdatedAt: string,
+  ): Promise<{ scheduleId: string; deleted: boolean }>;
   rotateCode(
     id: string,
     kind: "practice-token" | "main-code",
@@ -564,6 +570,11 @@ export class HttpStaffApi implements StaffApi {
   schedules() {
     return this.getPage<ScheduleSummary>("/api/v1/teacher/schedules");
   }
+  schedule(id: string) {
+    return this.getData<ScheduleDetail>(
+      `/api/v1/teacher/schedules/${encodeURIComponent(id)}`,
+    );
+  }
   createSchedule(input: Record<string, unknown>) {
     return this.mutate<ScheduleSummary>(
       "/api/v1/teacher/schedules",
@@ -580,6 +591,13 @@ export class HttpStaffApi implements StaffApi {
       `/api/v1/teacher/schedules/${encodeURIComponent(id)}`,
       "PATCH",
       { ...input, expectedUpdatedAt },
+    );
+  }
+  deleteSchedule(id: string, expectedUpdatedAt: string) {
+    return this.mutate<{ scheduleId: string; deleted: boolean }>(
+      `/api/v1/teacher/schedules/${encodeURIComponent(id)}`,
+      "DELETE",
+      { expectedUpdatedAt },
     );
   }
   rotateCode(id: string, kind: "practice-token" | "main-code") {

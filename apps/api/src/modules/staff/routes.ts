@@ -629,6 +629,24 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         return mapQuestionDraft(draft);
       }),
   );
+  app.delete(
+    "/api/v1/teacher/schedules/:id",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.schedules) throw serviceUnavailable("Schedule service");
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        await options.schedules.drafts.deleteSchedule(
+          staffContext,
+          idParam(params),
+          expectedUpdatedAt,
+        );
+        return { scheduleId: String(idParam(params)), deleted: true };
+      }),
+  );
   app.post(
     "/api/v1/teacher/question-revisions/:id/validate",
     async ({ request, params }) =>

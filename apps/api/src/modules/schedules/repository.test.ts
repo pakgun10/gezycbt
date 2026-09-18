@@ -77,6 +77,30 @@ describe("SqlScheduleRepository", () => {
     ).toBe(false);
   });
 
+  test("deletes a draft and its target rows with optimistic locking", async () => {
+    const database = new FakeScheduleDatabase();
+    const deleted = await new SqlScheduleRepository(database).deleteSchedule(
+      SCHEDULE,
+      VERSION,
+    );
+    expect(deleted).toBe(true);
+    expect(
+      database.statements.some((sql) =>
+        sql.startsWith("DELETE FROM exam_schedule_classes"),
+      ),
+    ).toBe(true);
+    expect(
+      database.statements.some((sql) =>
+        sql.startsWith("DELETE FROM exam_schedule_participants"),
+      ),
+    ).toBe(true);
+    expect(
+      database.statements.some((sql) =>
+        sql.includes("DELETE FROM exam_schedules"),
+      ),
+    ).toBe(true);
+  });
+
   test("updates an access digest and hint with optimistic locking", async () => {
     const database = new FakeScheduleDatabase();
     const digest = new Uint8Array(32).fill(4);

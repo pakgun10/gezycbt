@@ -154,6 +154,30 @@ export interface ScheduleSummary {
   readonly updatedAt: string;
 }
 
+export interface ScheduleDetail {
+  readonly id: string;
+  readonly examRevisionId: string;
+  readonly mode: "MAIN" | "PRACTICE";
+  readonly status: "DRAFT" | "READY" | "OPEN" | "CLOSED" | "ARCHIVED";
+  readonly startsAt: string;
+  readonly endsAt: string;
+  readonly durationSeconds: number;
+  readonly maxAttempts: number;
+  readonly allowLateStart: boolean;
+  readonly resultReleasePolicy: "MANUAL" | "IMMEDIATE_SCORE";
+  readonly identityFields:
+    | readonly {
+        readonly key: string;
+        readonly label: string;
+        readonly type: "TEXT";
+        readonly required: boolean;
+      }[]
+    | null;
+  readonly targetClassIds: readonly string[];
+  readonly targetParticipantIds: readonly string[];
+  readonly updatedAt: string;
+}
+
 export interface MonitorCounts {
   readonly target: number;
   readonly notStarted: number;

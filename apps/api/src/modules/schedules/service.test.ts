@@ -341,6 +341,15 @@ class FakeScheduleRepository implements ScheduleRepository {
     return this.schedule;
   }
 
+  async deleteSchedule(
+    _id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+  ): Promise<boolean> {
+    if (expectedUpdatedAt !== this.schedule.updatedAt)
+      throw new ScheduleVersionConflictError();
+    return true;
+  }
+
   async transitionSchedule(
     _id: Id,
     targetStatus: "READY" | "OPEN" | "CLOSED" | "ARCHIVED",

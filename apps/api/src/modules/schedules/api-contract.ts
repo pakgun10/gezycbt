@@ -98,6 +98,10 @@ const scheduleUpdateBodySchema = t.Object(
   },
   { additionalProperties: false },
 );
+const scheduleDeleteBodySchema = t.Object(
+  { expectedUpdatedAt: utcTimestampSchema },
+  { additionalProperties: false },
+);
 const scheduleTransitionBodySchema = t.Object(
   {
     expectedUpdatedAt: utcTimestampSchema,
@@ -186,6 +190,7 @@ export const scheduleApiSchemas = {
   scheduleIdParams: scheduleIdParamsSchema,
   scheduleCreateBody: scheduleCreateBodySchema,
   scheduleUpdateBody: scheduleUpdateBodySchema,
+  scheduleDeleteBody: scheduleDeleteBodySchema,
   scheduleTransitionBody: scheduleTransitionBodySchema,
   rotateAccessCodeBody: rotateAccessCodeBodySchema,
   schedule: scheduleResourceSchema,
@@ -197,7 +202,7 @@ export const scheduleApiSchemas = {
 } as const;
 
 export type ScheduleApiSchemaName = keyof typeof scheduleApiSchemas;
-export type ScheduleApiMethod = "GET" | "POST" | "PATCH";
+export type ScheduleApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
 
 export interface ScheduleApiRouteContract {
   readonly method: ScheduleApiMethod;
@@ -252,6 +257,18 @@ export const scheduleApiRoutes: readonly ScheduleApiRouteContract[] = [
       body: scheduleUpdateBodySchema,
     },
     response: { status: 200, schemaName: "scheduleResponse" },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/teacher/schedules/:id",
+    operationId: "deleteSchedule",
+    summary: "Hapus schedule draft",
+    request: {
+      params: scheduleIdParamsSchema,
+      headers: mutationHeadersSchema,
+      body: scheduleDeleteBodySchema,
+    },
+    response: { status: 200 },
   },
   ...(["rotate-token", "rotate-main-code"] as const).map((suffix) => ({
     method: "POST" as const,

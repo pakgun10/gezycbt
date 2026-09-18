@@ -38,6 +38,7 @@ export interface ScheduleRepository {
     input: NormalizedUpdateScheduleInput,
     expectedUpdatedAt: UtcTimestamp,
   ): Promise<Schedule | null>;
+  deleteSchedule(id: Id, expectedUpdatedAt: UtcTimestamp): Promise<boolean>;
   transitionSchedule(
     id: Id,
     targetStatus: ScheduleTransition,
@@ -228,6 +229,54 @@ export class SqlScheduleRepository
         );
       }
       return readSchedule(connection, id);
+    });
+  }
+
+  async deleteSchedule(
+    id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+  ): Promise<boolean> {
+    return this.database.transaction(async (connection) => {
+      const current = await readSchedule(connection, id, true);
+      if (!current) return false;
+      assertDraftAndVersion(current, expectedUpdatedAt);
+
+      // A draft normally has no runtime rows, but keep this guard explicit so
+      // a partially-started or imported schedule cannot be hard-deleted after
+      // it has become part of the audit/runtime history.
+      const runtimeRows = await connection.query<{ has_runtime_refs: unknown }>(
+        `SELECT (
+           EXISTS (SELECT 1 FROM exam_sessions WHERE schedule_id = ?) OR
+           EXISTS (SELECT 1 FROM exam_attempt_grants WHERE schedule_id = ?) OR
+           EXISTS (SELECT 1 FROM export_jobs WHERE schedule_id = ?)
+         ) AS has_runtime_refs`,
+        [id, id, id],
+      );
+      if (
+        runtimeRows[0]?.has_runtime_refs === true ||
+        runtimeRows[0]?.has_runtime_refs === 1 ||
+        runtimeRows[0]?.has_runtime_refs === 1n ||
+        runtimeRows[0]?.has_runtime_refs === "1"
+      )
+        throw new ScheduleImmutableError(
+          "Schedule dengan data runtime tidak dapat dihapus",
+        );
+
+      await connection.execute(
+        "DELETE FROM exam_schedule_classes WHERE schedule_id = ?",
+        [id],
+      );
+      await connection.execute(
+        "DELETE FROM exam_schedule_participants WHERE schedule_id = ?",
+        [id],
+      );
+      const result = await connection.execute(
+        `DELETE FROM exam_schedules
+         WHERE id = ? AND status = 'DRAFT' AND updated_at = ?`,
+        [id, toDatabaseTimestamp(expectedUpdatedAt)],
+      );
+      if (affectedRows(result) !== 1) throw new ScheduleVersionConflictError();
+      return true;
     });
   }
 

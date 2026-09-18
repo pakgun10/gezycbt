@@ -85,7 +85,7 @@ describe("schedule API contracts", () => {
   });
 
   test("keeps route inventory unique and publishes safe access response schemas", () => {
-    expect(SCHEDULE_API_ROUTE_PATHS.length).toBe(7);
+    expect(SCHEDULE_API_ROUTE_PATHS.length).toBe(8);
     expect(new Set(SCHEDULE_API_ROUTE_PATHS).size).toBe(
       SCHEDULE_API_ROUTE_PATHS.length,
     );
@@ -99,6 +99,9 @@ describe("schedule API contracts", () => {
     ).toBeDefined();
     expect(
       scheduleApiOpenApi.paths["/api/v1/teacher/schedules/{id}/rotate-token"],
+    ).toBeDefined();
+    expect(
+      scheduleApiOpenApi.paths["/api/v1/teacher/schedules/{id}"]?.delete,
     ).toBeDefined();
     expect(
       scheduleApiOpenApiSchemas.RotatedScheduleAccessCodeResponse,

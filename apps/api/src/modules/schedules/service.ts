@@ -92,6 +92,22 @@ export class ScheduleService {
     return updated;
   }
 
+  async deleteSchedule(
+    context: UseCaseContext,
+    id: Id,
+    expectedUpdatedAt: UtcTimestamp,
+  ): Promise<void> {
+    assertMutationContext(context);
+    const current = await this.repository.findSchedule(id);
+    if (!current) throw new ScheduleNotFoundError();
+    await this.assertScope(context, current);
+    const deleted = await this.repository.deleteSchedule(
+      id,
+      requireTimestamp(expectedUpdatedAt, "expectedUpdatedAt"),
+    );
+    if (!deleted) throw new ScheduleNotFoundError();
+  }
+
   async transitionSchedule(
     context: UseCaseContext,
     id: Id,
