@@ -2717,8 +2717,8 @@ Baseline tidak menggunakan Docker di production untuk menghemat lapisan operasio
 #### Filesystem layout production
 
 ```text
-/opt/gezycbt/releases/<release-id>/   immutable application release
-/opt/gezycbt/current -> releases/...  active symlink
+/home/ubuntu/gezycbt/releases/<release-id>/   immutable application release
+/home/ubuntu/gezycbt/current -> releases/...  active symlink
 /etc/gezycbt/                         environment/credentials, root-readable
 /var/lib/gezycbt/media/               persistent uploaded media
 /var/lib/gezycbt/exports/             temporary exports with expiry

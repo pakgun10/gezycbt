@@ -215,7 +215,7 @@ Baseline operations artifacts berada di `ops/` dan menjadi bagian dari release:
 
 Install unit systemd setelah menyesuaikan user, hostname, paths, dan environment.
 Jangan menyalin secrets ke repository. Production mutable data tetap berada di
-`/var/lib/gezycbt`, sedangkan release code berada di `/opt/gezycbt/releases`.
+`/var/lib/gezycbt`, sedangkan release code berada di `/home/ubuntu/gezycbt/releases`.
 
 ## 10. Disk protection dan worker recovery
 
