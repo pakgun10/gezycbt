@@ -46,7 +46,7 @@ import type {
 
 type Row = Record<string, unknown>;
 
-const START_RETRY_ATTEMPTS = 3;
+const START_RETRY_ATTEMPTS = 5;
 
 async function retryOnTransientLock<T>(operation: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
@@ -62,8 +62,9 @@ async function retryOnTransientLock<T>(operation: () => Promise<T>): Promise<T> 
         throw error;
       // A short bounded jitter lets the transaction that won the InnoDB
       // wait-for graph finish before this participant retries its start.
+      const backoffMs = Math.min(250, 25 * 2 ** attempt);
       await new Promise((resolve) =>
-        setTimeout(resolve, 10 + Math.floor(Math.random() * 25)),
+        setTimeout(resolve, backoffMs + Math.floor(Math.random() * 25)),
       );
     }
   }
