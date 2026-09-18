@@ -4,9 +4,9 @@
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 16 September 2026  
 **Berlaku untuk:** Fase 0 compatibility spike dan Fase 1 repository foundation  
-**Dokumen terkait:** [4-PRD.md](./4-PRD.md), [01-architecture.md](./01-architecture.md), [5-ISSUES.md](./5-ISSUES.md)
+**Dokumen terkait:** [04-PRD.md](./04-PRD.md), [01-architecture.md](./01-architecture.md), [05-ISSUES.md](./05-ISSUES.md)
 
-Dokumen ini menetapkan kombinasi versi dan lingkungan yang diuji secara reproducible. Hasil spike dan keputusan connector berada pada [7-BUN-SQL-SPIKE.md](./7-BUN-SQL-SPIKE.md) dan [ADR-003](./adr/ADR-003-bun-sql-vs-mariadb-connector.md).
+Dokumen ini menetapkan kombinasi versi dan lingkungan yang diuji secara reproducible. Hasil spike dan keputusan connector berada pada [07-BUN-SQL-SPIKE.md](./07-BUN-SQL-SPIKE.md) dan [ADR-003](./adr/ADR-003-bun-sql-vs-mariadb-connector.md).
 
 ## 1. Prinsip pinning
 
@@ -146,7 +146,7 @@ Gunakan konfigurasi berikut sebagai default spike:
 - dua connection nyata untuk race/locking tests;
 - pool kecil yang mendekati target VPS, bukan pool unlimited.
 
-Skenario, exit criteria, dan bukti pass/fail mengikuti bagian `ISS-003` pada [5-ISSUES.md](./5-ISSUES.md). Hasil spike wajib menghasilkan input langsung untuk [ADR-003](./01-architecture.md#k2-adr-minimum).
+Skenario, exit criteria, dan bukti pass/fail mengikuti bagian `ISS-003` pada [05-ISSUES.md](./05-ISSUES.md). Hasil spike wajib menghasilkan input langsung untuk [ADR-003](./01-architecture.md#k2-adr-minimum).
 
 ## Referensi upstream
 

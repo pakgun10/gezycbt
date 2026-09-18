@@ -5,6 +5,7 @@ import {
   type UtcTimestamp,
 } from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
+import type { FilesystemDiskGuard } from "../../observability/disk-guard";
 
 export const EXPORT_FORMATS = ["CSV", "JSON"] as const;
 export type ExportFormat = (typeof EXPORT_FORMATS)[number];
@@ -159,9 +160,13 @@ export class ExportService {
   private readonly pending: Id[] = [];
   private processing = false;
 
-  constructor(private readonly database: DatabasePort) {}
+  constructor(
+    private readonly database: DatabasePort,
+    private readonly diskGuard?: Pick<FilesystemDiskGuard, "assertAvailable">,
+  ) {}
 
   async createJob(input: CreateExportJobInput): Promise<ExportJobView> {
+    await this.diskGuard?.assertAvailable("export");
     const normalized = normalizeCreateInput(input);
     const result = await this.database.transaction(async (connection) => {
       await this.lockRequester(connection, normalized);
@@ -206,6 +211,7 @@ export class ExportService {
   ): Promise<ExportJobView> {
     if (!input.integrationClientId)
       throw new ExportValidationError("Integration client is required");
+    await this.diskGuard?.assertAvailable("export");
     const normalized = normalizeCreateInput(input);
     const requestHash = await sha256Bytes(
       JSON.stringify({
@@ -293,6 +299,35 @@ export class ExportService {
     });
     if (result.created) this.enqueue(result.record.id);
     return toView(result.record);
+  }
+
+  /** Recover queued work after a process restart and execute a bounded batch. */
+  async runWorkerOnce(limit = 1): Promise<readonly Id[]> {
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 10)
+      throw new ExportValidationError("Worker limit must be between 1 and 10");
+    await this.database.execute(
+      `UPDATE export_jobs SET status = 'QUEUED', updated_at = UTC_TIMESTAMP(6)
+       WHERE status = 'RUNNING'
+         AND updated_at <= DATE_SUB(UTC_TIMESTAMP(6), INTERVAL 10 MINUTE)
+         AND expires_at > UTC_TIMESTAMP(6)`,
+    );
+    const rows = await this.database.query<{ id: unknown }>(
+      `SELECT id FROM export_jobs
+       WHERE status = 'QUEUED' AND expires_at > UTC_TIMESTAMP(6)
+       ORDER BY id ASC LIMIT ?`,
+      [limit],
+    );
+    const processed: Id[] = [];
+    for (const row of rows) {
+      const id = requiredId(row.id);
+      await this.processJob(id);
+      processed.push(id);
+    }
+    await this.database.execute(
+      `UPDATE export_jobs SET status = 'EXPIRED', updated_at = UTC_TIMESTAMP(6)
+       WHERE status IN ('QUEUED', 'RUNNING') AND expires_at <= UTC_TIMESTAMP(6)`,
+    );
+    return processed;
   }
 
   async listJobs(

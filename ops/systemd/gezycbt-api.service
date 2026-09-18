@@ -1,0 +1,25 @@
+[Unit]
+Description=GezyCBT API
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=gezycbt
+Group=gezycbt
+WorkingDirectory=/opt/gezycbt/current
+EnvironmentFile=/etc/gezycbt/gezycbt.env
+ExecStart=/usr/local/bin/bun --cwd /opt/gezycbt/current/apps/api src/index.ts
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+LimitNOFILE=65536
+MemoryMax=512M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/var/lib/gezycbt /var/log/gezycbt
+
+[Install]
+WantedBy=multi-user.target

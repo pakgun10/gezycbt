@@ -7,7 +7,7 @@ single-tenant GezyCBT.
 Dokumen ini mencatat hasil audit fondasi, tool stages, action approval, operasi
 berisiko, dan contract/security suite untuk agent external. Verifikasi platform
 Hivekeep/Hermes pada host nyata mengikuti
-[agent-compatibility-spike.md](./agent-compatibility-spike.md).
+[12-agent-compatibility-spike.md](./12-agent-compatibility-spike.md).
 
 ## ISS-120 — application-service readiness
 
@@ -188,7 +188,7 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
   `apps/api/src/modules/integrations/compatibility.ts`.
 - Unit contract memastikan cookie tidak diteruskan, platform unknown ditolak,
   dan polling delay tetap bounded. Rencana bukti host dan matrix versi ada di
-  [agent-compatibility-spike.md](./agent-compatibility-spike.md).
+  [12-agent-compatibility-spike.md](./12-agent-compatibility-spike.md).
 - Hivekeep/Hermes belum dianggap lulus external runtime sebelum adapter,
   vault, reconnect, dan approval diuji pada staging dengan versi exact.
 

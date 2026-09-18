@@ -34,9 +34,9 @@ Keputusan utama:
 | Izin agent | Machine credential dan capability grant eksplisit dengan scope, approval, idempotency, dan audit |
 | UI/UX | Theme mengikuti sistem secara default, dengan pilihan terang/gelap; responsif dan berbasis design tokens |
 
-Compatibility matrix, database test lanes, dan environment pinning berada di [Compatibility Matrix](./6-COMPATIBILITY.md). Bun.SQL dipilih melalui [ADR-003](./adr/ADR-003-bun-sql-vs-mariadb-connector.md), dengan official MariaDB Connector sebagai fallback.
+Compatibility matrix, database test lanes, dan environment pinning berada di [Compatibility Matrix](./06-COMPATIBILITY.md). Bun.SQL dipilih melalui [ADR-003](./adr/ADR-003-bun-sql-vs-mariadb-connector.md), dengan official MariaDB Connector sebagai fallback.
 
-Browser/device support, batas content, SLO, RPO, dan RTO baseline berada di [Operating Baseline](./8-OPERATING-BASELINE.md).
+Browser/device support, batas content, SLO, RPO, dan RTO baseline berada di [Operating Baseline](./08-OPERATING-BASELINE.md).
 
 Rancangan rinci integrasi Hivekeep/Hermes berada di [Integrasi External AI Agent](./02-bot-automation.md). Baseline visual, layout, komponen, responsive behavior, accessibility, dan halaman ujian berada di [Rancangan UI/UX Web](./03-ui-ux.md).
 
@@ -3193,7 +3193,7 @@ Urutan fase mengikuti dependency correctness. Halaman admin yang lengkap tidak d
 
 - Catat persetujuan P-01 sampai P-12 dalam ADR-012 dan turunkan menjadi acceptance criteria.
 - Tetapkan versi Bun, Elysia, Vue, dan MariaDB yang didukung.
-- Jalankan compatibility spike `Bun.SQL` terhadap MariaDB untuk pool, transaction, JSON, `BIGINT`, `DATETIME(6)`, batch, timeout, dan deadlock errors — selesai; evidence berada di [`7-BUN-SQL-SPIKE.md`](./7-BUN-SQL-SPIKE.md).
+- Jalankan compatibility spike `Bun.SQL` terhadap MariaDB untuk pool, transaction, JSON, `BIGINT`, `DATETIME(6)`, batch, timeout, dan deadlock errors — selesai; evidence berada di [`07-BUN-SQL-SPIKE.md`](./07-BUN-SQL-SPIKE.md).
 - Gunakan Bun.SQL sesuai ADR-003; official MariaDB connector tetap fallback bila trigger re-evaluation terpenuhi.
 - Tetapkan batas jumlah soal, duration, manifest size, dan media.
 - Tetapkan SLO, RPO, RTO, serta browser/device support matrix.

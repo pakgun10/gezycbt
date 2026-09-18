@@ -23,8 +23,8 @@ Review lintas dokumen terhadap arsitektur v0.13, integrasi agent v0.3, dan UI/UX
 
 Sejak baseline review, item berikut telah selesai:
 
-- `ISS-002`: compatibility matrix dan environment lanes pada [`6-COMPATIBILITY.md`](./6-COMPATIBILITY.md);
-- `ISS-003`: Bun.SQL compatibility spike pada [`7-BUN-SQL-SPIKE.md`](./7-BUN-SQL-SPIKE.md);
+- `ISS-002`: compatibility matrix dan environment lanes pada [`06-COMPATIBILITY.md`](./06-COMPATIBILITY.md);
+- `ISS-003`: Bun.SQL compatibility spike pada [`07-BUN-SQL-SPIKE.md`](./07-BUN-SQL-SPIKE.md);
 - `ISS-004`: keputusan connector pada [`ADR-003`](./adr/ADR-003-bun-sql-vs-mariadb-connector.md).
 
 Gate Fase 0 yang masih terbuka dan bukan keputusan yang boleh ditebak implementer:
@@ -1234,9 +1234,9 @@ Rilis tidak boleh dilanjutkan bila terdapat:
 1. Menetapkan versi exact Bun, Elysia, Vue, Vite, TypeScript, dan MariaDB.
 2. Menjalankan compatibility spike Bun.SQL terhadap MariaDB production target — selesai pada `ISS-003`.
 3. Membuat ADR-003 berdasarkan hasil spike untuk memilih Bun.SQL atau MariaDB Connector — selesai pada `ISS-004`.
-4. Menetapkan browser/device support final sekolah — baseline default diterima pada [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md); verifikasi perangkat nyata dilakukan saat pilot.
-5. Mengkonfirmasi batas jumlah soal, durasi maksimum, manifest, serta media dari data nyata sekolah — baseline default diterima pada [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md).
-6. Mengkonfirmasi SLO, RPO, dan RTO dengan pemilik operasional — baseline default diterima pada [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md).
+4. Menetapkan browser/device support final sekolah — baseline default diterima pada [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md); verifikasi perangkat nyata dilakukan saat pilot.
+5. Mengkonfirmasi batas jumlah soal, durasi maksimum, manifest, serta media dari data nyata sekolah — baseline default diterima pada [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md).
+6. Mengkonfirmasi SLO, RPO, dan RTO dengan pemilik operasional — baseline default diterima pada [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md).
 7. Membuat ADR lain yang diwajibkan arsitektur sebelum concern terkait diimplementasikan.
 
 ### 20.2 Keputusan yang boleh menunggu prototype

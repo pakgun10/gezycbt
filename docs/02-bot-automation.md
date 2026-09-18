@@ -13,8 +13,8 @@ kill switch, discovery, question/media authoring, exam authoring, result/
 practice reads, controlled export, exact action plan, approval, operasi berisiko,
 dan contract/security suite tersedia pada ISS-120–ISS-132.
 Kontrak dan rencana evidence adapter external dirinci pada
-[agent-compatibility-spike.md](./agent-compatibility-spike.md); ringkasan audit
-implementasi ada di [agent-readiness-audit.md](./agent-readiness-audit.md).
+[12-agent-compatibility-spike.md](./12-agent-compatibility-spike.md); ringkasan audit
+implementasi ada di [13-agent-readiness-audit.md](./13-agent-readiness-audit.md).
 
 Kata **wajib** berarti aturan correctness atau security yang tidak boleh dilewati. Kata **disarankan** adalah baseline yang dapat diubah melalui Architecture Decision Record.
 
@@ -822,7 +822,7 @@ Limit diterapkan setelah Nginx connection/body protection dan sebelum pekerjaan 
 - canonical plan fixtures menghasilkan hash stabil dan perubahan satu parameter mengubah hash.
 
 Manifest kontrak executable dan bukti lokal untuk Hivekeep/Hermes berada di
-[agent-compatibility-spike.md](./agent-compatibility-spike.md). Verifikasi
+[12-agent-compatibility-spike.md](./12-agent-compatibility-spike.md). Verifikasi
 external host wajib dilakukan sebelum adapter dipakai pada pilot.
 
 `GET /api/v1/integrations/agent/me` menjadi self-service smoke test tanpa mutation. Response memuat identity client, owner summary aman, status, effective grant version, dan nama effective capabilities; `/capabilities` memberi rincian scope/constraint. Admin atau operator menjalankannya sebelum memasang tool mutation. Test setup dinyatakan berhasil hanya jika kedua response sesuai grant yang terlihat pada web admin.
@@ -936,7 +936,7 @@ load-isolation tests tersedia pada ISS-132.
 
 Kontrak adapter typed, manifest endpoint/header/polling, serta spike plan
 Hivekeep/Hermes tersedia pada ISS-131 dan
-[agent-compatibility-spike.md](./agent-compatibility-spike.md). Instalasi
+[12-agent-compatibility-spike.md](./12-agent-compatibility-spike.md). Instalasi
 platform, vault setup, allowed-user policy, dan pinned external versions tetap
 harus menghasilkan evidence pada staging sebelum pilot; GezyCBT tidak mengklaim
 platform external lulus hanya dari test lokal.

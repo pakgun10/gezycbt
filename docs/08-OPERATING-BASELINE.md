@@ -5,7 +5,7 @@
 **Issue:** `ISS-006`, `ISS-007`, `ISS-008`  
 **Berlaku untuk:** MVP sampai pilot; hasil pilot dapat mempersempit matrix melalui perubahan terdokumentasi.
 
-Dokumen ini melengkapi [Compatibility Matrix](./6-COMPATIBILITY.md), [PRD](./4-PRD.md), dan [arsitektur](./01-architecture.md). Ia menetapkan batas yang dipakai implementasi dan pengujian ketika inventaris perangkat sekolah belum tersedia.
+Dokumen ini melengkapi [Compatibility Matrix](./06-COMPATIBILITY.md), [PRD](./04-PRD.md), dan [arsitektur](./01-architecture.md). Ia menetapkan batas yang dipakai implementasi dan pengujian ketika inventaris perangkat sekolah belum tersedia.
 
 ## 1. Browser dan perangkat
 

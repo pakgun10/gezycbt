@@ -1,0 +1,15 @@
+[Unit]
+Description=GezyCBT encrypted offsite backup
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=gezycbt
+Group=gezycbt
+WorkingDirectory=/opt/gezycbt/current
+EnvironmentFile=/etc/gezycbt/gezycbt.env
+ExecStart=/usr/bin/flock -n /run/lock/gezycbt-backup.lock /opt/gezycbt/current/ops/backup/backup.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/var/lib/gezycbt /var/backups/gezycbt

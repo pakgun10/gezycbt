@@ -4,7 +4,7 @@
 **Status:** `DONE` untuk jalur TCP MariaDB yang diuji; Unix socket dan streaming/cursor dicatat sebagai gap yang disengaja  
 **Tanggal run:** 16 September 2026  
 **Harness:** [`spikes/bun-sql`](../spikes/bun-sql/)  
-**Matrix:** [`6-COMPATIBILITY.md`](./6-COMPATIBILITY.md)
+**Matrix:** [`06-COMPATIBILITY.md`](./06-COMPATIBILITY.md)
 
 ## 1. Keputusan hasil spike
 

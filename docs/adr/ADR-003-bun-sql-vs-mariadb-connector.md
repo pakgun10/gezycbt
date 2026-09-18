@@ -1,11 +1,11 @@
 # ADR-003 — Bun.SQL versus Official MariaDB Connector
 
-**Status:** Accepted  
-**Tanggal:** 16 September 2026  
-**Pemilik keputusan:** GezyCBT maintainers  
-**Issue:** `ISS-004`  
-**Evidence:** [7-BUN-SQL-SPIKE.md](../7-BUN-SQL-SPIKE.md)  
-**Matrix:** [6-COMPATIBILITY.md](../6-COMPATIBILITY.md)
+**Status:** Accepted
+**Tanggal:** 16 September 2026
+**Pemilik keputusan:** GezyCBT maintainers
+**Issue:** `ISS-004`
+**Evidence:** [07-BUN-SQL-SPIKE.md](../07-BUN-SQL-SPIKE.md)
+**Matrix:** [06-COMPATIBILITY.md](../06-COMPATIBILITY.md)
 
 ## Context
 

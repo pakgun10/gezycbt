@@ -1,9 +1,9 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, serta ISS-120–ISS-132 selesai pada baseline ini
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, dan Fase 9 ISS-140–ISS-149 selesai pada baseline ini
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 18 September 2026
-**Sumber requirement:** [4-PRD.md](./4-PRD.md)  
+**Sumber requirement:** [04-PRD.md](./04-PRD.md)
 **Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md)
 
 Dokumen ini menerjemahkan PRD dan arsitektur menjadi backlog pekerjaan yang dapat diambil satu per satu. Ia adalah **source backlog awal**, bukan pengganti issue tracker. Ketika repository Git dan issue tracker sudah aktif, setiap item `ISS-*` dapat dibuat sebagai GitHub/GitLab issue dengan ID yang sama agar traceability tetap terjaga.
@@ -55,14 +55,14 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 
 | Issue | Status | Evidence |
 |---|---|---|
-| `ISS-001` | `DONE` | PRD v0.1 telah direview terhadap arsitektur v0.13, integrasi agent v0.3, dan UI/UX v0.6; hasil serta gate terbuka dicatat pada bagian **Status baseline** di [`4-PRD.md`](./4-PRD.md). |
-| `ISS-002` | `DONE` | Kandidat matrix versi, primary/fallback database lane, OS/CI/browser matrix, pinning policy, dan handoff spike dicatat di [`6-COMPATIBILITY.md`](./6-COMPATIBILITY.md). |
-| `ISS-003` | `DONE` | Bun.SQL lulus lane MariaDB 11.4.13 dan 10.11.19; evidence, skip yang disengaja, serta batas streaming/cursor dicatat di [`7-BUN-SQL-SPIKE.md`](./7-BUN-SQL-SPIKE.md). |
+| `ISS-001` | `DONE` | PRD v0.1 telah direview terhadap arsitektur v0.13, integrasi agent v0.3, dan UI/UX v0.6; hasil serta gate terbuka dicatat pada bagian **Status baseline** di [`04-PRD.md`](./04-PRD.md). |
+| `ISS-002` | `DONE` | Kandidat matrix versi, primary/fallback database lane, OS/CI/browser matrix, pinning policy, dan handoff spike dicatat di [`06-COMPATIBILITY.md`](./06-COMPATIBILITY.md). |
+| `ISS-003` | `DONE` | Bun.SQL lulus lane MariaDB 11.4.13 dan 10.11.19; evidence, skip yang disengaja, serta batas streaming/cursor dicatat di [`07-BUN-SQL-SPIKE.md`](./07-BUN-SQL-SPIKE.md). |
 | `ISS-004` | `DONE` | ADR-003 menerima Bun.SQL sebagai default dan menetapkan official MariaDB Connector sebagai fallback adapter; lihat [`ADR-003`](./adr/ADR-003-bun-sql-vs-mariadb-connector.md). |
 | `ISS-005` | `DONE` | ADR-001 sampai ADR-012 minimum telah diterima; indeks dan keputusan tersedia di [`docs/adr`](./adr/README.md). |
-| `ISS-006` | `DONE` | Browser/device support default, viewport, dan unsupported behavior berada di [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md). |
-| `ISS-007` | `DONE` | Batas konten, manifest, dan media MVP berada di [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md). |
-| `ISS-008` | `DONE` | SLO, RPO, RTO, dan alert baseline berada di [`8-OPERATING-BASELINE.md`](./8-OPERATING-BASELINE.md). |
+| `ISS-006` | `DONE` | Browser/device support default, viewport, dan unsupported behavior berada di [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md). |
+| `ISS-007` | `DONE` | Batas konten, manifest, dan media MVP berada di [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md). |
+| `ISS-008` | `DONE` | SLO, RPO, RTO, dan alert baseline berada di [`08-OPERATING-BASELINE.md`](./08-OPERATING-BASELINE.md). |
 | `ISS-010` | `DONE` | Bun workspace, exact `bun.lock`, strict TypeScript, API/web/package skeleton, serta root validation tersedia di repository. |
 | `ISS-011` | `DONE` | Kontrak ID/timestamp UTC, pagination, API error envelope, dan test dasar tersedia di `packages/contracts`. |
 | `ISS-012` | `DONE` | Elysia app factory dapat diuji in-memory; bootstrap start/stop idempotent dan konfigurasi dasar gagal cepat. |
@@ -137,9 +137,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-089` | `DONE` | Auth-expired overlay meminta login ulang, memperbarui CSRF, resume session yang sama, dan mempertahankan outbox lokal. |
 | `ISS-090` | `DONE` | Result view mengambil session + participant-safe result, menampilkan aggregate, release gate MAIN, canRetry practice, dan tidak menampilkan answer key/print claim. |
 | `ISS-091` | `DONE` | BroadcastChannel memberi advisory antar-tab, focus heading/modal trigger dikelola, dan conflict/finalization state mencegah submit ganda. |
-| `ISS-092` | `DONE` | Matriks acceptance E2E 23 skenario pada viewport 360/390/768/1366, light/dark/reduced motion, reliability, privacy, dan accessibility tersedia di [`participant-e2e-matrix.md`](./participant-e2e-matrix.md); controller/API/router tests lulus. |
+| `ISS-092` | `DONE` | Matriks acceptance E2E 23 skenario pada viewport 360/390/768/1366, light/dark/reduced motion, reliability, privacy, dan accessibility tersedia di [`11-participant-e2e-matrix.md`](./11-participant-e2e-matrix.md); controller/API/router tests lulus. |
 | `ISS-093` | `DONE` | Runtime composition menyediakan konfigurasi database tervalidasi, readiness MariaDB, lifecycle shutdown, serta route authentication SQL-backed pada proses API. |
-| `ISS-094` | `DONE` | Local development dan migration workflow tersedia melalui `.env.example`, Compose MariaDB development, scripts root, migration CLI, README, dan [`9-RUNBOOK.md`](./9-RUNBOOK.md). |
+| `ISS-094` | `DONE` | Local development dan migration workflow tersedia melalui `.env.example`, Compose MariaDB development, scripts root, migration CLI, README, dan [`09-RUNBOOK.md`](./09-RUNBOOK.md). |
 | `ISS-100` | `DONE` | Staff shell, admin user/import wizard, academic master UI, re-auth commit, loading/empty/error states, dan role menu tersedia pada `apps/web/src/views/AdminUsersView.vue` serta `AcademicView.vue`; route admin memakai SQL-backed services. |
 | `ISS-101` | `DONE` | `ScopeSwitcher.vue` menyimpan `subjectId`/`classId` di URL, membersihkan cursor/page saat scope berubah, dan meminta konfirmasi ketika editor memiliki perubahan lokal. |
 | `ISS-102` | `DONE` | Question bank CRUD ringan, editor tiga tipe soal, exact-match key, readiness validation, publish guard, optimistic update, dan preview ringkas tersedia pada `QuestionsView.vue`; media validation/relationship tetap memakai service domain ISS-046/047. |
@@ -150,8 +150,8 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-107` | `DONE` | Export job durable (`export_jobs`/`export_files`, migration `0017_exports`) mendukung QUEUED/RUNNING/READY/FAILED/EXPIRED, polling history, re-create, dan one-time download token lima menit. |
 | `ISS-108` | `DONE` | Audit viewer admin menyediakan search, cursor page, safe summary, detail drawer, request ID, dan marker metadata redacted tanpa secret/raw answer. |
 | `ISS-109` | `DONE` | `StaffSectionBoundary` mengisolasi error per staff route group, memulihkan focus ke heading fallback, menampilkan request ID, dan menyediakan reload tanpa menaruh data sensitif di telemetry. |
-| `ISS-110` | `DONE` | Matrix acceptance staff tersedia di [`staff-e2e-matrix.md`](./staff-e2e-matrix.md) untuk admin/guru, mobile, keyboard, focus, theme, scope, import, monitoring, results, export, audit, dan boundary security. Repository gate typecheck/lint/test/build lulus; browser trace production-like tetap menjadi gate operasional sebelum pilot. |
-| `ISS-120` | `DONE` | Audit kesiapan application service, actor context, idempotency boundary, dan batas capability tersedia di [`agent-readiness-audit.md`](./agent-readiness-audit.md). Tidak ada rule machine agent yang hanya berada di Vue/route. |
+| `ISS-110` | `DONE` | Matrix acceptance staff tersedia di [`10-staff-e2e-matrix.md`](./10-staff-e2e-matrix.md) untuk admin/guru, mobile, keyboard, focus, theme, scope, import, monitoring, results, export, audit, dan boundary security. Repository gate typecheck/lint/test/build lulus; browser trace production-like tetap menjadi gate operasional sebelum pilot. |
+| `ISS-120` | `DONE` | Audit kesiapan application service, actor context, idempotency boundary, dan batas capability tersedia di [`13-agent-readiness-audit.md`](./13-agent-readiness-audit.md). Tidak ada rule machine agent yang hanya berada di Vue/route. |
 | `ISS-121` | `DONE` | Migration `0018_integrations` membuat client, credential digest-only, explicit grants, policy version, expiry/revoke metadata, serta idempotency key table dan index baseline. Migration dijalankan pada MariaDB development. |
 | `ISS-122` | `DONE` | Machine Bearer authentication, active owner/client/credential checks, capability dan effective owner scope policy, rate limiter 60 read/20 mutation, failure bucket 5/15 menit, audit denial, serta `/me`/`/capabilities` smoke endpoint tersedia di modul integrations. |
 | `ISS-123` | `DONE` | Console admin `/admin/integrations` menyediakan client/credential/grant management, one-time plaintext credential, re-authentication, optimistic version, audit, dan kill switch yang langsung mencabut credential aktif. |
@@ -162,10 +162,20 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-128` | `DONE` | Controlled export agent memakai job/worker bounded yang sama dengan web, filter/kolom/scope snapshot, PII grant, satu job aktif per client, durable idempotency, polling status, one-use download token maksimal 5 menit, protected download, migration, dan audit. |
 | `ISS-129` | `DONE` | `IntegrationActionService` menyediakan exact action plan immutable, canonical SHA-256 `planHash`, expected target/grant version recheck, 30-minute expiry, idempotent prepare, agent confirm, web approval, cancellation, migration `0020_agent_actions`, dan admin approval route/UI. |
 | `ISS-130` | `DONE` | Publish, release/unrelease, Tutup Jadwal, extend time, Akhiri Sesi, reset attempt, dan disable user memakai callback application/domain service dengan actor `EXTERNAL_AGENT`, reason/attempt invariant, row lock, dan safe action result. |
-| `ISS-131` | `DONE` | Manifest executable REST/Bearer/header/approval/download/polling tersedia bersama contract tests dan [`agent-compatibility-spike.md`](./agent-compatibility-spike.md); versi exact Hivekeep/Hermes tetap diverifikasi pada staging host sebelum pilot. |
+| `ISS-131` | `DONE` | Manifest executable REST/Bearer/header/approval/download/polling tersedia bersama contract tests dan [`12-agent-compatibility-spike.md`](./12-agent-compatibility-spike.md); versi exact Hivekeep/Hermes tetap diverifikasi pada staging host sebelum pilot. |
 | `ISS-132` | `DONE` | Contract/security/load-isolation suite menguji Bearer boundary, revoked capability/audit, secret-answer-finalization redaction, isolated rate buckets, action/export routes, canonical hash, dan burst 1.000 agent read. |
+| `ISS-140` | `DONE` | Nginx production template menetapkan TLS 1.2/1.3, redirect HTTPS, CSP tanpa `unsafe-eval`/inline script, HSTS, frame denial, `nosniff`, referrer/permissions policy, request/body limits, dan internal protected locations. |
+| `ISS-141` | `DONE` | Protected storage menyediakan atomic write, rooted key validation, permission 0640, media/export internal redirect contract, dan disk guard sebelum upload/export; data mutable berada di luar webroot. |
+| `ISS-142` | `DONE` | systemd API service, bounded export worker, timeout finalizer, schedule reconciler, housekeeping, backup timer, non-blocking flock, graceful shutdown, dan durable queued-export recovery tersedia. |
+| `ISS-143` | `DONE` | Metrics menambahkan duration, active requests, bounded route labels, named domain counters, structured request failure log, liveness/readiness, dan tanpa PII/high-cardinality identifier. |
+| `ISS-144` | `DONE` | Logrotate policy dan `check-disk` tersedia; `FilesystemDiskGuard` menolak upload/export pada free space ≤10% dan memberi warning ≤20%, tanpa mengganggu answer path. |
+| `ISS-145` | `DONE` | Backup script membuat dump DB + media, enkripsi AES-256-CBC PBKDF2, checksum sidecar, retention, dan optional offsite copy melalui rclone; key tidak berada di repository. |
+| `ISS-146` | `DONE` | Verify/restore script dan prosedur restore ke host kosong tersedia dengan explicit confirmation, migration/health/three-role smoke gate, serta target RPO/RTO terdokumentasi. |
+| `ISS-147` | `DONE` | Immutable release directory, SHA-256 manifest, migration gate, atomic current symlink, readiness check, rollback otomatis/manuel, dan lock deployment tersedia. |
+| `ISS-148` | `DONE` | Security gate memeriksa CSP/internal serving/tracked secret, menjalankan full quality gate dan optional `nginx -t`; leakage, upload, IDOR, redaction, dan rotation checks menjadi release blocker. |
+| `ISS-149` | `DONE` | Failure response runbook mencakup Bun/DB/TLS/disk/backup/finalizer/reconciler/deploy/restore dengan diagnosis read-only dan batas tindakan operator yang aman. |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, dan agent `ISS-120–ISS-132` telah selesai. Entry berikutnya adalah Fase 9 (`ISS-140`) untuk security dan operations hardening.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, dan Fase 9 `ISS-140–ISS-149` telah selesai. Entry berikutnya adalah Fase 10 (`ISS-150`) untuk performance validation.
 
 ---
 
@@ -630,10 +640,9 @@ export, exact action approval, high-risk callbacks, compatibility contract, dan
 security/load-isolation suite.
 Tabel status pada bagian 1.5 adalah source of truth untuk evidence.
 
-Langkah berikutnya adalah Fase 9, dimulai dari `ISS-140` untuk security dan
-operations hardening. Browser trace production-like, external Hivekeep/Hermes
-adapter evidence, load test, dan hardening tetap harus lulus sebelum
-pilot/production.
+Fase 9 `ISS-140–ISS-149` selesai sebagai baseline security dan operations.
+Browser trace production-like, external Hivekeep/Hermes adapter evidence, load
+test, dan hardening host nyata tetap harus lulus sebelum pilot/production.
 
 ---
 

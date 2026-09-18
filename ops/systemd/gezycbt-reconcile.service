@@ -1,0 +1,14 @@
+[Unit]
+Description=GezyCBT schedule lifecycle reconciler
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=gezycbt
+Group=gezycbt
+WorkingDirectory=/opt/gezycbt/current
+EnvironmentFile=/etc/gezycbt/gezycbt.env
+ExecStart=/usr/bin/flock -n /run/lock/gezycbt-reconcile.lock /opt/gezycbt/current/ops/bin/gezycbt-job reconcile
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

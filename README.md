@@ -18,7 +18,7 @@ Jalankan `bun install`, lalu `bun run check`.
 ## Quick start lokal
 
 Salin `.env.example` menjadi `.env.local`, lalu ikuti
-[`docs/9-RUNBOOK.md`](./docs/9-RUNBOOK.md) untuk menyalakan MariaDB, menjalankan
+[`docs/09-RUNBOOK.md`](./docs/09-RUNBOOK.md) untuk menyalakan MariaDB, menjalankan
 migration, API, web shell, dan bootstrap admin pertama.
 
 Command utama:

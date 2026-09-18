@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GezyCBT timeout finalizer every 20 seconds
+
+[Timer]
+OnBootSec=20s
+OnUnitActiveSec=20s
+RandomizedDelaySec=5s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=GezyCBT bounded export worker
+After=mariadb.service
+
+[Service]
+Type=oneshot
+User=gezycbt
+Group=gezycbt
+WorkingDirectory=/opt/gezycbt/current
+EnvironmentFile=/etc/gezycbt/gezycbt.env
+ExecStart=/usr/bin/flock -n /run/lock/gezycbt-export-worker.lock /opt/gezycbt/current/ops/bin/gezycbt-job export
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ReadWritePaths=/var/lib/gezycbt

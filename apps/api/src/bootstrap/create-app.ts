@@ -7,7 +7,13 @@ import { examSessionApiOpenApi } from "../modules/exam-sessions/openapi";
 import { questionApiOpenApi } from "../modules/questions/openapi";
 import { scheduleApiOpenApi } from "../modules/schedules/openapi";
 import { checkReadiness, type ReadinessCheck } from "../observability/health";
-import { createMetrics, renderMetrics } from "../observability/metrics";
+import type { Metrics } from "../observability/metrics";
+import {
+  beginRequest,
+  createMetrics,
+  finishRequest,
+  renderMetrics,
+} from "../observability/metrics";
 
 const trustedRequestId = /^[a-zA-Z0-9_-]{8,128}$/;
 
@@ -40,6 +46,7 @@ const apiOpenApi = {
 
 export interface AppDependencies {
   readonly readinessChecks?: readonly ReadinessCheck[];
+  readonly metrics?: Metrics;
   /** Register concrete route plugins after the base app has been created. */
   readonly registerRoutes?: (app: Elysia) => unknown;
 }
@@ -49,7 +56,7 @@ export function createApp(
   logger: AppLogger = consoleLogger,
   dependencies: AppDependencies = {},
 ) {
-  const metrics = createMetrics();
+  const metrics = dependencies.metrics ?? createMetrics();
   const startedAt = Date.now();
   const app = new Elysia({ name: "gezycbt-api" });
   app
@@ -82,6 +89,9 @@ export function createApp(
   }
 
   const configured = app
+    .onRequest(({ request }) => {
+      beginRequest(metrics, request);
+    })
     .derive(({ request, set }) => {
       const supplied = request.headers.get("x-request-id");
       const requestId =
@@ -91,13 +101,15 @@ export function createApp(
       set.headers["x-request-id"] = requestId;
       return { requestId };
     })
-    .onAfterHandle(() => {
+    .onAfterHandle(({ request }) => {
       metrics.requestsTotal += 1;
+      finishRequest(metrics, request, new URL(request.url).pathname);
     });
 
   const withErrors = configured.onError(
     ({ code, error, request, requestId, set }) => {
       metrics.errorsTotal += 1;
+      finishRequest(metrics, request, new URL(request.url).pathname);
       const errorRequestId = requestId ?? crypto.randomUUID();
       set.headers["x-request-id"] = errorRequestId;
       const mapped =

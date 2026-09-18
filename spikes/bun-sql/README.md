@@ -4,7 +4,7 @@ Harness ini adalah kode pertama Fase 0. Ia sengaja berdiri sendiri dan tidak men
 
 ## Prasyarat
 
-- Bun `1.4.2` atau versi exact yang tercatat pada [compatibility matrix](../../docs/6-COMPATIBILITY.md).
+- Bun `1.4.2` atau versi exact yang tercatat pada [compatibility matrix](../../docs/06-COMPATIBILITY.md).
 - MariaDB `11.4.x` dengan database disposable dan user non-root.
 - MariaDB `10.11.x` untuk compatibility lane sekunder.
 

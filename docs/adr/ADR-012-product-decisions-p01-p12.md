@@ -27,7 +27,7 @@ P-01 sampai P-12 menjadi baseline implementasi GezyCBT:
 | P-11 | Zona waktu UI adalah `Asia/Jakarta`; database selalu UTC. |
 | P-12 | Retensi audit minimal 1 tahun. |
 
-Detail requirement dan acceptance scenario berada di [`../4-PRD.md`](../4-PRD.md), sedangkan behavior UI berada di [`../03-ui-ux.md`](../03-ui-ux.md).
+Detail requirement dan acceptance scenario berada di [`../04-PRD.md`](../04-PRD.md), sedangkan behavior UI berada di [`../03-ui-ux.md`](../03-ui-ux.md).
 
 ## Change control
 

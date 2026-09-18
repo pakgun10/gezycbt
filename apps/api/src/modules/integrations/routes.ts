@@ -6,6 +6,7 @@ import {
   AuthorizationRequiredError,
 } from "../../application/authorization";
 import { AppError } from "../../http/app-error";
+import { DiskProtectionError } from "../../observability/disk-guard";
 import {
   assertCsrfRequest,
   CSRF_HEADER_NAME,
@@ -1631,6 +1632,13 @@ function mapIntegrationError(error: unknown): Error {
     );
   if (error instanceof MediaPersistenceError)
     return new AppError(500, "INTERNAL_ERROR", "Media tidak dapat disimpan.");
+  if (error instanceof DiskProtectionError)
+    return new AppError(
+      503,
+      "DISK_PRESSURE",
+      "Penyimpanan server hampir penuh. Upload/export ditunda.",
+      { retryAfterSeconds: 300 },
+    );
   return error instanceof Error
     ? error
     : new Error("Integration request failed");

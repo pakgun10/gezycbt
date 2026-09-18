@@ -72,6 +72,9 @@ import {
   UserImportPreviewService,
 } from "../modules/user-imports";
 import { SqlUserRepository, UserApplicationService } from "../modules/users";
+import { instrumentDatabase } from "../observability/database";
+import { FilesystemDiskGuard } from "../observability/disk-guard";
+import { createMetrics } from "../observability/metrics";
 import type { AppDependencies } from "./create-app";
 
 export interface RuntimeDependencies extends AppDependencies {
@@ -94,7 +97,11 @@ export function createRuntimeDependencies(
     return { shutdown: async () => undefined };
   }
 
-  const database = createBunSqlDatabase(config.databaseUrl);
+  const metrics = createMetrics();
+  const database = instrumentDatabase(
+    createBunSqlDatabase(config.databaseUrl),
+    metrics,
+  );
   const users = new SqlUserRepository(database);
   const userApplication = new UserApplicationService(users);
   const academics = new AcademicMasterService(
@@ -117,16 +124,17 @@ export function createRuntimeDependencies(
   );
   const questionReadiness = new QuestionReadinessService(questionRepository);
   const mediaRepository = new SqlMediaRelationRepository(database);
-  const mediaStorage = new FileSystemMediaStorage(
+  const mediaRoot =
     config.mediaRoot ??
-      (config.appEnv === "production"
-        ? "/var/lib/gezycbt/media"
-        : ".data/media"),
-  );
+    (config.appEnv === "production" ? "/var/lib/gezycbt/media" : ".data/media");
+  const diskGuard = new FilesystemDiskGuard(mediaRoot);
+  const mediaStorage = new FileSystemMediaStorage(mediaRoot);
   const mediaUpload = new MediaUploadService(
     mediaStorage,
     mediaRepository,
     new ContainerImageDecoder(),
+    undefined,
+    diskGuard,
   );
   const mediaRelations = new MediaRelationService(
     mediaRepository,
@@ -209,7 +217,7 @@ export function createRuntimeDependencies(
     database,
     integration: integrationService,
   });
-  const exports = new ExportService(database);
+  const exports = new ExportService(database, diskGuard);
   const agentExports = new IntegrationExportService({
     database,
     integration: integrationService,
@@ -301,6 +309,7 @@ export function createRuntimeDependencies(
   let closed = false;
   return {
     database,
+    metrics,
     readinessChecks: [
       {
         name: "database",

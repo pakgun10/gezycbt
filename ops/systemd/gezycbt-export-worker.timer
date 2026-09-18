@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GezyCBT export worker
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=10s
+RandomizedDelaySec=3s
+Persistent=true
+
+[Install]
+WantedBy=timers.target

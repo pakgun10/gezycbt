@@ -4,6 +4,7 @@ import { Elysia } from "elysia";
 import type { UseCaseContext } from "../../application/actor-context";
 import type { AuthorizationPolicyService } from "../../application/authorization";
 import { AppError } from "../../http/app-error";
+import { DiskProtectionError } from "../../observability/disk-guard";
 import type { AcademicMasterService } from "../academics/service";
 import {
   assertCsrfRequest,
@@ -2124,6 +2125,13 @@ function mapStaffError(error: unknown): Error {
     );
   if (error instanceof ExportValidationError)
     return new AppError(422, "VALIDATION_FAILED", error.message);
+  if (error instanceof DiskProtectionError)
+    return new AppError(
+      503,
+      "DISK_PRESSURE",
+      "Penyimpanan server hampir penuh. Upload/export ditunda.",
+      { retryAfterSeconds: 300 },
+    );
   if (/Import|Credential/u.test(name))
     return new AppError(
       422,

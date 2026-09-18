@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root="${GEZYCBT_DATA_ROOT:-/var/lib/gezycbt}"
+warn="${GEZYCBT_DISK_WARN_PERCENT:-20}"
+reject="${GEZYCBT_DISK_REJECT_PERCENT:-10}"
+read -r percent mount < <(df -P "$root" | awk 'NR==2 {gsub(/%/,"",$5); print 100-$5, $6}')
+printf 'gezycbt_disk_free_percent{mount="%s"} %s\n' "$mount" "$percent"
+if (( percent <= reject )); then
+  echo "CRITICAL: free disk ${percent}% (reject threshold ${reject}%)" >&2
+  exit 2
+fi
+if (( percent <= warn )); then
+  echo "WARNING: free disk ${percent}% (warning threshold ${warn}%)" >&2
+  exit 1
+fi

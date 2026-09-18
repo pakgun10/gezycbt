@@ -1,12 +1,12 @@
 # GezyCBT — Developer dan Operations Runbook
 
-**Status:** Baseline operasional Fase 8 dan agent foundation/tool stages/action approval (ISS-100–ISS-110, ISS-120–ISS-132)
+**Status:** Baseline operasional Fase 8, agent foundation/tool stages/action approval, dan Fase 9 hardening (ISS-100–ISS-110, ISS-120–ISS-132, ISS-140–ISS-149)
 **Terakhir diperbarui:** 18 September 2026
 
 Dokumen ini menjelaskan cara menjalankan fondasi repository, database lokal,
-migrasi, API, dan bootstrap admin. Ia belum menggantikan runbook production
-lengkap untuk systemd, Nginx, backup, restore, dan incident response; bagian
-tersebut dikerjakan pada Fase 9.
+migrasi, API, bootstrap admin, serta baseline production operations. Detail
+unit, backup, deployment, dan failure response tetap disimpan di subdirektori
+`ops/` agar dapat dipasang ke host tanpa menyalin secret ke repository.
 
 ## 1. Prasyarat
 
@@ -187,4 +187,55 @@ credential plaintext hanya muncul sekali setelah re-authentication. Pending R3
 action disetujui pada panel yang sama, sedangkan agent mem-poll status tanpa
 webhook. Operasi export memakai job durable dan download token satu kali yang
 berlaku maksimal lima menit. Kontrak compatibility dan format evidence ada di
-[`agent-compatibility-spike.md`](./agent-compatibility-spike.md).
+[`12-agent-compatibility-spike.md`](./12-agent-compatibility-spike.md).
+
+## 9. Fase 9 production hardening
+
+Baseline operations artifacts berada di `ops/` dan menjadi bagian dari release:
+
+- `ops/nginx/gezycbt.conf` dan `ops/nginx/security-headers.conf` untuk TLS, CSP,
+  headers, request limits, static assets, dan internal protected media/export;
+- `ops/systemd/` untuk API, export worker, timeout finalizer, schedule reconciler,
+  housekeeping, dan encrypted backup timer; setiap job memakai `flock` dan batch
+  bounded;
+- `ops/backup/` untuk dump database + media, checksum, encryption, offsite copy,
+  verification, dan restore yang memerlukan konfirmasi eksplisit;
+- `ops/deployment/` untuk immutable release, migration gate, atomic symlink,
+  readiness check, dan rollback;
+- `ops/security/security-gate.sh` untuk quality/security gate;
+- `ops/runbooks/failure-response.md` untuk diagnosis dan recovery.
+
+Install unit systemd setelah menyesuaikan user, hostname, paths, dan environment.
+Jangan menyalin secrets ke repository. Production mutable data tetap berada di
+`/var/lib/gezycbt`, sedangkan release code berada di `/opt/gezycbt/releases`.
+
+## 10. Disk protection dan worker recovery
+
+API menolak upload media dan pembuatan export ketika filesystem data memiliki
+free space `<=10%`; warning operasional berada pada `<=20%`. Answer save dan
+submit tidak memakai guard ini sehingga pressure disk tidak mengubah jalur
+correctness ujian. Export worker memindai job `QUEUED` di database setiap
+invocation, sehingga queued work dapat dilanjutkan setelah restart process.
+
+## 11. Observability minimum
+
+`/metrics` berisi request/error counter, duration sum/count, active requests,
+bounded route labels, process uptime, dan named event counters. Route label
+mengganti numeric/long hexadecimal ID dengan `:id`; username, session ID,
+question ID, token, raw answer, answer key, dan PII tidak boleh masuk metric atau
+structured log. `/health/live` tidak menyentuh database; `/health/ready`
+memeriksa dependency database dan dipakai sebagai deployment gate.
+
+## 12. Backup/restore drill
+
+Sebelum pilot dan minimal kuartal sekali:
+
+1. Jalankan `ops/backup/backup.sh` ke remote storage di luar VPS.
+2. Jalankan `ops/backup/verify.sh` terhadap artifact terbaru.
+3. Restore ke host kosong dengan `GEZYCBT_CONFIRM_RESTORE=YES`.
+4. Jalankan migration forward-only, health checks, bootstrap/three-role smoke,
+   serta pemeriksaan satu session/resume/result.
+5. Catat durasi, RPO, RTO, checksum, dan issue tindak lanjut.
+
+Menyalin file backup ke disk VPS yang sama tidak dianggap offsite. Restore tidak
+boleh dilakukan pada database production aktif tanpa change window dan snapshot.

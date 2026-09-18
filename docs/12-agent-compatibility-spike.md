@@ -5,7 +5,7 @@ adapter dipasang pada environment yang dipilih
 **Tanggal:** 18 September 2026
 **Berlaku untuk:** GezyCBT single-tenant, Agent Integration API v1
 **Terkait:** [02-bot-automation.md](./02-bot-automation.md),
-[6-COMPATIBILITY.md](./6-COMPATIBILITY.md), ISS-124, ISS-129, ISS-132
+[06-COMPATIBILITY.md](./06-COMPATIBILITY.md), ISS-124, ISS-129, ISS-132
 
 Dokumen ini adalah rencana dan bukti spike untuk memastikan adapter pada
 Hivekeep atau Hermes dapat memakai API GezyCBT tanpa menambah channel bot,

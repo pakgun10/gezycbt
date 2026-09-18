@@ -1,4 +1,5 @@
 import type { Id } from "@gezycbt/contracts";
+import type { FilesystemDiskGuard } from "../../observability/disk-guard";
 import {
   type ImageDecoder,
   MEDIA_LIMITS,
@@ -26,6 +27,7 @@ export class MediaUploadService {
     private readonly randomBytes: (
       length: number,
     ) => Uint8Array = defaultRandomBytes,
+    private readonly diskGuard?: Pick<FilesystemDiskGuard, "assertAvailable">,
   ) {}
 
   async upload(input: MediaUploadInput): Promise<MediaAsset> {
@@ -44,6 +46,7 @@ export class MediaUploadService {
         "DECODE_MISMATCH",
         "Decoded image metadata is inconsistent",
       );
+    await this.diskGuard?.assertAvailable("upload");
     const storageKey = createStorageKey(this.randomBytes(24));
     const sha256 = new Uint8Array(
       await crypto.subtle.digest("SHA-256", bytes as unknown as BufferSource),
