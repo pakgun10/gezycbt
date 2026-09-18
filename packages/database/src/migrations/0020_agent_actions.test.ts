@@ -15,6 +15,8 @@ describe("agent action migration", () => {
     expect(agentActionsMigration.statements[1]).toContain(
       "CREATE TABLE agent_action_approvals",
     );
-    expect(migrations.at(-1)).toBe(agentActionsMigration);
+    expect(
+      migrations.find((migration) => migration.id === agentActionsMigration.id),
+    ).toBe(agentActionsMigration);
   });
 });

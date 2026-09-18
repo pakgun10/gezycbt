@@ -179,6 +179,14 @@ Entry gate ini dianggap lulus bila clean checkout dapat:
 6. menjalankan bootstrap admin satu kali;
 7. menjalankan quality gate repository.
 
+## 9. Performance validation
+
+Tooling ISS-150–ISS-154 berada di [`ops/performance/`](../ops/performance/)
+dan prosedurnya dicatat di [`14-performance-validation.md`](./14-performance-validation.md).
+K6 load/soak run dan restart recovery harus dijalankan terhadap staging
+production-like setelah VPS dipasang; command tooling tidak mengubah production
+secara otomatis.
+
 Setelah discovery foundation, question/media authoring, exam authoring,
 result/practice reads, controlled export, exact action approval, dan high-risk
 callbacks agent lulus, pekerjaan berikutnya adalah Fase 9 untuk security dan

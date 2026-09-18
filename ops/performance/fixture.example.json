@@ -1,0 +1,9 @@
+{
+  "participants": [
+    {
+      "username": "load-participant-0001",
+      "password": "replace-in-staging",
+      "mainAccessCode": "ABCDE"
+    }
+  ]
+}
