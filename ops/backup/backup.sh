@@ -15,6 +15,9 @@ secret_file="$(mktemp)"
 cleanup() { rm -rf "$stage" "$secret_file"; }
 trap cleanup EXIT
 
+database_name="${GEZYCBT_DATABASE_URL##*/}"
+database_name="${database_name%%\?*}"
+[[ -n "$database_name" ]] || { echo 'invalid MariaDB URL' >&2; exit 2; }
 python3 - "$GEZYCBT_DATABASE_URL" >"$secret_file" <<'PY'
 import sys
 from urllib.parse import unquote, urlparse
@@ -26,12 +29,11 @@ print('host=' + u.hostname)
 print('port=' + str(u.port or 3306))
 print('user=' + unquote(u.username))
 print('password=' + unquote(u.password or ''))
-print('database=' + unquote(u.path[1:]))
 PY
 chmod 600 "$secret_file"
 
 dump="$stage/database.sql"
-mariadb-dump --defaults-extra-file="$secret_file" --single-transaction --routines --events --triggers >"$dump"
+mariadb-dump --defaults-extra-file="$secret_file" --single-transaction --routines --events --triggers "$database_name" >"$dump"
 tar -C "$media_root" -czf "$stage/media.tar.gz" .
 tar -C "$stage" -czf - database.sql media.tar.gz | openssl enc -aes-256-cbc -salt -pbkdf2 -pass "file:$key_file" >"$backup_root/gezycbt-${stamp}.tar.gz.enc"
 sha256sum "$backup_root/gezycbt-${stamp}.tar.gz.enc" >"$backup_root/gezycbt-${stamp}.sha256"
