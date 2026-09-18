@@ -1003,7 +1003,18 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           ? "1 = 1"
           : "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = e.subject_id) AND NOT EXISTS (SELECT 1 FROM exam_schedule_classes esc LEFT JOIN teacher_classes tc ON tc.class_id = esc.class_id AND tc.teacher_id = ? WHERE esc.schedule_id = s.id AND tc.teacher_id IS NULL)";
       const rows = await options.database.query<Record<string, unknown>>(
-        `SELECT s.id, er.title, s.mode, s.status, s.starts_at, s.ends_at, s.duration_seconds, s.max_attempts, (s.practice_token_hint IS NOT NULL OR s.main_access_code_hint IS NOT NULL) AS has_access_code, COALESCE(s.practice_token_hint, s.main_access_code_hint) AS access_hint, s.updated_at FROM exam_schedules s JOIN exam_revisions er ON er.id = s.exam_revision_id JOIN exams e ON e.id = er.exam_id WHERE ${scoped} ORDER BY s.starts_at DESC, s.id DESC LIMIT ?`,
+        `SELECT s.id, er.title, s.mode, s.status,
+                DATE_FORMAT(s.starts_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS starts_at,
+                DATE_FORMAT(s.ends_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS ends_at,
+                s.duration_seconds, s.max_attempts,
+                (s.practice_token_hint IS NOT NULL OR s.main_access_code_hint IS NOT NULL) AS has_access_code,
+                COALESCE(s.practice_token_hint, s.main_access_code_hint) AS access_hint,
+                DATE_FORMAT(s.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+         FROM exam_schedules s
+         JOIN exam_revisions er ON er.id = s.exam_revision_id
+         JOIN exams e ON e.id = er.exam_id
+         WHERE ${scoped}
+         ORDER BY s.starts_at DESC, s.id DESC LIMIT ?`,
         [
           ...(actor.user.role === "ADMIN"
             ? []
@@ -1957,9 +1968,12 @@ async function updateResultRelease(
 function isoValue(value: unknown): string {
   if (value instanceof Date) return value.toISOString();
   const raw = String(value);
-  const parsed = new Date(
-    raw.includes("T") ? raw : `${raw.replace(" ", "T")}Z`,
-  );
+  const normalized = raw.includes("T") ? raw : `${raw.replace(" ", "T")}Z`;
+  // DATE_FORMAT(... %fZ) preserves MariaDB's microsecond precision. Keep it
+  // intact so optimistic-lock tokens round-trip exactly to the database.
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,6}Z$/u.test(normalized))
+    return normalized;
+  const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString();
 }
 
