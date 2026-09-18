@@ -14,6 +14,7 @@ import type {
 
 export interface ParticipantApi {
   login(username: string, password: string): Promise<LoginResponse>;
+  logout?(csrfToken?: string): Promise<void>;
   me(): Promise<LoginResponse>;
   schedules(): Promise<readonly ParticipantSchedule[]>;
   resolvePractice(token: string): Promise<PracticeResolveResponse["data"]>;
@@ -55,6 +56,13 @@ export class HttpParticipantApi implements ParticipantApi {
       },
     );
     return response;
+  }
+
+  async logout(csrfToken?: string): Promise<void> {
+    await this.client.request("/api/v1/auth/logout", {
+      method: "POST",
+      headers: mutationHeaders(crypto.randomUUID(), csrfToken),
+    });
   }
 
   async me(): Promise<LoginResponse> {

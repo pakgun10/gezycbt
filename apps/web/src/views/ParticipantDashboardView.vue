@@ -44,7 +44,7 @@ function reload(): void { window.location.reload(); }
     <header class="between page-heading"><div><p class="eyebrow">{{ user?.displayName ?? "Peserta" }}</p><h1>Daftar Ujian</h1></div><RouterLink class="btn-secondary action-link" to="/practice/token">Ujian Latihan</RouterLink></header>
     <FeedbackState v-if="loading" title="Memuat ujian…" message="Memeriksa jadwal dan eligibility Anda." />
     <FeedbackState v-else-if="error" title="Daftar ujian belum tersedia" :message="error" tone="error"><small v-if="requestId">Request ID: {{ requestId }}</small><br /><button class="btn-secondary" type="button" @click="reload">Coba lagi</button></FeedbackState>
-    <section v-else-if="schedules.length === 0" class="card empty"><h2>Belum ada ujian</h2><p class="muted">Jadwal yang tersedia untuk Anda akan muncul di sini.</p></section>
+    <section v-else-if="schedules.length === 0" class="card empty"><h2>Belum ada ujian</h2><p class="muted">Jadwal yang tersedia untuk Anda akan muncul di sini.</p><p class="muted">Jika jadwal sekolah sudah dibuka tetapi belum terlihat, pastikan akun Anda sudah dimasukkan ke target kelas atau peserta pada jadwal tersebut.</p></section>
     <section v-else class="schedule-grid" aria-label="Jadwal ujian">
       <article v-for="item in schedules" :key="item.id" class="card schedule-card">
         <div class="between"><span class="badge">{{ stateLabel(item) }}</span><span class="subtle">{{ item.mode === "MAIN" ? "Ujian Utama" : "Latihan" }}</span></div>
