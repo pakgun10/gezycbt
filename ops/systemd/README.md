@@ -1,6 +1,6 @@
 # systemd installation
 
-Install units under `/etc/systemd/system`, create a locked `/etc/gezycbt/gezycbt.env`, then run:
+Install units under `/etc/systemd/system`, create a locked `/etc/gezycbt/gezycbt.env`, and store the backup key at `/etc/gezycbt/backup.key` with ownership `root:gezycbt` and mode `0640`, then run:
 
 ```bash
 sudo systemctl daemon-reload
