@@ -83,6 +83,13 @@ export class SqlExamRuntimeStore implements RuntimeStore {
     input: StartMainInput,
   ): Promise<SessionStartResult> {
     return this.database.transaction(async (connection) => {
+      // MariaDB's default REPEATABLE READ takes a supremum gap lock for
+      // concurrent inserts into the schedule-scoped idempotency index. A
+      // READ COMMITTED transaction avoids that insert-intention deadlock.
+      await connection.execute(
+        "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
+      );
+      try {
       const schedule = await readSchedule(connection, input.scheduleId, false);
       if (!schedule || schedule.mode !== "MAIN") throw unavailable();
       const participantName = input.participantName.trim();
@@ -218,6 +225,13 @@ export class SqlExamRuntimeStore implements RuntimeStore {
           );
       }
       return readStartResult(connection, session, false, now);
+      } finally {
+        // Pool connections are reused by unrelated transactions. Restore the
+        // application baseline before this handle is returned to the pool.
+        await connection.execute(
+          "SET SESSION TRANSACTION ISOLATION LEVEL REPEATABLE READ",
+        );
+      }
     });
   }
 
