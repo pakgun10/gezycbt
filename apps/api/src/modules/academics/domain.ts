@@ -36,6 +36,12 @@ export interface ClassMember {
   readonly leftAt: UtcTimestamp | null;
 }
 
+/** Active roster row with the safe participant fields needed by staff UI. */
+export interface ClassMemberProfile extends ClassMember {
+  readonly username: string;
+  readonly displayName: string;
+}
+
 export interface Subject {
   readonly id: Id;
   readonly code: string;

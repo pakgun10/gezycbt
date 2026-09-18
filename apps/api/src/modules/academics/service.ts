@@ -9,6 +9,7 @@ import {
   type AcademicPage,
   type AcademicYear,
   type ClassMember,
+  type ClassMemberProfile,
   type ClassRecord,
   type CreateAcademicYearInput,
   type CreateClassInput,
@@ -86,6 +87,14 @@ export class AcademicMasterService {
   ): Promise<AcademicPage<ClassMember>> {
     assertActorContext(context.actor);
     return this.repository.listClassMembers(classId, request);
+  }
+
+  listClassMemberProfiles(
+    context: UseCaseContext,
+    classId: Id,
+  ): Promise<readonly ClassMemberProfile[]> {
+    assertActorContext(context.actor);
+    return this.repository.listClassMemberProfiles(classId);
   }
 
   replaceClassMembers(

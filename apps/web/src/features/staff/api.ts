@@ -3,6 +3,7 @@ import { useStaffAuth } from "./auth-store";
 import type {
   AcademicYear,
   AuditRow,
+  ClassMemberProfile,
   ClassRecord,
   CursorPage,
   ExamRevision,
@@ -23,12 +24,13 @@ import type {
   StaffUser,
   Subject,
   TeacherScope,
+  UserRole,
 } from "./types";
 
 export interface StaffApi {
   login(username: string, password: string): Promise<StaffLoginResponse>;
   me(): Promise<StaffLoginResponse>;
-  users(query?: string): Promise<CursorPage<StaffUser>>;
+  users(query?: string, role?: UserRole): Promise<CursorPage<StaffUser>>;
   previewImport(
     academicYearId: string,
     csv: string,
@@ -82,6 +84,11 @@ export interface StaffApi {
   activateAcademicYear(id: string): Promise<AcademicYear>;
   classes(academicYearId?: string): Promise<CursorPage<ClassRecord>>;
   createClass(input: Record<string, unknown>): Promise<ClassRecord>;
+  classMembers(classId: string): Promise<readonly ClassMemberProfile[]>;
+  updateClassMembers(
+    classId: string,
+    participantIds: readonly string[],
+  ): Promise<readonly ClassMemberProfile[]>;
   subjects(): Promise<CursorPage<Subject>>;
   teacherSubjects(): Promise<CursorPage<Subject>>;
   teacherClasses(): Promise<CursorPage<ClassRecord>>;
@@ -271,9 +278,12 @@ export class HttpStaffApi implements StaffApi {
       method: "GET",
     });
   }
-  users(query = "") {
+  users(query = "", role?: UserRole) {
+    const params = new URLSearchParams();
+    if (query) params.set("search", query);
+    if (role) params.set("role", role);
     return this.getPage<StaffUser>(
-      `/api/v1/admin/users?search=${encodeURIComponent(query)}`,
+      `/api/v1/admin/users${params.toString() ? `?${params.toString()}` : ""}`,
     );
   }
   previewImport(academicYearId: string, csv: string) {
@@ -389,6 +399,18 @@ export class HttpStaffApi implements StaffApi {
   }
   createClass(input: Record<string, unknown>) {
     return this.mutate<ClassRecord>("/api/v1/admin/classes", "POST", input);
+  }
+  classMembers(classId: string) {
+    return this.getData<{ items: readonly ClassMemberProfile[] }>(
+      `/api/v1/admin/classes/${encodeURIComponent(classId)}/members`,
+    ).then((value) => value.items);
+  }
+  updateClassMembers(classId: string, participantIds: readonly string[]) {
+    return this.mutate<{ items: readonly ClassMemberProfile[] }>(
+      `/api/v1/admin/classes/${encodeURIComponent(classId)}/members`,
+      "PUT",
+      { participantIds },
+    ).then((value) => value.items);
   }
   subjects() {
     return this.getPage<Subject>("/api/v1/admin/subjects");

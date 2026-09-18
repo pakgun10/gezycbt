@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Id } from "@gezycbt/contracts";
+import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import {
   type AcademicRepositoryConnection,
   type AcademicRepositoryDatabase,
@@ -109,5 +109,38 @@ describe("SqlAcademicRepository", () => {
         statement.startsWith("DELETE FROM teacher_classes"),
       ),
     ).toBe(true);
+  });
+
+  test("lists active class members with safe participant profiles", async () => {
+    const db = database((sql) =>
+      sql.includes("u.username")
+        ? [
+            {
+              id: 4n,
+              class_id: 30n,
+              participant_id: 50n,
+              joined_at: "2026-09-17 01:00:00.000000",
+              left_at: null,
+              username: "aan",
+              display_name: "Aan",
+            },
+          ]
+        : [],
+    );
+    const result = await new SqlAcademicRepository(db).listClassMemberProfiles(
+      "30" as Id,
+    );
+
+    expect(result).toEqual([
+      {
+        id: "4" as Id,
+        classId: "30" as Id,
+        participantId: "50" as Id,
+        joinedAt: "2026-09-17T01:00:00.000000Z" as UtcTimestamp,
+        leftAt: null,
+        username: "aan",
+        displayName: "Aan",
+      },
+    ]);
   });
 });

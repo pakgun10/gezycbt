@@ -81,7 +81,14 @@ function appFor(currentRole: "ADMIN" | "TEACHER") {
         return true;
       },
     },
-    academics: {} as StaffRouteOptions["academics"],
+    academics: {
+      async listClassMemberProfiles() {
+        return [];
+      },
+      async replaceClassMembers() {
+        return [];
+      },
+    } as unknown as StaffRouteOptions["academics"],
     expectedOrigin: "https://cbt.example.test",
   };
   const app = new Elysia()
@@ -159,4 +166,32 @@ test("teacher target pickers include class and participant scope predicates", as
   ).toBe(200);
   expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
   expect(queries.some((parameters) => parameters.includes("%ani%"))).toBe(true);
+});
+
+test("admin class roster routes are protected and support atomic replacement", async () => {
+  const { app } = appFor("ADMIN");
+  const cookie = `__Host-gezycbt-auth=${"a".repeat(43)}`;
+  const read = await app.handle(
+    new Request("https://cbt.example.test/api/v1/admin/classes/30/members", {
+      headers: { cookie },
+    }),
+  );
+  expect(read.status).toBe(200);
+  expect(await read.json()).toEqual({ data: { items: [] } });
+
+  const write = await app.handle(
+    new Request("https://cbt.example.test/api/v1/admin/classes/30/members", {
+      method: "PUT",
+      headers: {
+        cookie,
+        origin: "https://cbt.example.test",
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+        "idempotency-key": "roster-test-0001",
+      },
+      body: JSON.stringify({ participantIds: ["50"] }),
+    }),
+  );
+  expect(write.status).toBe(200);
+  expect(await write.json()).toEqual({ data: { items: [] } });
 });

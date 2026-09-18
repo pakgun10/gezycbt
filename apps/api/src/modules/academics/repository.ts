@@ -14,6 +14,7 @@ import {
   AcademicValidationError,
   type AcademicYear,
   type ClassMember,
+  type ClassMemberProfile,
   type ClassRecord,
   type CreateAcademicYearInput,
   type CreateClassInput,
@@ -66,6 +67,7 @@ export interface AcademicRepository {
     classId: Id,
     request: PageRequest,
   ): Promise<AcademicPage<ClassMember>>;
+  listClassMemberProfiles(classId: Id): Promise<readonly ClassMemberProfile[]>;
   createSubject(input: CreateSubjectInput): Promise<Subject>;
   listSubjects(request: PageRequest): Promise<AcademicPage<Subject>>;
   updateSubject(id: Id, input: UpdateSubjectInput): Promise<Subject | null>;
@@ -99,6 +101,11 @@ type MemberRow = Record<string, unknown> & {
   participant_id: unknown;
   joined_at: unknown;
   left_at: unknown;
+};
+
+type MemberProfileRow = MemberRow & {
+  username: unknown;
+  display_name: unknown;
 };
 
 type SubjectRow = Record<string, unknown> & {
@@ -395,6 +402,26 @@ export class SqlAcademicRepository implements AcademicRepository {
     return page(rows.map(mapMember), limit);
   }
 
+  async listClassMemberProfiles(
+    classId: Id,
+  ): Promise<readonly ClassMemberProfile[]> {
+    const rows = await this.database.query<MemberProfileRow>(
+      `SELECT cm.id, cm.class_id, cm.participant_id, cm.joined_at, cm.left_at,
+              u.username, u.display_name
+       FROM class_members cm
+       JOIN users u ON u.id = cm.participant_id
+       WHERE cm.class_id = ? AND cm.left_at IS NULL
+       ORDER BY cm.id ASC
+       LIMIT 1501`,
+      [classId],
+    );
+    if (rows.length > 1500)
+      throw new AcademicValidationError(
+        "A class roster cannot exceed 1,500 participants",
+      );
+    return rows.map(mapMemberProfile);
+  }
+
   async createSubject(input: CreateSubjectInput): Promise<Subject> {
     const code = validateCode(input.code, 50, "Subject code");
     const name = validateName(input.name, 150, "Subject name");
@@ -679,6 +706,14 @@ function mapMember(row: MemberRow): ClassMember {
     participantId: requiredId(row.participant_id),
     joinedAt: requiredTimestamp(row.joined_at),
     leftAt: nullableTimestamp(row.left_at),
+  };
+}
+
+function mapMemberProfile(row: MemberProfileRow): ClassMemberProfile {
+  return {
+    ...mapMember(row),
+    username: requiredString(row.username, "participant username"),
+    displayName: requiredString(row.display_name, "participant display name"),
   };
 }
 

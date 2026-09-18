@@ -123,6 +123,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
     try {
       const actor = await requireStaff(request, options, "ADMIN");
       const q = queryValue(query, "search");
+      const roleFilter = queryValue(query, "role");
       const limit = boundedLimit(queryValue(query, "limit"));
       const cursor = queryValue(query, "cursor");
       const conditions = ["1 = 1"];
@@ -133,6 +134,16 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         );
         const term = `%${q.slice(0, 100)}%`;
         parameters.push(term, term);
+      }
+      if (roleFilter) {
+        conditions.push("u.role = ?");
+        parameters.push(
+          oneOf(
+            roleFilter,
+            ["ADMIN", "TEACHER", "PARTICIPANT"] as const,
+            "role",
+          ),
+        );
       }
       if (cursor && /^\d+$/u.test(cursor)) {
         conditions.push("u.id > ?");
@@ -353,6 +364,47 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
     wrapMutation(request, options, "ADMIN", (staffContext) =>
       options.academics.createClass(staffContext, body as never),
     ),
+  );
+  app.get("/api/v1/admin/classes/:id/members", async ({ request, params }) =>
+    wrapRead(request, options, "ADMIN", async (staffContext) => ({
+      items: await options.academics.listClassMemberProfiles(
+        staffContext,
+        idParam(params),
+      ),
+    })),
+  );
+  app.put(
+    "/api/v1/admin/classes/:id/members",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "ADMIN", async (staffContext) => {
+        const payload = objectPayload(body);
+        if (!Array.isArray(payload.participantIds))
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "participantIds harus berupa daftar peserta.",
+          );
+        const participantIds = payload.participantIds.map((value) =>
+          idValue(value, "participantId"),
+        );
+        if (participantIds.length > 1500)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Satu kelas maksimal memiliki 1.500 peserta.",
+          );
+        await options.academics.replaceClassMembers(
+          staffContext,
+          idParam(params),
+          participantIds,
+        );
+        return {
+          items: await options.academics.listClassMemberProfiles(
+            staffContext,
+            idParam(params),
+          ),
+        };
+      }),
   );
   app.get("/api/v1/admin/subjects", async ({ request, query }) =>
     wrapRead(request, options, "ADMIN", (staffContext) =>

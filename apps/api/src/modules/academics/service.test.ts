@@ -6,6 +6,7 @@ import {
   type AcademicRepository,
   type AcademicYear,
   type ClassMember,
+  type ClassMemberProfile,
   type ClassRecord,
   type Subject,
   type TeacherScope,
@@ -63,6 +64,9 @@ function repository(): AcademicRepository & { readonly calls: string[] } {
     },
     async listClassMembers() {
       return { items: [], nextCursor: null };
+    },
+    async listClassMemberProfiles() {
+      return [] satisfies readonly ClassMemberProfile[];
     },
     async createSubject(input) {
       return {

@@ -47,6 +47,16 @@ export interface ParticipantOption {
   readonly displayName: string;
 }
 
+export interface ClassMemberProfile {
+  readonly id: string;
+  readonly classId: string;
+  readonly participantId: string;
+  readonly username: string;
+  readonly displayName: string;
+  readonly joinedAt: string;
+  readonly leftAt: string | null;
+}
+
 export interface Subject {
   readonly id: string;
   readonly code: string;
