@@ -61,9 +61,13 @@ export function normalizeDatabaseError(
         ? "FOREIGN_KEY"
         : code === "ER_CHECK_CONSTRAINT_VIOLATED" || code === "4025"
           ? "CHECK"
-          : code === "ER_LOCK_DEADLOCK" || code === "1213"
+          : code === "ER_LOCK_DEADLOCK" ||
+              code === "1213" ||
+              /deadlock/i.test(message)
             ? "DEADLOCK"
-            : code === "ER_LOCK_WAIT_TIMEOUT" || code === "1205"
+            : code === "ER_LOCK_WAIT_TIMEOUT" ||
+                code === "1205" ||
+                /lock wait timeout/i.test(message)
               ? "LOCK_TIMEOUT"
               : /timeout/i.test(code) || /timeout/i.test(message)
                 ? "TIMEOUT"
