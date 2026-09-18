@@ -158,7 +158,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       if (grant) {
         const consumed = await connection.execute(
           "UPDATE exam_attempt_grants SET consumed_by_session_id = ?, consumed_at = ? WHERE id = ? AND consumed_by_session_id IS NULL",
-          [session.id, now, grant.id],
+          [session.id, toDatabaseTimestamp(now), grant.id],
         );
         if (consumed.affectedRows !== 1)
           throw new ExamSessionError(
@@ -461,7 +461,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
             [
               JSON.stringify(response),
               nextVersion,
-              timestamp,
+              toDatabaseTimestamp(timestamp),
               session.id,
               item.sessionQuestionId,
               version,
@@ -475,7 +475,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
               item.sessionQuestionId,
               JSON.stringify(response),
               nextVersion,
-              timestamp,
+              toDatabaseTimestamp(timestamp),
             ],
           );
         const answer: RuntimeAnswer = {
@@ -495,7 +495,11 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       }
       await connection.execute(
         "UPDATE exam_sessions SET last_seen_at = ?, version = version + 1, updated_at = ? WHERE id = ? AND status = 'ACTIVE'",
-        [timestamp, timestamp, session.id],
+        [
+          toDatabaseTimestamp(timestamp),
+          toDatabaseTimestamp(timestamp),
+          session.id,
+        ],
       );
       session = {
         ...session,
@@ -614,7 +618,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
             [
               JSON.stringify(response),
               nextVersion,
-              timestamp,
+              toDatabaseTimestamp(timestamp),
               session.id,
               item.sessionQuestionId,
               version,
@@ -628,7 +632,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
               item.sessionQuestionId,
               JSON.stringify(response),
               nextVersion,
-              timestamp,
+              toDatabaseTimestamp(timestamp),
             ],
           );
       }
@@ -648,7 +652,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       const timestamp = now ?? serverNow();
       const rows = await connection.query<Row>(
         "SELECT id FROM exam_sessions WHERE status = 'ACTIVE' AND deadline_at <= ? ORDER BY deadline_at ASC, id ASC LIMIT ?",
-        [timestamp, Math.max(1, Math.min(100, limit))],
+        [toDatabaseTimestamp(timestamp), Math.max(1, Math.min(100, limit))],
       );
       const ids: Id[] = [];
       for (const row of rows) {
@@ -723,7 +727,12 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       );
       await connection.execute(
         "UPDATE exam_sessions SET deadline_at = ?, version = version + 1, updated_at = ? WHERE id = ? AND status = 'ACTIVE' AND version = ?",
-        [deadline, timestamp, session.id, input.expectedVersion],
+        [
+          toDatabaseTimestamp(deadline),
+          toDatabaseTimestamp(timestamp),
+          session.id,
+          input.expectedVersion,
+        ],
       );
       return {
         ...session,
@@ -812,10 +821,10 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       await connection.execute(
         "UPDATE exam_schedules SET status = 'CLOSED', closed_at = ?, closed_by_user_id = ?, close_reason = ?, updated_at = ? WHERE id = ? AND status NOT IN ('CLOSED', 'ARCHIVED')",
         [
-          timestamp,
+          toDatabaseTimestamp(timestamp),
           input.actorUserId ?? null,
           input.reason?.trim() ?? null,
-          timestamp,
+          toDatabaseTimestamp(timestamp),
           input.scheduleId,
         ],
       );
@@ -1057,9 +1066,9 @@ async function insertSession(
       input.institutionSnapshot ?? null,
       input.identityExtra ? JSON.stringify(input.identityExtra) : null,
       seed,
-      now,
-      deadline,
-      now,
+      toDatabaseTimestamp(now),
+      toDatabaseTimestamp(deadline),
+      toDatabaseTimestamp(now),
     ],
   );
   if (result.insertId === undefined)
@@ -1338,15 +1347,15 @@ async function finalizeSqlSession(
   await connection.execute(
     "UPDATE exam_sessions SET status = 'SCORED', submitted_at = COALESCE(?, submitted_at), expired_at = COALESCE(?, expired_at), ended_at = COALESCE(?, ended_at), scored_at = ?, finalization_reason = ?, finalized_by_user_id = ?, finalization_note = ?, last_seen_at = ?, version = version + 1, updated_at = ? WHERE id = ? AND status = 'ACTIVE'",
     [
-      submittedAt,
-      expiredAt,
-      endedAt,
-      now,
+      submittedAt ? toDatabaseTimestamp(submittedAt) : null,
+      expiredAt ? toDatabaseTimestamp(expiredAt) : null,
+      endedAt ? toDatabaseTimestamp(endedAt) : null,
+      toDatabaseTimestamp(now),
       reason,
       actorUserId ?? null,
       note ?? null,
-      now,
-      now,
+      toDatabaseTimestamp(now),
+      toDatabaseTimestamp(now),
       session.id,
     ],
   );
@@ -1368,8 +1377,8 @@ async function finalizeSqlSession(
       score.earnedScore,
       score.maxScore,
       score.percentage,
-      now,
-      releasedAt,
+      toDatabaseTimestamp(now),
+      releasedAt ? toDatabaseTimestamp(releasedAt) : null,
     ],
   );
   const updated: RuntimeSession = {
@@ -1628,6 +1637,14 @@ function unavailable(): ExamSessionError {
 function serverNow(): UtcTimestamp {
   return formatUtcTimestamp(new Date());
 }
+
+/** MariaDB DATETIME does not accept the ISO `T`/`Z` separators. */
+function toDatabaseTimestamp(value: UtcTimestamp): string {
+  const parsed = parseUtcTimestamp(value);
+  if (!parsed) throw new RangeError("Invalid UTC timestamp");
+  return parsed.replace("T", " ").replace(/Z$/u, "");
+}
+
 function dbId(value: unknown): Id {
   const parsed = parseId(String(value));
   if (!parsed) throw new Error("Database returned invalid ID");
