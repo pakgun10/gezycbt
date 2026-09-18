@@ -191,7 +191,10 @@ export class SqlExamRuntimeStore implements RuntimeStore {
       const currentSchedule = await readSchedule(
         connection,
         input.scheduleId,
-        true,
+        // Do not take an exclusive schedule lock here. The session insert
+        // already holds a shared FK lock on the schedule row; upgrading it
+        // while other starts do the same creates an avoidable deadlock.
+        false,
       );
       if (
         !currentSchedule ||
