@@ -22,14 +22,13 @@ const profiles = {
     ],
   },
   load_1000: {
-    executor: "ramping-vus",
-    startVUs: 0,
-    stages: [
-      { duration: "5m", target: Math.min(250, participants.length) },
-      { duration: "10m", target: Math.min(1000, participants.length) },
-      { duration: "20m", target: Math.min(1000, participants.length) },
-      { duration: "5m", target: 0 },
-    ],
+    // Each fixture participant must run exactly once because MAIN schedules
+    // have one attempt. Arrival is spread in examFlow rather than using a
+    // looping VU profile, which would repeatedly hit ATTEMPT_LIMIT_REACHED.
+    executor: "per-vu-iterations",
+    vus: Math.min(1000, participants.length),
+    iterations: 1,
+    maxDuration: "15m",
   },
   load_1000_once: {
     executor: "per-vu-iterations",
@@ -84,6 +83,15 @@ export const options = {
 
 export default function examFlow() {
   const participant = participants[(__VU - 1) % participants.length];
+  if (profile === "load_1000") {
+    const spreadSeconds = Math.max(
+      0,
+      Number(__ENV.K6_START_SPREAD_SECONDS || 600),
+    );
+    if (spreadSeconds > 0 && participants.length > 1) {
+      sleep(((__VU - 1) / (participants.length - 1)) * spreadSeconds);
+    }
+  }
   const auth = login(participant);
   if (!auth) return;
   const scheduleId = String(__ENV.K6_SCHEDULE_ID || "");

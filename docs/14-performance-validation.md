@@ -28,7 +28,8 @@ bounded, dan tidak mencetak response body ke log selain summary yang diminta.
 | Profile | Tujuan | Beban |
 |---|---|---|
 | `smoke` | Validasi kontrak dan fixture | 0 → 10 VU → 0, 60 detik |
-| `load_1000` | Kapasitas target | 0 → 250 → 1.000 VU, 40 menit |
+| `load_1000` | Kapasitas target | 1.000 peserta, satu alur per peserta, kedatangan bertahap default 10 menit |
+| `load_1000_once` | Login spike | 1.000 peserta dimulai bersamaan; mengukur perilaku backpressure |
 | `soak` | Drift RSS/connection/queue | hingga 1.000 VU, default 4 jam |
 
 Skenario timeout memakai schedule khusus dengan deadline pendek. Ia tidak

@@ -29,8 +29,10 @@ repository.
    ```
 
    Profile tersedia: `smoke`, `load_1000`, `load_1000_once`, dan `soak`.
-   Gunakan `load_1000_once` untuk schedule utama dengan batas satu attempt per
-   peserta; setiap VU melakukan satu alur login sampai submit. `K6_MONITOR=true`
+   `load_1000` menjalankan satu alur per peserta dengan kedatangan bertahap
+   (default 10 menit, dapat diubah dengan `K6_START_SPREAD_SECONDS`), sehingga
+   cocok untuk schedule MAIN dengan batas satu attempt. `load_1000_once` tetap
+   tersedia sebagai spike semua VU sekaligus. `K6_MONITOR=true`
    menambahkan polling monitoring guru; credentials staff diberikan melalui
    `K6_STAFF_USERNAME` dan `K6_STAFF_PASSWORD` hanya dari environment.
 
