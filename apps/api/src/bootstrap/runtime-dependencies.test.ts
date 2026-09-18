@@ -30,6 +30,23 @@ describe("runtime dependencies", () => {
     }
   });
 
+  test("mounts participant schedule routes behind participant authentication", async () => {
+    const dependencies = createRuntimeDependencies(config);
+    try {
+      const response = await createApp(
+        config,
+        { error: () => undefined },
+        dependencies,
+      ).handle(new Request("http://localhost/api/v1/participant/schedules"));
+      expect(response.status).toBe(401);
+      expect(await response.json()).toMatchObject({
+        error: { code: "AUTHENTICATION_REQUIRED" },
+      });
+    } finally {
+      await dependencies.shutdown();
+    }
+  });
+
   test("does not require a database for in-memory test apps", async () => {
     const { databaseUrl: _databaseUrl, ...configWithoutDatabase } = config;
     const dependencies = createRuntimeDependencies(configWithoutDatabase);
