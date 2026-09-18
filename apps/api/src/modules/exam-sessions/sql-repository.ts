@@ -1299,9 +1299,10 @@ async function readAnswers(
   return rows.map((row) => ({
     sessionId: dbId(row.session_id),
     sessionQuestionId: dbId(row.session_question_id),
-    response: JSON.parse(
-      String(row.response_json),
-    ) as RuntimeAnswer["response"],
+    // MariaDB JSON columns may be returned by Bun.SQL as an already-parsed
+    // object. `parseJson` accepts both that shape and the string shape used
+    // by other drivers, so resume and submit behave consistently.
+    response: parseJson(row.response_json) as RuntimeAnswer["response"],
     version: Number(row.version),
     answeredAt: dbTimestamp(row.answered_at),
   }));
