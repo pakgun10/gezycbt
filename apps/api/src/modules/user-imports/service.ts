@@ -61,7 +61,11 @@ export class UserImportPreviewService {
     const rows = classifyRows(normalizedRows, resolution);
     const summary = summarize(rows);
     const tokenBytes = randomBytes(32);
-    const tokenHash = await sha256(tokenBytes);
+    // Hash the exact base64url representation returned to the client. The
+    // commit endpoint receives this opaque string and must derive the same
+    // digest without needing to make assumptions about its encoding.
+    const commitToken = toBase64Url(tokenBytes);
+    const tokenHash = await sha256(new TextEncoder().encode(commitToken));
     const sourceSha256 = await sha256(
       new TextEncoder().encode(parsed.sourceText),
     );
@@ -78,7 +82,7 @@ export class UserImportPreviewService {
       summary,
     };
     const preview = await this.repository.createPreview(record);
-    return { preview, commitToken: toBase64Url(tokenBytes) };
+    return { preview, commitToken };
   }
 
   async getPreview(

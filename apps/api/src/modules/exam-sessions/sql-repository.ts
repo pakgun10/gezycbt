@@ -6,7 +6,11 @@ import {
   parseUtcTimestamp,
   type UtcTimestamp,
 } from "@gezycbt/contracts";
-import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
+import {
+  normalizeDatabaseError,
+  type DatabaseConnection,
+  type DatabasePort,
+} from "@gezycbt/database";
 import type { ParticipantQuestionMedia } from "../questions/participant-presenter";
 import type { ScheduleIdentityField } from "../schedules/domain";
 import { normalizeIdentitySnapshot } from "../schedules/identity";
@@ -42,12 +46,41 @@ import type {
 
 type Row = Record<string, unknown>;
 
+const START_RETRY_ATTEMPTS = 3;
+
+async function retryOnTransientLock<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      const normalized = normalizeDatabaseError(error);
+      if (
+        (normalized.kind !== "DEADLOCK" &&
+          normalized.kind !== "LOCK_TIMEOUT") ||
+        attempt + 1 >= START_RETRY_ATTEMPTS
+      )
+        throw error;
+      // A short bounded jitter lets the transaction that won the InnoDB
+      // wait-for graph finish before this participant retries its start.
+      await new Promise((resolve) =>
+        setTimeout(resolve, 10 + Math.floor(Math.random() * 25)),
+      );
+    }
+  }
+}
+
 /** MariaDB persistence adapter for the immutable start/resume path. */
 export class SqlExamRuntimeStore implements RuntimeStore {
   constructor(private readonly database: DatabasePort) {}
   private readonly scoring = new ScoringService();
 
   async startMain(input: StartMainInput): Promise<SessionStartResult> {
+    return retryOnTransientLock(() => this.startMainOnce(input));
+  }
+
+  private async startMainOnce(
+    input: StartMainInput,
+  ): Promise<SessionStartResult> {
     return this.database.transaction(async (connection) => {
       const schedule = await readSchedule(connection, input.scheduleId, false);
       if (!schedule || schedule.mode !== "MAIN") throw unavailable();

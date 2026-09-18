@@ -31,6 +31,12 @@ const profiles = {
       { duration: "5m", target: 0 },
     ],
   },
+  load_1000_once: {
+    executor: "per-vu-iterations",
+    vus: Math.min(1000, participants.length),
+    iterations: 1,
+    maxDuration: "10m",
+  },
   soak: {
     executor: "constant-vus",
     vus: Math.min(1000, participants.length),
@@ -85,23 +91,28 @@ export default function examFlow() {
   if (!schedule?.id) return;
   const start = startSession(participant, schedule.id, auth);
   if (!start) return;
-  const answers = buildAnswers(start.manifest);
-  if (answers.length > 0) saveAnswers(start.session.id, answers, auth);
+  let finalAnswers = buildAnswers(start.manifest);
+  if (finalAnswers.length > 0) {
+    const outcomes = saveAnswers(start.session.id, finalAnswers, auth);
+    finalAnswers = applySavedVersions(finalAnswers, outcomes);
+  }
 
   if (String(__ENV.K6_RECONNECT).toLowerCase() !== "false") {
     sleep(Number(__ENV.K6_RECONNECT_DELAY_SECONDS || 1));
     const resumed = resumeSession(start.session.id, auth);
     if (resumed) {
       const resumedAnswers = buildAnswers(resumed.manifest, resumed.answers);
-      if (resumedAnswers.length > 0)
-        saveAnswers(start.session.id, resumedAnswers, auth);
+      if (resumedAnswers.length > 0) {
+        const outcomes = saveAnswers(start.session.id, resumedAnswers, auth);
+        finalAnswers = applySavedVersions(resumedAnswers, outcomes);
+      }
     }
   }
 
   if (String(__ENV.K6_TIMEOUT_MODE).toLowerCase() === "true") {
     sleep(Number(__ENV.K6_TIMEOUT_WAIT_SECONDS || 2));
   }
-  submitSession(start.session.id, answers, auth);
+  submitSession(start.session.id, finalAnswers, auth);
 }
 
 export function monitorFlow() {
@@ -213,6 +224,20 @@ function submitSession(sessionId, answers, auth) {
   runtimeErrors.add(!ok);
 }
 
+function applySavedVersions(answers, outcomes) {
+  const versions = new Map(
+    outcomes
+      .filter((item) => item.status === "SAVED" && item.version !== undefined)
+      .map((item) => [String(item.sessionQuestionId), Number(item.version)]),
+  );
+  return answers.map((answer) => ({
+    ...answer,
+    ...(versions.has(String(answer.sessionQuestionId))
+      ? { baseVersion: versions.get(String(answer.sessionQuestionId)) }
+      : {}),
+  }));
+}
+
 function buildAnswers(manifest, committed = []) {
   if (!Array.isArray(manifest)) return [];
   const versions = new Map((committed || []).map((item) => [String(item.sessionQuestionId), item.version]));
@@ -252,8 +277,20 @@ function mutationOptions(auth, key) {
 }
 
 function uuidFor(vu, iteration) {
-  const suffix = `${(vu * 1000000 + iteration).toString(16)}`.padStart(12, "0").slice(-12);
+  const runHash = hashRunId(__ENV.K6_RUN_ID || "default");
+  const counter = `${(vu * 1000000 + iteration).toString(16)}`
+    .padStart(8, "0")
+    .slice(-8);
+  const suffix = `${runHash}${counter}`.slice(-12);
   return `00000000-0000-4000-8000-${suffix}`;
+}
+
+function hashRunId(value) {
+  let hash = 0;
+  for (const character of value) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash.toString(16).padStart(4, "0").slice(-4);
 }
 
 function safeJson(response) {
