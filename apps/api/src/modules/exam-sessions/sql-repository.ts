@@ -1236,7 +1236,7 @@ async function readQuestionSource(
     [revisionId],
   );
   const media = await connection.query<Row>(
-    "SELECT qrm.media_asset_id, qrm.usage, qrm.alt_text, qrm.is_decorative FROM question_revision_media qrm JOIN media_assets ma ON ma.id = qrm.media_asset_id WHERE qrm.question_revision_id = ? AND ma.status = 'READY' ORDER BY qrm.media_asset_id",
+    "SELECT qrm.media_asset_id, qrm.`usage`, qrm.alt_text, qrm.is_decorative FROM question_revision_media qrm JOIN media_assets ma ON ma.id = qrm.media_asset_id WHERE qrm.question_revision_id = ? AND ma.status = 'READY' ORDER BY qrm.media_asset_id",
     [revisionId],
   );
   return {
