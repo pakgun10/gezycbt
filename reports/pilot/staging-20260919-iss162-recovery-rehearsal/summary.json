@@ -1,0 +1,30 @@
+{
+  "issue": "ISS-162",
+  "kind": "recovery_rehearsal",
+  "environment": "staging",
+  "host": "43.156.50.50",
+  "productionTouched": false,
+  "restart": {
+    "scheduleId": "27",
+    "sessionId": "6082",
+    "readinessRecovered": true,
+    "resumedAnswerCount": 1,
+    "finalStatus": "SCORED",
+    "finalizationReason": "PARTICIPANT_SUBMIT"
+  },
+  "timeout": {
+    "scheduleId": "28",
+    "sessionId": "6083",
+    "finalStatus": "SCORED",
+    "finalizationReason": "DEADLINE",
+    "answerCount": 0,
+    "resultCount": 1
+  },
+  "cleanup": {
+    "schedulesClosed": ["27", "28"],
+    "temporaryOperatorDisabled": true,
+    "activeSessionsAfterRun": 0
+  },
+  "status": "IN_REVIEW",
+  "remainingGate": "isolated restore drill and real network outage simulation"
+}

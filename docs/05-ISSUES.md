@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 lulus dan menunggu pilot nyata; ISS-150–ISS-151 tooling tersedia
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 19 September 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
@@ -181,6 +181,7 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-154` | `DONE` | Capacity report baseline 1.000 peserta selesai dengan evidence ISS-152/153; pool, RSS, memory headroom, MariaDB connections, bottleneck, dan operating limit terdokumentasi di [`staging-20260919-iss154-capacity-report.md`](../reports/performance/staging-20260919-iss154-capacity-report.md). |
 | `ISS-160` | `DONE` | Staging production-like dry run lulus untuk staff login, lifecycle jadwal MAIN/PRACTICE, kode/token, start, save, refresh/resume, submit, release hasil, dan cleanup. Evidence ada di [`staging-20260919-iss160-dry-run`](../reports/pilot/staging-20260919-iss160-dry-run/). |
 | `ISS-161` | `IN_REVIEW` | Synthetic rehearsal 30 peserta lulus 30/30 untuk login, start, autosave, resume, submit, result, dan reconciliation tanpa active session. Evidence ada di [`staging-20260919-iss161-synthetic-rehearsal`](../reports/pilot/staging-20260919-iss161-synthetic-rehearsal/). Pilot nyata dengan variasi perangkat/browser/jaringan dan catatan support masih wajib. |
+| `ISS-162` | `IN_REVIEW` | Recovery rehearsal lulus untuk restart API saat session aktif dan timeout deadline; jawaban committed tetap dapat di-resume, service readiness pulih, dan session timeout difinalisasi sebagai `DEADLINE`. Evidence ada di [`staging-20260919-iss162-recovery-rehearsal`](../reports/pilot/staging-20260919-iss162-recovery-rehearsal/). Isolated restore drill dan simulasi jaringan sekolah masih wajib. |
 
 Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
 
