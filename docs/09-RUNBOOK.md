@@ -263,6 +263,33 @@ periksa rule port `443/tcp` pada Security Group provider dan mode Cloudflare
 (DNS-only memerlukan port 443 terbuka langsung; proxy Cloudflare dapat dipakai
 dengan SSL mode **Full (strict)**).
 
+### 9.2 Host staging untuk pilot
+
+Pilot tidak memakai host production. Staging production-like berada pada VPS
+`43.156.50.50` dan diakses melalui:
+
+```text
+https://staging-cbt.gezytech.web.id
+```
+
+Cloudflare DNS `A staging-cbt.gezytech.web.id → 43.156.50.50` memakai proxy
+Cloudflare dan SSL mode **Full (strict)**. Nginx staging menggunakan
+`server_name staging-cbt.gezytech.web.id`, sedangkan API memakai
+`APP_ORIGIN=https://staging-cbt.gezytech.web.id` agar guard Origin/CSRF cocok
+dengan browser peserta.
+
+Certificate staging dikelola Certbot pada:
+
+```text
+/etc/letsencrypt/live/staging-cbt.gezytech.web.id/fullchain.pem
+/etc/letsencrypt/live/staging-cbt.gezytech.web.id/privkey.pem
+```
+
+Renewal dijalankan oleh `certbot.timer` dengan deploy hook yang memvalidasi
+konfigurasi lalu reload Nginx. Uji akses dari perangkat pilot harus memakai
+hostname staging tersebut, baik dari Wi-Fi sekolah maupun paket data seluler;
+akses langsung melalui IP hanya untuk diagnosis dan bukan URL peserta.
+
 ## 10. Disk protection dan worker recovery
 
 API menolak upload media dan pembuatan export ketika filesystem data memiliki
