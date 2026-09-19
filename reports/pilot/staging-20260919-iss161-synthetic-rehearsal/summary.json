@@ -1,0 +1,20 @@
+{
+  "issue": "ISS-161",
+  "kind": "synthetic_rehearsal",
+  "environment": "staging",
+  "host": "43.156.50.50",
+  "productionTouched": false,
+  "scheduleId": "26",
+  "participantCount": 30,
+  "loginSuccess": 30,
+  "startSuccess": 30,
+  "saveSuccess": 30,
+  "resumeSuccess": 30,
+  "submitSuccess": 30,
+  "resultCount": 30,
+  "activeSessionsAfterRun": 0,
+  "failureCount": 0,
+  "durationSeconds": 5.91,
+  "status": "IN_REVIEW",
+  "remainingGate": "real device and network mix pilot"
+}
