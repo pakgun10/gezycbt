@@ -99,6 +99,9 @@ answer loss, result ganda, atau attempt ganda.
 ## Safety boundary
 
 - Jalankan terhadap staging atau maintenance window yang disetujui.
+- Jalankan generator k6 dari host terpisah. Pada VPS 2 GiB, 1.000 VU k6
+  sendiri dapat memakai sekitar 1,1 GiB RAM dan membuat pengukuran API tidak
+  representatif.
 - Jangan memakai password production di command line; gunakan file fixture
   dengan permission ketat atau environment secret manager.
 - Jangan menjalankan `perf:fixtures` atau query plan capture pada production

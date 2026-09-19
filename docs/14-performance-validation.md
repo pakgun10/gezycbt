@@ -145,6 +145,20 @@ Operator melakukan satu restart terencana di tengah soak:
 Restart recovery tidak boleh menghapus outbox browser atau mengubah result yang
 sudah committed.
 
+### 5.1 Batas host generator
+
+K6 harus dijalankan dari host terpisah dari VPS yang sedang diukur. Pada
+staging 2 GiB, inisialisasi 1.000 VU k6 mengonsumsi sekitar 1,1 GiB RAM dan
+mengubah kondisi yang sedang diukur. Menjalankan generator di VPS target
+karena itu bukan evidence kapasitas yang valid dan berisiko menekan MariaDB
+serta API. Gunakan laptop/runner CI atau VPS generator terpisah; jangan
+memakai VPS production aplikasi sebagai generator tanpa maintenance plan yang
+jelas.
+
+Jika runner terputus sebelum semua iterasi selesai, schedule test harus ditutup
+dan dibuat ulang. Session yang tersisa boleh difinalisasi untuk cleanup, tetapi
+run tersebut tidak boleh diberi status lulus.
+
 ## 6. Production baseline awal 2 GiB
 
 File `ops/performance/mariadb-2gb.cnf` dan
