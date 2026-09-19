@@ -1,0 +1,2 @@
+collected_at_utc=2026-09-19T13:02:15Z
+k6_service_state=inactive

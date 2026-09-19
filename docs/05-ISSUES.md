@@ -1,8 +1,8 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, dan ISS-152 selesai; ISS-150–ISS-151 tooling tersedia, sedangkan ISS-153–ISS-154 masih menunggu soak dan capacity report
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, dan ISS-152–ISS-154 selesai; ISS-150–ISS-151 tooling tersedia
 **Versi dokumen:** 0.1  
-**Terakhir diperbarui:** 18 September 2026
+**Terakhir diperbarui:** 19 September 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
 **Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md)
 
@@ -177,10 +177,10 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-150` | `DONE` | Workload k6 reproducible untuk login/start/autosave/reconnect/resume/submit/timeout dan optional monitoring tersedia di [`ops/performance/k6/gezycbt.js`](../ops/performance/k6/gezycbt.js), dengan fixture generator, threshold SLO, summary, dan run wrapper. |
 | `ISS-151` | `DONE` | Hot-query inventory dan capture `EXPLAIN FORMAT=JSON` tersedia di `apps/api/src/cli/query-plans.ts`; migration `0021_performance_indexes` menambah pagination index schedule/session dan schedule/result; query plan test memastikan nama bounded, expected index evidence, dan tidak ada parameter/URL secret pada artifact. |
 | `ISS-152` | `DONE` | Load staged 1.000 peserta pada VPS staging kedua lulus SLO dan verifier. Evidence tersimpan di [`reports/performance/staging-20260919-iss152`](../reports/performance/staging-20260919-iss152/): HTTP/runtime error 0,033%, autosave p95 105 ms, start p95 107 ms, resume p95 119 ms, submit p95 1.055 ms, 1.000 session/result/answer, tanpa duplicate atau acknowledged loss. Satu participant mengalami kegagalan transient dan di-retry sekali; tetap di bawah error budget dan dicatat pada report. |
-| `ISS-153` | `READY` | Soak monitor dan restart recovery procedure tersedia di `ops/performance/soak-monitor.sh` dan [`14-performance-validation.md`](./14-performance-validation.md); execution memerlukan API/database production-like. |
-| `ISS-154` | `READY` | Starting baseline MariaDB/Nginx, host collector, dan capacity report template tersedia; angka final pool/RSS/headroom ditetapkan setelah ISS-152/153 lulus. |
+| `ISS-153` | `DONE` | Soak 1.000 participant selama 4 jam 10 menit dan restart recovery lulus pada staging; error 0,0070%, readiness 100%, verifier 1.000 session/result/answer tanpa duplicate. Evidence ada di [`reports/performance/staging-20260919-iss153-final`](../reports/performance/staging-20260919-iss153-final/) dan [`14-performance-validation.md`](./14-performance-validation.md). |
+| `ISS-154` | `DONE` | Capacity report baseline 1.000 peserta selesai dengan evidence ISS-152/153; pool, RSS, memory headroom, MariaDB connections, bottleneck, dan operating limit terdokumentasi di [`staging-20260919-iss154-capacity-report.md`](../reports/performance/staging-20260919-iss154-capacity-report.md). |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, dan load gate `ISS-152` telah selesai. Tooling `ISS-150–ISS-151` selesai; entry gate berikutnya adalah soak/restart `ISS-153`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, dan Fase 10 `ISS-152–ISS-154` telah selesai. Entry gate berikutnya adalah pilot `ISS-160`.
 
 ---
 

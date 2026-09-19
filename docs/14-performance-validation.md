@@ -1,9 +1,9 @@
 # Fase 10 — Performance validation dan capacity report
 
-**Status:** Tooling ISS-150–ISS-154 tersedia; ISS-152 lulus pada staging
-production-like. ISS-153 dan ISS-154 masih menunggu soak/restart dan analisis
-capacity final.
-**Tanggal:** 18 September 2026
+**Status:** ISS-152, ISS-153, dan ISS-154 lulus pada staging
+production-like. Capacity report final ada di
+[`reports/performance/staging-20260919-iss154-capacity-report.md`](../reports/performance/staging-20260919-iss154-capacity-report.md).
+**Tanggal:** 19 September 2026
 
 Dokumen ini adalah catatan eksekusi, bukan klaim bahwa 1.000 peserta sudah
 terbukti. Bukti kapasitas harus berasal dari staging yang menyerupai VPS target
@@ -159,6 +159,23 @@ Jika runner terputus sebelum semua iterasi selesai, schedule test harus ditutup
 dan dibuat ulang. Session yang tersisa boleh difinalisasi untuk cleanup, tetapi
 run tersebut tidak boleh diberi status lulus.
 
+### 5.2 Evidence ISS-153 — staging 19 September 2026
+
+Run final menggunakan laptop sebagai generator terpisah dan VPS staging
+`43.156.50.50` sebagai host aplikasi/database. Profile `soak` menyelesaikan
+1.000 dari 1.000 iterasi dalam 4 jam 10 menit 14,8 detik. Total request
+1.194.817 dengan 84 request gagal (0,0070%), masih di bawah error budget 0,5%.
+
+Latency gate lulus: start p95 94 ms, resume p95 178 ms, autosave p95 168 ms,
+dan submit p95 173 ms. Threshold autosave p99 <2 detik juga lulus.
+
+Restart terencana terjadi pada `2026-09-19T10:44:32Z`. Readiness kembali `200`,
+session tetap dapat dilanjutkan, dan verifier menemukan 1.000 session,
+participant, result, dan answer tanpa duplicate serta tanpa session aktif.
+Monitor mencatat 1.026 sample readiness dan tidak ada sample non-`200`.
+Artefak lengkap ada di
+[`reports/performance/staging-20260919-iss153-final`](../reports/performance/staging-20260919-iss153-final/).
+
 ## 6. Production baseline awal 2 GiB
 
 File `ops/performance/mariadb-2gb.cnf` dan
@@ -205,3 +222,7 @@ restart_at_utc:
 Kesimpulan wajib menyebut safe operating limit, headroom, bottleneck utama,
 dan rekomendasi sebelum menaikkan concurrency. Bila gate gagal, issue baru
 harus mencatat evidence; angka tidak boleh disesuaikan agar terlihat lulus.
+
+Capacity report ISS-154 menyimpulkan baseline aman untuk 1.000 peserta dengan
+arrival window bertahap. Spike login serentak, perubahan pool/Argon2/MariaDB,
+dan export paralel tetap memerlukan run validasi baru.

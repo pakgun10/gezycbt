@@ -1,0 +1,6 @@
+ActiveState=active
+SubState=running
+MainPID=382696
+NRestarts=0
+MemoryCurrent=37650432
+MemoryPeak=51507200

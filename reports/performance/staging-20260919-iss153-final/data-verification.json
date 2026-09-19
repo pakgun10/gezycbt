@@ -1,0 +1,20 @@
+{
+  "scheduleId": "22",
+  "expectedParticipants": 1000,
+  "observed": {
+    "sessionCount": 1000,
+    "distinctParticipants": 1000,
+    "activeCount": 0,
+    "resultCount": 1000,
+    "distinctResults": 1000,
+    "answerCount": 1000,
+    "distinctAnswers": 1000
+  },
+  "checks": {
+    "noDuplicateMainAttempts": true,
+    "noDuplicateResults": true,
+    "noDuplicateAnswers": true,
+    "expectedParticipantsMatched": true
+  },
+  "passed": true
+}

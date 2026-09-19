@@ -1,0 +1,6 @@
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu systemd[1]: Stopping gezycbt-staging.service - GezyCBT staging API...
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu bun[275845]: {"level":"error","event":"request_failed","requestId":"b99221f28c3f997e6324bf76b35f4042","method":"GET","path":"/api/v1/participant/exam-sessions/5124","status":500,"errorCode":"INTERNAL_ERROR"}
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu systemd[1]: gezycbt-staging.service: Deactivated successfully.
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu systemd[1]: Stopped gezycbt-staging.service - GezyCBT staging API.
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu systemd[1]: gezycbt-staging.service: Consumed 26min 54.347s CPU time over 5h 44min 59.782s wall clock time, 119.4M memory peak, 21M memory swap peak.
+2026-09-19T18:44:32+08:00 VM-0-13-ubuntu systemd[1]: Started gezycbt-staging.service - GezyCBT staging API.
