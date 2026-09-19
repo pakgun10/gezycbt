@@ -1,6 +1,6 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, dan ISS-152–ISS-154 selesai; ISS-150–ISS-151 tooling tersedia
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; ISS-150–ISS-151 tooling tersedia
 **Versi dokumen:** 0.1  
 **Terakhir diperbarui:** 19 September 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
@@ -179,8 +179,9 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-152` | `DONE` | Load staged 1.000 peserta pada VPS staging kedua lulus SLO dan verifier. Evidence tersimpan di [`reports/performance/staging-20260919-iss152`](../reports/performance/staging-20260919-iss152/): HTTP/runtime error 0,033%, autosave p95 105 ms, start p95 107 ms, resume p95 119 ms, submit p95 1.055 ms, 1.000 session/result/answer, tanpa duplicate atau acknowledged loss. Satu participant mengalami kegagalan transient dan di-retry sekali; tetap di bawah error budget dan dicatat pada report. |
 | `ISS-153` | `DONE` | Soak 1.000 participant selama 4 jam 10 menit dan restart recovery lulus pada staging; error 0,0070%, readiness 100%, verifier 1.000 session/result/answer tanpa duplicate. Evidence ada di [`reports/performance/staging-20260919-iss153-final`](../reports/performance/staging-20260919-iss153-final/) dan [`14-performance-validation.md`](./14-performance-validation.md). |
 | `ISS-154` | `DONE` | Capacity report baseline 1.000 peserta selesai dengan evidence ISS-152/153; pool, RSS, memory headroom, MariaDB connections, bottleneck, dan operating limit terdokumentasi di [`staging-20260919-iss154-capacity-report.md`](../reports/performance/staging-20260919-iss154-capacity-report.md). |
+| `ISS-160` | `DONE` | Staging production-like dry run lulus untuk staff login, lifecycle jadwal MAIN/PRACTICE, kode/token, start, save, refresh/resume, submit, release hasil, dan cleanup. Evidence ada di [`staging-20260919-iss160-dry-run`](../reports/pilot/staging-20260919-iss160-dry-run/). |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, dan Fase 10 `ISS-152–ISS-154` telah selesai. Entry gate berikutnya adalah pilot `ISS-160`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
 
 ---
 

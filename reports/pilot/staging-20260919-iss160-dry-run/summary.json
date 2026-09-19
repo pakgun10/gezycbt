@@ -1,0 +1,38 @@
+{
+  "issue": "ISS-160",
+  "environment": "staging",
+  "host": "43.156.50.50",
+  "productionTouched": false,
+  "health": {
+    "live": 200,
+    "ready": 200,
+    "database": "ok"
+  },
+  "main": {
+    "scheduleId": "24",
+    "sessionId": "6050",
+    "scheduleFinalStatus": "CLOSED",
+    "sessionFinalStatus": "SCORED",
+    "answerCount": 1,
+    "resultCount": 1,
+    "resultReleased": true,
+    "percentage": "100.00",
+    "finalizationReason": "PARTICIPANT_SUBMIT"
+  },
+  "practice": {
+    "scheduleId": "25",
+    "sessionId": "6051",
+    "scheduleFinalStatus": "CLOSED",
+    "sessionFinalStatus": "SCORED",
+    "answerCount": 1,
+    "resultCount": 1,
+    "percentage": "100.00",
+    "canRetry": true,
+    "finalizationReason": "PARTICIPANT_SUBMIT"
+  },
+  "cleanup": {
+    "temporarySchedulesClosed": ["23", "24", "25"],
+    "temporaryOperatorDisabled": true,
+    "activeSessionsAfterRun": 0
+  }
+}
