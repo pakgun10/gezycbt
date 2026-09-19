@@ -1,0 +1,68 @@
+# TYPE gezycbt_requests_total counter
+gezycbt_requests_total 11290
+# TYPE gezycbt_errors_total counter
+gezycbt_errors_total 2501
+# TYPE gezycbt_http_request_duration_ms_sum counter
+gezycbt_http_request_duration_ms_sum 1706163
+# TYPE gezycbt_http_request_duration_ms_count counter
+gezycbt_http_request_duration_ms_count 13791
+# TYPE gezycbt_http_active_requests gauge
+gezycbt_http_active_requests 8
+# TYPE gezycbt_db_query_duration_ms_sum counter
+gezycbt_db_query_duration_ms_sum 560202.672
+# TYPE gezycbt_db_query_duration_ms_count counter
+gezycbt_db_query_duration_ms_count 209299
+# TYPE gezycbt_db_pool_wait_total counter
+gezycbt_db_pool_wait_total 1051
+# TYPE gezycbt_process_uptime_seconds gauge
+gezycbt_process_uptime_seconds 39253
+# TYPE gezycbt_http_requests_by_route_total counter
+gezycbt_http_requests_by_route_total{route="/api/v1/teacher/schedules"} 3
+gezycbt_http_requests_by_route_total{route="/api/v1/teacher/schedules/:id/:id"} 6
+gezycbt_http_requests_by_route_total{route="/api/v1/teacher/schedules/:id/ready"} 3
+gezycbt_http_requests_by_route_total{route="/api/v1/auth/staff/login"} 1
+gezycbt_http_requests_by_route_total{route="/api/v1/auth/participant/login"} 4272
+gezycbt_http_requests_by_route_total{route="/api/v1/participant/schedules/:id/sessions"} 2519
+gezycbt_http_requests_by_route_total{route="/api/v1/participant/exam-sessions/:id/answers"} 3490
+gezycbt_http_requests_by_route_total{route="/api/v1/participant/exam-sessions/:id"} 1743
+gezycbt_http_requests_by_route_total{route="/api/v1/participant/exam-sessions/:id/submit"} 1744
+gezycbt_http_requests_by_route_total{route="/api/v1/auth/logout"} 1
+gezycbt_http_requests_by_route_total{route="/api/v1/auth/:id"} 9
+# TYPE gezycbt_db_queries_total counter
+gezycbt_db_queries_total{query="SELECT_1"} 7
+gezycbt_db_queries_total{query="SELECT_s"} 12066
+gezycbt_db_queries_total{query="SELECT_auth_throttles"} 9148
+gezycbt_db_queries_total{query="SELECT_id"} 15653
+gezycbt_db_queries_total{query="DELETE_from"} 2558
+gezycbt_db_queries_total{query="INSERT_auth_sessions"} 2558
+gezycbt_db_queries_total{query="SELECT_auth_sessions"} 8
+gezycbt_db_queries_total{query="SELECT_er"} 2
+gezycbt_db_queries_total{query="INSERT_exam_schedules"} 2
+gezycbt_db_queries_total{query="SELECT_classes"} 4
+gezycbt_db_queries_total{query="INSERT_exam_schedule_classes"} 2
+gezycbt_db_queries_total{query="SELECT_es"} 20
+gezycbt_db_queries_total{query="SELECT_exam_schedule_classes"} 4336
+gezycbt_db_queries_total{query="SELECT_exam_schedule_participants"} 4336
+gezycbt_db_queries_total{query="UPDATE_exam_schedules"} 6
+gezycbt_db_queries_total{query="SELECT_school_settings"} 2519
+gezycbt_db_queries_total{query="SELECT_class_members"} 7607
+gezycbt_db_queries_total{query="OTHER"} 5138
+gezycbt_db_queries_total{query="SELECT_exam_schedules"} 6060
+gezycbt_db_queries_total{query="SELECT_exam_questions"} 4316
+gezycbt_db_queries_total{query="SELECT_exam_sessions"} 14679
+gezycbt_db_queries_total{query="SELECT_users"} 5138
+gezycbt_db_queries_total{query="SELECT_exam_attempt_grants"} 2564
+gezycbt_db_queries_total{query="INSERT_exam_sessions"} 1793
+gezycbt_db_queries_total{query="SELECT_question_revisions"} 19193
+gezycbt_db_queries_total{query="SELECT_question_options"} 19193
+gezycbt_db_queries_total{query="SELECT_true_false_statements"} 19193
+gezycbt_db_queries_total{query="SELECT_question_revision_media"} 19193
+gezycbt_db_queries_total{query="INSERT_exam_session_questions"} 1747
+gezycbt_db_queries_total{query="SELECT_exam_session_questions"} 10468
+gezycbt_db_queries_total{query="SELECT_answers"} 8721
+gezycbt_db_queries_total{query="INSERT_answers"} 1747
+gezycbt_db_queries_total{query="UPDATE_exam_sessions"} 5234
+gezycbt_db_queries_total{query="UPDATE_answers"} 1744
+gezycbt_db_queries_total{query="INSERT_exam_results"} 1744
+gezycbt_db_queries_total{query="INSERT_auth_throttles"} 303
+gezycbt_db_queries_total{query="UPDATE_auth_throttles"} 299

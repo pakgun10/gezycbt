@@ -1,7 +1,8 @@
 # Fase 10 — Performance validation dan capacity report
 
-**Status:** Tooling ISS-150–ISS-154 tersedia; load/soak evidence production-like
-belum diisi karena VPS masih host kosong.
+**Status:** Tooling ISS-150–ISS-154 tersedia; ISS-152 lulus pada staging
+production-like. ISS-153 dan ISS-154 masih menunggu soak/restart dan analisis
+capacity final.
 **Tanggal:** 18 September 2026
 
 Dokumen ini adalah catatan eksekusi, bukan klaim bahwa 1.000 peserta sudah
@@ -100,6 +101,30 @@ ISS-152 lulus jika seluruh kondisi berikut terpenuhi pada profile `load_1000`:
 Satu scenario boleh gagal tanpa membatalkan seluruh run hanya bila scenario
 tersebut sengaja diisolasi (misalnya timeout test); hasilnya tetap dicatat
 terpisah dan tidak boleh menyamarkan failure runtime.
+
+### 4.1 Evidence ISS-152 — staging 19 September 2026
+
+Run diterapkan pada VPS staging `43.156.50.50` dengan 2 vCPU, 1.9 GiB RAM,
+2 GiB swap, dan schedule MAIN baru yang menargetkan 1.000 participant. Profile
+`load_1000` menjalankan tepat satu alur per participant dengan kedatangan
+tersebar 600 detik. Hasil lengkap (summary k6, verifier, host baseline, metrics,
+dan query plan) ada di
+[`reports/performance/staging-20260919-iss152`](../reports/performance/staging-20260919-iss152/).
+
+Hasil gate:
+
+- HTTP/runtime error 0,033% (2 request gagal dari 5.995), di bawah 0,5%.
+- Autosave p95 105 ms dan p99 di bawah 2 detik.
+- Start p95 107 ms, resume p95 119 ms, submit p95 1.055 ms.
+- Verifier lulus: 1.000 session, participant unik, result, dan answer; tidak
+  ada duplicate attempt/result/answer dan tidak ada session aktif tersisa.
+- Service tidak restart, readiness tetap sehat, max used MariaDB connections
+  16, dan tidak ada disk guard rejection.
+
+Satu participant mengalami kegagalan transient pada alur awal dan diulang sekali
+setelah run; kejadian ini tetap berada di bawah error budget dan dicatat eksplisit
+di report. Spike 1.000 login serentak tetap dipisahkan sebagai uji backpressure,
+bukan dasar kelulusan profile staged.
 
 ## 5. Soak dan restart recovery
 

@@ -1,0 +1,116 @@
+{
+  "capturedAt": "2026-09-19T02:44:14.069Z",
+  "plans": [
+    {
+      "name": "practice_token_lookup",
+      "sql": "SELECT id FROM exam_schedules WHERE mode = 'PRACTICE' AND practice_token_hash = ? LIMIT 1",
+      "expectedIndexes": [
+        "uq_exam_schedules_practice_token"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"table\": {\n      \"message\": \"Impossible WHERE noticed after reading const tables\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "session_by_id",
+      "sql": "SELECT id, schedule_id, participant_id, status, deadline_at, version FROM exam_sessions WHERE id = ? LIMIT 1",
+      "expectedIndexes": [
+        "PRIMARY"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"table\": {\n      \"message\": \"Impossible WHERE noticed after reading const tables\"\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "manifest_by_session",
+      "sql": "SELECT id, question_revision_id, display_position, points FROM exam_session_questions WHERE session_id = ? ORDER BY display_position LIMIT 151",
+      "expectedIndexes": [
+        "idx_exam_session_questions_session_order"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.00345856,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"exam_session_questions\",\n          \"access_type\": \"ref\",\n          \"possible_keys\": [\n            \"uq_exam_session_questions_position\",\n            \"uq_exam_session_questions_question\",\n            \"idx_exam_session_questions_session_order\"\n          ],\n          \"key\": \"uq_exam_session_questions_position\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"session_id\"],\n          \"ref\": [\"const\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00345856,\n          \"filtered\": 100,\n          \"attached_condition\": \"exam_session_questions.session_id <=> 0\"\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "answers_by_session",
+      "sql": "SELECT session_id, session_question_id, version, answered_at FROM answers WHERE session_id = ? ORDER BY session_question_id LIMIT 501",
+      "expectedIndexes": [
+        "PRIMARY"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.00183779,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"answers\",\n          \"access_type\": \"ref\",\n          \"possible_keys\": [\"PRIMARY\", \"idx_answers_session_answered\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"session_id\"],\n          \"ref\": [\"const\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00183779,\n          \"filtered\": 100,\n          \"attached_condition\": \"answers.session_id <=> 0\"\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "timeout_finalizer_window",
+      "sql": "SELECT id FROM exam_sessions WHERE status = 'ACTIVE' AND deadline_at <= ? ORDER BY deadline_at ASC, id ASC LIMIT 100",
+      "expectedIndexes": [
+        "idx_exam_sessions_status_deadline"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.021318483,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"exam_sessions\",\n          \"access_type\": \"range\",\n          \"possible_keys\": [\"idx_exam_sessions_status_deadline\"],\n          \"key\": \"idx_exam_sessions_status_deadline\",\n          \"key_length\": \"130\",\n          \"used_key_parts\": [\"status\", \"deadline_at\"],\n          \"loops\": 1,\n          \"rows\": 24,\n          \"cost\": 0.00595748,\n          \"filtered\": 100,\n          \"attached_condition\": \"exam_sessions.`status` = 'ACTIVE' and exam_sessions.deadline_at <= '2099-01-01 00:00:00.000000'\",\n          \"using_index\": true\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "schedule_monitor_counts",
+      "sql": "SELECT SUM(status = 'ACTIVE') AS active_count, SUM(status IN ('SUBMITTED', 'SCORED')) AS submitted_count, SUM(status = 'EXPIRED') AS expired_count, COUNT(DISTINCT participant_id) AS started_count FROM exam_sessions WHERE schedule_id = ?",
+      "expectedIndexes": [
+        "idx_exam_sessions_schedule_id",
+        "idx_exam_sessions_schedule_status_deadline"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.00345856,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"exam_sessions\",\n          \"access_type\": \"ref\",\n          \"possible_keys\": [\n            \"uq_exam_sessions_schedule_start_key\",\n            \"uq_exam_sessions_attempt\",\n            \"idx_exam_sessions_schedule_status_deadline\",\n            \"idx_exam_sessions_schedule_id\"\n          ],\n          \"key\": \"uq_exam_sessions_schedule_start_key\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"schedule_id\"],\n          \"ref\": [\"const\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00345856,\n          \"filtered\": 100\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "schedule_monitor_page",
+      "sql": "SELECT s.id, s.schedule_id, s.participant_id, s.attempt_no, s.status,\n            s.participant_name_snapshot, s.deadline_at, s.last_seen_at, s.version,\n            s.finalization_reason, COUNT(DISTINCT esq.id) AS question_count,\n            COUNT(DISTINCT a.session_question_id) AS answered_count, u.username\n     FROM exam_sessions s\n     LEFT JOIN users u ON u.id = s.participant_id\n     LEFT JOIN exam_session_questions esq ON esq.session_id = s.id\n     LEFT JOIN answers a ON a.session_id = s.id\n     WHERE s.schedule_id = ?\n     GROUP BY s.id, s.schedule_id, s.participant_id, s.attempt_no, s.status,\n              s.participant_name_snapshot, s.deadline_at, s.last_seen_at,\n              s.version, s.finalization_reason, u.username\n     ORDER BY s.id ASC LIMIT 51",
+      "expectedIndexes": [
+        "idx_exam_sessions_schedule_id",
+        "idx_exam_sessions_schedule_status_deadline"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.008748575,\n    \"filesort\": {\n      \"sort_key\": \"s.`id`, s.participant_id, s.attempt_no, s.`status`, s.participant_name_snapshot, s.deadline_at, s.last_seen_at, s.version, s.finalization_reason, u.username\",\n      \"temporary_table\": {\n        \"nested_loop\": [\n          {\n            \"table\": {\n              \"table_name\": \"s\",\n              \"access_type\": \"ref\",\n              \"possible_keys\": [\n                \"uq_exam_sessions_schedule_start_key\",\n                \"uq_exam_sessions_attempt\",\n                \"idx_exam_sessions_schedule_status_deadline\",\n                \"idx_exam_sessions_schedule_id\"\n              ],\n              \"key\": \"uq_exam_sessions_schedule_start_key\",\n              \"key_length\": \"8\",\n              \"used_key_parts\": [\"schedule_id\"],\n              \"ref\": [\"const\"],\n              \"loops\": 1,\n              \"rows\": 1,\n              \"cost\": 0.00345856,\n              \"filtered\": 100\n            }\n          },\n          {\n            \"table\": {\n              \"table_name\": \"u\",\n              \"access_type\": \"eq_ref\",\n              \"possible_keys\": [\"PRIMARY\"],\n              \"key\": \"PRIMARY\",\n              \"key_length\": \"8\",\n              \"used_key_parts\": [\"id\"],\n              \"ref\": [\"gezycbt_staging.s.participant_id\"],\n              \"loops\": 1,\n              \"rows\": 1,\n              \"cost\": 0.00171364,\n              \"filtered\": 100,\n              \"attached_condition\": \"trigcond(trigcond(s.participant_id is not null))\"\n            }\n          },\n          {\n            \"table\": {\n              \"table_name\": \"esq\",\n              \"access_type\": \"ref\",\n              \"possible_keys\": [\n                \"uq_exam_session_questions_position\",\n                \"uq_exam_session_questions_question\",\n                \"idx_exam_session_questions_session_order\"\n              ],\n              \"key\": \"uq_exam_session_questions_position\",\n              \"key_length\": \"8\",\n              \"used_key_parts\": [\"session_id\"],\n              \"ref\": [\"gezycbt_staging.s.id\"],\n              \"loops\": 1,\n              \"rows\": 1,\n              \"cost\": 0.001792605,\n              \"filtered\": 100,\n              \"using_index\": true\n            }\n          },\n          {\n            \"table\": {\n              \"table_name\": \"a\",\n              \"access_type\": \"ref\",\n              \"possible_keys\": [\"PRIMARY\", \"idx_answers_session_answered\"],\n              \"key\": \"PRIMARY\",\n              \"key_length\": \"8\",\n              \"used_key_parts\": [\"session_id\"],\n              \"ref\": [\"gezycbt_staging.s.id\"],\n              \"loops\": 1,\n              \"rows\": 1,\n              \"cost\": 0.00178377,\n              \"filtered\": 100\n            }\n          }\n        ]\n      }\n    }\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "schedule_results_page",
+      "sql": "SELECT r.id, r.session_id, r.participant_id, r.percentage,\n            r.released_at, r.scored_at, s.participant_name_snapshot, u.username\n     FROM exam_results r\n     JOIN exam_sessions s ON s.id = r.session_id\n     LEFT JOIN users u ON u.id = r.participant_id\n     WHERE r.schedule_id = ?\n     ORDER BY r.id ASC LIMIT 51",
+      "expectedIndexes": [
+        "idx_exam_results_schedule_id"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.00688584,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"r\",\n          \"access_type\": \"range\",\n          \"possible_keys\": [\n            \"uq_exam_results_session\",\n            \"idx_exam_results_schedule_score\",\n            \"idx_exam_results_schedule_id\"\n          ],\n          \"key\": \"idx_exam_results_schedule_id\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"schedule_id\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00345856,\n          \"filtered\": 100,\n          \"attached_condition\": \"r.schedule_id <=> 0\"\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"s\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\"PRIMARY\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"gezycbt_staging.r.session_id\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00171364,\n          \"filtered\": 100\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"u\",\n          \"access_type\": \"eq_ref\",\n          \"possible_keys\": [\"PRIMARY\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"id\"],\n          \"ref\": [\"gezycbt_staging.r.participant_id\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00171364,\n          \"filtered\": 100,\n          \"attached_condition\": \"trigcond(trigcond(r.participant_id is not null))\"\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    },
+    {
+      "name": "schedule_target_members",
+      "sql": "SELECT cm.participant_id\n     FROM exam_schedule_classes sc\n     JOIN class_members cm ON cm.class_id = sc.class_id AND cm.left_at IS NULL\n     WHERE sc.schedule_id = ?",
+      "expectedIndexes": [
+        "PRIMARY",
+        "idx_exam_schedule_classes_class"
+      ],
+      "explainRows": [
+        {
+          "EXPLAIN": "{\n  \"query_block\": {\n    \"select_id\": 1,\n    \"cost\": 0.15187831,\n    \"nested_loop\": [\n      {\n        \"table\": {\n          \"table_name\": \"sc\",\n          \"access_type\": \"ref\",\n          \"possible_keys\": [\"PRIMARY\", \"idx_exam_schedule_classes_class\"],\n          \"key\": \"PRIMARY\",\n          \"key_length\": \"8\",\n          \"used_key_parts\": [\"schedule_id\"],\n          \"ref\": [\"const\"],\n          \"loops\": 1,\n          \"rows\": 1,\n          \"cost\": 0.00183779,\n          \"filtered\": 100\n        }\n      },\n      {\n        \"table\": {\n          \"table_name\": \"cm\",\n          \"access_type\": \"ref\",\n          \"possible_keys\": [\"uq_class_members_history\", \"idx_class_members_active\"],\n          \"key\": \"idx_class_members_active\",\n          \"key_length\": \"17\",\n          \"used_key_parts\": [\"class_id\", \"left_at\"],\n          \"ref\": [\"gezycbt_staging.sc.class_id\", \"const\"],\n          \"loops\": 1,\n          \"rows\": 1000,\n          \"cost\": 0.15004052,\n          \"filtered\": 100,\n          \"attached_condition\": \"cm.left_at is null\",\n          \"using_index\": true\n        }\n      }\n    ]\n  }\n}"
+        }
+      ]
+    }
+  ]
+}
