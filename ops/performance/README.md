@@ -36,6 +36,15 @@ repository.
    menambahkan polling monitoring guru; credentials staff diberikan melalui
    `K6_STAFF_USERNAME` dan `K6_STAFF_PASSWORD` hanya dari environment.
 
+   `soak` juga menjalankan satu iterasi per fixture participant agar tidak
+   membuat attempt MAIN kedua. Setelah login dan start, setiap VU mempertahankan
+   session aktif selama `K6_SOAK_HOLD_SECONDS` (default 4 jam), melakukan resume
+   berkala (`K6_SOAK_INTERVAL_SECONDS`, default 15 detik), dan autosave berkala
+   (`K6_SOAK_SAVE_EVERY_SECONDS`, default 60 detik). Kedatangan awal tersebar
+   selama `K6_SOAK_START_SPREAD_SECONDS` (default 10 menit). Batas waktu runner
+   dapat diatur dengan `K6_SOAK_MAX_DURATION`; nilai ini harus lebih panjang
+   daripada spread ditambah hold.
+
 3. Capture query plan dari database staging:
 
    ```bash

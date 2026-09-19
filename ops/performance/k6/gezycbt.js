@@ -11,6 +11,7 @@ if (!Array.isArray(participants) || participants.length === 0) {
 }
 
 const profile = __ENV.K6_PROFILE || "smoke";
+const soakDuration = __ENV.K6_SOAK_DURATION || "4h";
 const profiles = {
   smoke: {
     executor: "ramping-vus",
@@ -37,9 +38,10 @@ const profiles = {
     maxDuration: "10m",
   },
   soak: {
-    executor: "constant-vus",
+    executor: "per-vu-iterations",
     vus: Math.min(1000, participants.length),
-    duration: __ENV.K6_SOAK_DURATION || "4h",
+    iterations: 1,
+    maxDuration: __ENV.K6_SOAK_MAX_DURATION || "4h30m",
   },
 };
 if (!profiles[profile]) throw new Error(`Unknown K6_PROFILE: ${profile}`);
@@ -64,7 +66,7 @@ export const options = {
           monitor: {
             executor: "constant-vus",
             vus: 1,
-            duration: profile === "soak" ? profiles.soak.duration : "30m",
+            duration: profile === "soak" ? soakDuration : "30m",
             exec: "monitorFlow",
           },
         }
@@ -83,6 +85,10 @@ export const options = {
 
 export default function examFlow() {
   const participant = participants[(__VU - 1) % participants.length];
+  if (profile === "soak") {
+    soakFlow(participant);
+    return;
+  }
   if (profile === "load_1000") {
     const spreadSeconds = Math.max(
       0,
@@ -119,6 +125,57 @@ export default function examFlow() {
 
   if (String(__ENV.K6_TIMEOUT_MODE).toLowerCase() === "true") {
     sleep(Number(__ENV.K6_TIMEOUT_WAIT_SECONDS || 2));
+  }
+  submitSession(start.session.id, finalAnswers, auth);
+}
+
+/** Keep one MAIN attempt active for the soak window. */
+function soakFlow(participant) {
+  const spreadSeconds = Math.max(
+    0,
+    Number(__ENV.K6_SOAK_START_SPREAD_SECONDS || 600),
+  );
+  if (spreadSeconds > 0 && participants.length > 1) {
+    sleep(((__VU - 1) / (participants.length - 1)) * spreadSeconds);
+  }
+  const auth = login(participant);
+  if (!auth) return;
+  const scheduleId = String(__ENV.K6_SCHEDULE_ID || "");
+  const schedule = scheduleId ? { id: scheduleId } : readSchedule();
+  if (!schedule?.id) return;
+  const start = startSession(participant, schedule.id, auth);
+  if (!start) return;
+  let finalAnswers = buildAnswers(start.manifest);
+  if (finalAnswers.length > 0) {
+    const outcomes = saveAnswers(start.session.id, finalAnswers, auth);
+    finalAnswers = applySavedVersions(finalAnswers, outcomes);
+  }
+
+  const holdSeconds = Math.max(
+    1,
+    Number(__ENV.K6_SOAK_HOLD_SECONDS || 4 * 60 * 60),
+  );
+  const intervalSeconds = Math.max(
+    1,
+    Number(__ENV.K6_SOAK_INTERVAL_SECONDS || 15),
+  );
+  const saveEverySeconds = Math.max(
+    intervalSeconds,
+    Number(__ENV.K6_SOAK_SAVE_EVERY_SECONDS || 60),
+  );
+  const startedAt = Date.now();
+  let lastSaveAt = startedAt;
+  while (Date.now() - startedAt < holdSeconds * 1000) {
+    sleep(intervalSeconds);
+    const resumed = resumeSession(start.session.id, auth);
+    if (!resumed) continue;
+    if (Date.now() - lastSaveAt < saveEverySeconds * 1000) continue;
+    const answers = buildAnswers(resumed.manifest, resumed.answers);
+    if (answers.length > 0) {
+      const outcomes = saveAnswers(start.session.id, answers, auth);
+      finalAnswers = applySavedVersions(answers, outcomes);
+    }
+    lastSaveAt = Date.now();
   }
   submitSession(start.session.id, finalAnswers, auth);
 }
