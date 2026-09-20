@@ -25,6 +25,12 @@ export const STAFF_MENU: readonly StaffMenuItem[] = [
     roles: ["ADMIN"],
   },
   {
+    key: "teachers",
+    label: "Guru",
+    to: "/admin/teachers",
+    roles: ["ADMIN"],
+  },
+  {
     key: "questions",
     label: "Bank Soal",
     to: "/teacher/questions",

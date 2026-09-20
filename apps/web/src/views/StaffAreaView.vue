@@ -5,6 +5,7 @@ import StaffLayout from "../components/StaffLayout.vue";
 import StaffDashboardView from "./StaffDashboardView.vue";
 import AdminUsersView from "./AdminUsersView.vue";
 import AcademicView from "./AcademicView.vue";
+import TeacherScopesView from "./TeacherScopesView.vue";
 import QuestionsView from "./QuestionsView.vue";
 import ExamsView from "./ExamsView.vue";
 import SchedulesView from "./SchedulesView.vue";
@@ -19,6 +20,7 @@ const path = computed(() => route.path);
 const page = computed(() => {
   if (path.value.endsWith("/users")) return AdminUsersView;
   if (path.value.endsWith("/academic")) return AcademicView;
+  if (path.value.endsWith("/teachers")) return TeacherScopesView;
   if (path.value.includes("/questions")) return QuestionsView;
   if (path.value.includes("/exams")) return ExamsView;
   if (path.value.includes("/schedules")) return SchedulesView;

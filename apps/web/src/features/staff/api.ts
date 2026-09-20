@@ -41,6 +41,7 @@ export interface StaffApi {
     query?: string,
     role?: UserRole,
     page?: number,
+    limit?: number,
   ): Promise<NumberedPage<StaffUser>>;
   previewImport(
     academicYearId: string,
@@ -93,14 +94,17 @@ export interface StaffApi {
   academicYears(): Promise<CursorPage<AcademicYear>>;
   createAcademicYear(input: Record<string, unknown>): Promise<AcademicYear>;
   activateAcademicYear(id: string): Promise<AcademicYear>;
-  classes(academicYearId?: string): Promise<CursorPage<ClassRecord>>;
+  classes(
+    academicYearId?: string,
+    limit?: number,
+  ): Promise<CursorPage<ClassRecord>>;
   createClass(input: Record<string, unknown>): Promise<ClassRecord>;
   classMembers(classId: string): Promise<readonly ClassMemberProfile[]>;
   updateClassMembers(
     classId: string,
     participantIds: readonly string[],
   ): Promise<readonly ClassMemberProfile[]>;
-  subjects(): Promise<CursorPage<Subject>>;
+  subjects(limit?: number): Promise<CursorPage<Subject>>;
   teacherSubjects(): Promise<CursorPage<Subject>>;
   teacherClasses(): Promise<CursorPage<ClassRecord>>;
   teacherParticipants(search?: string): Promise<CursorPage<ParticipantOption>>;
@@ -304,11 +308,12 @@ export class HttpStaffApi implements StaffApi {
       method: "GET",
     });
   }
-  users(query = "", role?: UserRole, page = 1) {
+  users(query = "", role?: UserRole, page = 1, limit = 25) {
     const params = new URLSearchParams();
     if (query) params.set("search", query);
     if (role) params.set("role", role);
     params.set("page", String(page));
+    params.set("limit", String(limit));
     return this.getData<NumberedPage<StaffUser>>(
       `/api/v1/admin/users${params.toString() ? `?${params.toString()}` : ""}`,
     );
@@ -419,9 +424,12 @@ export class HttpStaffApi implements StaffApi {
       {},
     );
   }
-  classes(academicYearId?: string) {
+  classes(academicYearId?: string, limit = 100) {
+    const params = new URLSearchParams();
+    if (academicYearId) params.set("academicYearId", academicYearId);
+    params.set("limit", String(limit));
     return this.getPage<ClassRecord>(
-      `/api/v1/admin/classes${academicYearId ? `?academicYearId=${encodeURIComponent(academicYearId)}` : ""}`,
+      `/api/v1/admin/classes?${params.toString()}`,
     );
   }
   createClass(input: Record<string, unknown>) {
@@ -439,8 +447,8 @@ export class HttpStaffApi implements StaffApi {
       { participantIds },
     ).then((value) => value.items);
   }
-  subjects() {
-    return this.getPage<Subject>("/api/v1/admin/subjects");
+  subjects(limit = 100) {
+    return this.getPage<Subject>(`/api/v1/admin/subjects?limit=${limit}`);
   }
   teacherSubjects() {
     return this.getPage<Subject>("/api/v1/teacher/subjects");

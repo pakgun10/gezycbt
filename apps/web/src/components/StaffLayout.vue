@@ -18,7 +18,7 @@ const admin = computed(() => role.value === "ADMIN");
 const nav = computed(() => menuForRole(role.value === "ADMIN" ? "ADMIN" : "TEACHER").map((item) => ({
   ...item,
   to: item.key === "dashboard" ? `/${admin.value ? "admin" : "teacher"}/dashboard` : item.to,
-  icon: { dashboard: "⌂", users: "◎", academic: "▦", questions: "◇", exams: "□", schedules: "◷", monitoring: "◉", results: "▤", exports: "⇩", audit: "≡", integrations: "⚿" }[item.key] ?? "•",
+  icon: { dashboard: "⌂", users: "◎", academic: "▦", teachers: "♙", questions: "◇", exams: "□", schedules: "◷", monitoring: "◉", results: "▤", exports: "⇩", audit: "≡", integrations: "⚿" }[item.key] ?? "•",
 })));
 const visibleNav = computed(() => nav.value);
 

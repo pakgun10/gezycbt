@@ -8,8 +8,12 @@ import {
 describe("staff UI policies", () => {
   test("keeps role menu visibility explicit", () => {
     expect(menuForRole("ADMIN").map((item) => item.key)).toContain("users");
+    expect(menuForRole("ADMIN").map((item) => item.key)).toContain("teachers");
     expect(menuForRole("TEACHER").map((item) => item.key)).not.toContain(
       "users",
+    );
+    expect(menuForRole("TEACHER").map((item) => item.key)).not.toContain(
+      "teachers",
     );
     expect(menuForRole("TEACHER").map((item) => item.key)).toContain(
       "questions",
