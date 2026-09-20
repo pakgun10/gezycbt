@@ -1624,10 +1624,13 @@ function assertFinalAnswerItems(
   assertAnswerItems(items, true);
 }
 
-function stableRecord(value: Readonly<Record<string, string>>): string {
+function stableRecord(
+  value: Readonly<Record<string, string>> | null | undefined,
+): string {
+  const record = value ?? {};
   return JSON.stringify(
     Object.fromEntries(
-      Object.entries(value).sort(([left], [right]) =>
+      Object.entries(record).sort(([left], [right]) =>
         left < right ? -1 : left > right ? 1 : 0,
       ),
     ),
@@ -1671,9 +1674,10 @@ function mapSession(row: Row): RuntimeSession {
       row.institution_snapshot == null
         ? null
         : String(row.institution_snapshot),
-    identityExtra: parseJson(row.identity_extra_json) as Readonly<
-      Record<string, string>
-    >,
+    // Main sessions may have no extra identity fields and therefore store
+    // SQL NULL. Normalize that legacy/valid shape to an empty object so
+    // idempotent start replay never compares NULL as a record.
+    identityExtra: parseJsonRecord(row.identity_extra_json),
     randomSeed: bytes(row.random_seed) ?? new Uint8Array(32),
     startIdempotencyKey: String(row.start_idempotency_key),
     practice: token !== undefined,
@@ -1752,6 +1756,18 @@ function parseJson(value: unknown): unknown {
   } catch {
     return null;
   }
+}
+function parseJsonRecord(
+  value: unknown,
+): Readonly<Record<string, string>> {
+  const parsed = parseJson(value);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    return {};
+  return Object.fromEntries(
+    Object.entries(parsed).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  );
 }
 function parseJsonArray(value: unknown): Id[] {
   const parsed = parseJson(value);
