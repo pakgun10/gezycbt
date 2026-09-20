@@ -18,7 +18,7 @@ describe("question API contracts", () => {
     expect(
       check.Check({
         type: "SINGLE_CHOICE",
-        stimulusHtml: "Stimulus",
+        stimulusHtml: "",
         promptHtml: "Pilih jawaban",
         explanationHtml: null,
         options: [

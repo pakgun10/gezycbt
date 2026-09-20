@@ -1486,7 +1486,7 @@ Unique histori ditentukan oleh `(class_id, participant_id, joined_at)`. Applicat
 | `revision_no` | INT UNSIGNED | Unique bersama question ID |
 | `type` | VARCHAR(30) | Tiga tipe yang didukung |
 | `status` | VARCHAR(20) | `DRAFT`, `PUBLISHED` |
-| `stimulus_html` | LONGTEXT | Sanitized HTML, wajib saat publish |
+| `stimulus_html` | LONGTEXT | Sanitized HTML, boleh kosong; stimulus hanya ditampilkan bila diisi |
 | `prompt_html` | LONGTEXT | Wajib untuk dua tipe choice, null untuk true/false bila tidak dipakai |
 | `explanation_html` | LONGTEXT | Nullable, tidak pernah masuk exam payload |
 | `content_hash` | BINARY(32) | Mendeteksi perubahan dan membantu audit |

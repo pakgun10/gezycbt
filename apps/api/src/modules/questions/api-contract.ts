@@ -16,7 +16,9 @@ const utcTimestampSchema = t.String({
   minLength: 24,
   maxLength: 24,
 });
-const htmlSchema = t.String({ minLength: 1, maxLength: 100_000 });
+// Stimulus is optional. A choice question may consist of a prompt and options,
+// while TRUE_FALSE may consist only of its three statements.
+const htmlSchema = t.String({ maxLength: 100_000 });
 const nullableHtmlSchema = t.Union([
   t.Null(),
   t.String({ maxLength: 100_000 }),

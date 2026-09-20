@@ -80,16 +80,6 @@ export function validateQuestionReadiness(
     );
   }
 
-  if (!hasText(content.stimulusHtml)) {
-    add(
-      "ERROR",
-      "QUESTION_STIMULUS_REQUIRED",
-      "stimulusHtml",
-      "Stimulus wajib diisi.",
-      "Tambahkan stimulus soal sebelum menerbitkan revision.",
-    );
-  }
-
   if (content.type === "TRUE_FALSE") {
     validateTrueFalse(content, add, revisionId);
   } else if (
@@ -134,7 +124,7 @@ function validateChoice(
       "QUESTION_PROMPT_REQUIRED",
       "promptHtml",
       "Pertanyaan wajib diisi untuk soal pilihan.",
-      "Tambahkan pertanyaan setelah stimulus.",
+      "Tambahkan pertanyaan soal.",
     );
   }
   if (content.statements.length > 0) {

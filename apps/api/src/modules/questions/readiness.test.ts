@@ -12,7 +12,7 @@ describe("validateQuestionReadiness", () => {
   test("accepts a valid single choice and reports optional explanation as warning", () => {
     const report = validateQuestionReadiness(REVISION_ID, {
       type: "SINGLE_CHOICE",
-      stimulusHtml: "Stimulus",
+      stimulusHtml: "",
       promptHtml: "Pilih jawaban",
       explanationHtml: null,
       options: [
@@ -45,14 +45,13 @@ describe("validateQuestionReadiness", () => {
 
     expect(first).toEqual(second);
     expect(first.isReady).toBe(false);
-    expect(first.errorCount).toBe(5);
+    expect(first.errorCount).toBe(4);
     expect(first.issues.map((issue) => issue.code).sort()).toEqual(
       [
         "QUESTION_OPTION_POSITIONS_INVALID",
         "QUESTION_OPTION_CONTENT_REQUIRED",
         "QUESTION_PROMPT_REQUIRED",
         "QUESTION_SINGLE_CORRECT_COUNT_INVALID",
-        "QUESTION_STIMULUS_REQUIRED",
         "QUESTION_EXPLANATION_MISSING",
       ].sort(),
     );

@@ -419,7 +419,7 @@ Setiap requirement memiliki prioritas:
 
 | ID | Prioritas | Requirement |
 |---|---|---|
-| FR-QB-001 | Must | Admin dapat mengakses seluruh bank; guru hanya bank milik atau yang diberikan. |
+| FR-QB-001 | Must | Admin dapat mengakses seluruh bank; guru hanya bank milik sendiri sampai fitur transfer eksplisit tersedia. |
 | FR-QB-002 | Must | Bank terhubung dengan subject dan owner. |
 | FR-QB-003 | Must | Bank yang sudah dipakai histori hanya dapat diarsipkan. |
 | FR-QB-004 | Must | Soal memiliki logical identity dan revision terpisah. |
