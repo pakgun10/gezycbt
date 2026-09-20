@@ -26,6 +26,7 @@ import {
   ExportValidationError,
   exportJobView,
 } from "../exports";
+import type { QuestionImportService } from "../questions/import";
 import type { QuestionPublishService } from "../questions/publish";
 import type { QuestionReadinessService } from "../questions/readiness";
 import type { QuestionDraftService } from "../questions/service";
@@ -88,6 +89,7 @@ export interface StaffRouteOptions {
   >;
   readonly questions?: {
     readonly drafts: QuestionDraftService;
+    readonly imports: QuestionImportService;
     readonly publish: QuestionPublishService;
     readonly readiness: QuestionReadinessService;
   };
@@ -694,6 +696,33 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           questionBankId: idParam(params),
         } as never);
         return mapQuestionDraft(draft);
+      }),
+  );
+  app.post(
+    "/api/v1/teacher/question-imports/preview",
+    async ({ request, body }) =>
+      wrapRead(request, options, "TEACHER", async (staffContext) => {
+        if (!options.questions)
+          throw serviceUnavailable("Question import service");
+        const payload = objectPayload(body);
+        return options.questions.imports.preview(staffContext, {
+          questionBankId: idValue(payload.questionBankId, "questionBankId"),
+          csv: stringField(payload.csv, "csv"),
+        });
+      }),
+  );
+  app.post(
+    "/api/v1/teacher/question-imports/commit",
+    async ({ request, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.questions)
+          throw serviceUnavailable("Question import service");
+        const payload = objectPayload(body);
+        return options.questions.imports.commit(staffContext, {
+          questionBankId: idValue(payload.questionBankId, "questionBankId"),
+          csv: stringField(payload.csv, "csv"),
+          sourceHash: stringField(payload.sourceHash, "sourceHash"),
+        });
       }),
   );
   app.patch(

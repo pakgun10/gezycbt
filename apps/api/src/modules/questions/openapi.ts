@@ -45,6 +45,8 @@ const schemaRefs: Readonly<Record<string, string>> = {
   readinessResponse: "QuestionReadinessResponse",
   mediaAssetResponse: "MediaAssetResponse",
   questionMediaResponse: "QuestionMediaResponse",
+  questionImportPreviewResponse: "QuestionImportPreviewResponse",
+  questionImportCommitResponse: "QuestionImportCommitResponse",
 };
 
 const responseDefinitions = {
@@ -55,6 +57,8 @@ const responseDefinitions = {
   QuestionReadinessResponse: successSchema("QuestionReadinessReport"),
   MediaAssetResponse: successSchema("MediaAsset"),
   QuestionMediaResponse: successSchema("QuestionMedia"),
+  QuestionImportPreviewResponse: successSchema("QuestionImportPreview"),
+  QuestionImportCommitResponse: successSchema("QuestionImportCommitResult"),
 };
 
 export const questionApiOpenApi: QuestionOpenApiDocument = {

@@ -141,8 +141,8 @@ describe("question API contracts", () => {
   });
 
   test("publishes the canonical teacher route inventory to OpenAPI", () => {
-    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(16);
-    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(16);
+    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(18);
+    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(18);
     expect(
       questionApiRoutes.every((route) =>
         route.path.startsWith("/api/v1/teacher/"),
@@ -165,6 +165,7 @@ describe("question API contracts", () => {
     expect(
       paths["/api/v1/teacher/question-revisions/{id}/media/{mediaId}"],
     ).toBeDefined();
+    expect(paths["/api/v1/teacher/question-imports/preview"]).toBeDefined();
     expect(questionApiOpenApi.openapi).toBe("3.1.0");
     expect(
       questionApiOpenApi.components.schemas.QuestionBankPage,

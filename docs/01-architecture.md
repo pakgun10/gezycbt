@@ -672,6 +672,12 @@ Server menormalisasi pilihan `MULTIPLE_RESPONSE` sebagai himpunan: urutan piliha
 
 Validator draft/publish mengembalikan readiness report terstruktur, bukan hanya boolean. Setiap issue minimal memuat `severity` (`ERROR` atau `WARNING`), stable `code`, entity/reference ID, `fieldPath`, message aman, dan optional remediation hint. `ERROR` memblokir publish; `WARNING` harus ditinjau tetapi tidak memblokir kecuali policy khusus menyatakannya. Urutan issue deterministik agar UI dapat mengelompokkan serta menautkannya ke field yang tepat.
 
+#### Import soal CSV
+
+Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format awal hanya CSV berbasis template, dengan `type`, `stimulus`, `prompt`, `explanation`, kolom `option_1`–`option_10` beserta `*_correct`, dan kolom `statement_1`–`statement_3` beserta `*_correct`. Nilai kunci menerima `BENAR`/`SALAH`, `TRUE`/`FALSE`, atau `1`/`0`.
+
+Server membatasi file menjadi 1 MiB dan 300 soal. Preview memvalidasi tipe, struktur opsi/pernyataan, kunci, duplicate content dalam file, dan readiness error yang juga memblokir publish. Commit menerima ulang file serta `sourceHash`, memvalidasi ulang seluruh baris, lalu membuat semua revision sebagai `DRAFT` dalam satu transaction. Satu error memblokir seluruh commit; import tidak menerbitkan soal otomatis, tidak menyalin media, dan tidak menyimpan file atau preview ke MariaDB.
+
 Media ditempelkan pada question revision melalui relasi yang memuat `usage`, `alt_text`, dan penanda dekoratif. Gambar informatif wajib mempunyai alt text; gambar dekoratif harus dipilih secara eksplisit dan memakai alt kosong. Asset yang direferensikan revision published bersifat immutable dan tidak dapat dihapus. Editor draft hanya boleh melepas relasinya sendiri atau mengganti dengan asset lain; penghapusan fisik dilakukan housekeeping setelah terbukti orphan sesuai retention.
 
 ### C.6 Exams
@@ -1115,6 +1121,8 @@ Import preview menghasilkan ID dan opaque commit token berumur pendek yang meref
 | `GET/POST /api/v1/teacher/question-banks` | List/create bank dalam scope |
 | `GET/PATCH /api/v1/teacher/question-banks/:id` | Detail/update/archive bank |
 | `GET/POST /api/v1/teacher/question-banks/:id/questions` | List/create logical question |
+| `POST /api/v1/teacher/question-imports/preview` | Validasi CSV tanpa menyimpan file atau membuat revision |
+| `POST /api/v1/teacher/question-imports/commit` | Revalidasi dan buat batch draft soal secara atomic |
 | `GET /api/v1/teacher/questions` | Search revision paginated lintas bank yang diizinkan untuk question picker |
 | `POST /api/v1/teacher/questions/:id/revisions` | Buat draft revision |
 | `GET/PATCH /api/v1/teacher/question-revisions/:id` | Read/update draft |

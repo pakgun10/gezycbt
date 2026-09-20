@@ -61,6 +61,7 @@ import {
 } from "../modules/media";
 import {
   QuestionDraftService,
+  QuestionImportService,
   QuestionPublishService,
   QuestionReadinessService,
   SqlQuestionDraftRepository,
@@ -136,6 +137,10 @@ export function createRuntimeDependencies(
     authorization,
   );
   const questionReadiness = new QuestionReadinessService(questionRepository);
+  const questionImports = new QuestionImportService(
+    questionRepository,
+    authorization,
+  );
   const mediaRepository = new SqlMediaRelationRepository(database);
   const mediaRoot =
     config.mediaRoot ??
@@ -392,6 +397,7 @@ export function createRuntimeDependencies(
             authorization,
             questions: {
               drafts: questionDrafts,
+              imports: questionImports,
               publish: questionPublish,
               readiness: questionReadiness,
             },

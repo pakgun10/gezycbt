@@ -53,6 +53,21 @@ export interface QuestionPublishRepository extends QuestionDraftRepository {
   ): Promise<QuestionDraft | null>;
 }
 
+export interface QuestionImportBatchInput {
+  readonly questionBankId: Id;
+  readonly createdBy: Id;
+  readonly drafts: readonly {
+    readonly content: QuestionDraftContent;
+    readonly contentHash: Uint8Array;
+  }[];
+}
+
+/** Dedicated persistence boundary for atomic CSV question imports. */
+export interface QuestionImportRepository {
+  findQuestionBank(id: Id): Promise<QuestionBankSummary | null>;
+  createDraftBatch(input: QuestionImportBatchInput): Promise<number>;
+}
+
 type BankRow = Record<string, unknown> & {
   id: unknown;
   subject_id: unknown;
@@ -107,7 +122,9 @@ const REVISION_COLUMNS = `
   JOIN questions q ON q.id = qr.question_id
   JOIN question_banks qb ON qb.id = q.question_bank_id`;
 
-export class SqlQuestionDraftRepository implements QuestionPublishRepository {
+export class SqlQuestionDraftRepository
+  implements QuestionPublishRepository, QuestionImportRepository
+{
   constructor(private readonly database: DatabasePort) {}
 
   async findQuestionBank(id: Id): Promise<QuestionBankSummary | null> {
@@ -182,6 +199,40 @@ export class SqlQuestionDraftRepository implements QuestionPublishRepository {
       );
       if (!created) throw new Error("Created question draft could not be read");
       return created;
+    });
+  }
+
+  async createDraftBatch(input: QuestionImportBatchInput): Promise<number> {
+    if (!input.drafts.length) return 0;
+    return this.database.transaction(async (connection) => {
+      for (const draft of input.drafts) {
+        const content = validateQuestionContent(draft.content);
+        const question = await connection.execute(
+          `INSERT INTO questions (question_bank_id, created_by)
+           VALUES (?, ?)`,
+          [input.questionBankId, input.createdBy],
+        );
+        if (question.insertId === undefined)
+          throw new Error("Question import insert did not return an ID");
+        const revision = await connection.execute(
+          `INSERT INTO question_revisions
+             (question_id, revision_no, \`type\`, status, stimulus_html,
+              prompt_html, explanation_html, content_hash)
+           VALUES (?, 1, ?, 'DRAFT', ?, ?, ?, ?)`,
+          [
+            formatId(question.insertId),
+            content.type,
+            content.stimulusHtml,
+            content.promptHtml,
+            content.explanationHtml,
+            draft.contentHash,
+          ],
+        );
+        if (revision.insertId === undefined)
+          throw new Error("Question import revision did not return an ID");
+        await insertChildren(connection, formatId(revision.insertId), content);
+      }
+      return input.drafts.length;
     });
   }
 

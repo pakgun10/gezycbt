@@ -1016,6 +1016,12 @@ Editor type:
 - delete option membutuhkan minimal count tetap terpenuhi;
 - validation summary link menuju field bermasalah.
 
+#### Import soal CSV
+
+Di halaman Bank Soal, tombol **Import soal** membuka panel dengan bank tujuan, pemilih file CSV, tombol **Unduh template CSV**, dan action **Preview import**. File tidak langsung menambah soal. Preview menampilkan total, valid, error, serta tabel baris dengan nomor sumber, tipe, ringkasan stimulus, status, dan detail error per field.
+
+Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyebut jumlah soal dan bank tujuan; hasilnya selalu draft sehingga guru tetap dapat membuka, meninjau, memvalidasi, lalu publish secara terpisah. File maksimum 1 MiB/300 soal. Mengganti file atau bank tujuan membatalkan preview lama; commit menolak file yang berubah setelah preview. Template menjelaskan bahwa kolom opsi dipakai untuk `SINGLE_CHOICE`/`MULTIPLE_RESPONSE`, sedangkan tiga kolom pernyataan dipakai untuk `TRUE_FALSE`.
+
 #### Media upload dan preview
 
 - baseline menerima JPEG, PNG, dan WebP sesuai batas ukuran/dimensi server; SVG, HTML, video, dan audio ditolak;

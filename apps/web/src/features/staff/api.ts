@@ -17,6 +17,7 @@ import type {
   ParticipantOption,
   QuestionBankSummary,
   QuestionDraft,
+  QuestionImportPreview,
   QuestionSummary,
   ResultRow,
   ScheduleDetail,
@@ -36,7 +37,11 @@ export interface ScheduleListOptions {
 export interface StaffApi {
   login(username: string, password: string): Promise<StaffLoginResponse>;
   me(): Promise<StaffLoginResponse>;
-  users(query?: string, role?: UserRole, page?: number): Promise<NumberedPage<StaffUser>>;
+  users(
+    query?: string,
+    role?: UserRole,
+    page?: number,
+  ): Promise<NumberedPage<StaffUser>>;
   previewImport(
     academicYearId: string,
     csv: string,
@@ -115,6 +120,15 @@ export interface StaffApi {
   ): Promise<CursorPage<QuestionSummary>>;
   question(id: string): Promise<QuestionDraft>;
   createQuestion(input: Record<string, unknown>): Promise<QuestionDraft>;
+  previewQuestionImport(
+    questionBankId: string,
+    csv: string,
+  ): Promise<QuestionImportPreview>;
+  commitQuestionImport(
+    questionBankId: string,
+    csv: string,
+    sourceHash: string,
+  ): Promise<{ createdCount: number }>;
   updateQuestion(
     id: string,
     input: Record<string, unknown>,
@@ -488,6 +502,25 @@ export class HttpStaffApi implements StaffApi {
       `/api/v1/teacher/question-banks/${encodeURIComponent(questionBankId)}/questions`,
       "POST",
       content,
+    );
+  }
+  previewQuestionImport(questionBankId: string, csv: string) {
+    return this.client
+      .request<{ data: QuestionImportPreview }>(
+        "/api/v1/teacher/question-imports/preview",
+        { method: "POST", body: { questionBankId, csv } },
+      )
+      .then((value) => value.data);
+  }
+  commitQuestionImport(
+    questionBankId: string,
+    csv: string,
+    sourceHash: string,
+  ) {
+    return this.mutate<{ createdCount: number }>(
+      "/api/v1/teacher/question-imports/commit",
+      "POST",
+      { questionBankId, csv, sourceHash },
     );
   }
   updateQuestion(

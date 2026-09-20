@@ -93,6 +93,26 @@ export interface QuestionSummary {
   readonly updatedAt: string;
 }
 
+export interface QuestionImportPreviewRow {
+  readonly rowNumber: number;
+  readonly type: string | null;
+  readonly label: string | null;
+  readonly status: "VALID" | "ERROR";
+  readonly errors: readonly {
+    readonly field: string;
+    readonly code: string;
+    readonly message: string;
+  }[];
+}
+
+export interface QuestionImportPreview {
+  readonly sourceHash: string;
+  readonly totalRows: number;
+  readonly validCount: number;
+  readonly errorCount: number;
+  readonly rows: readonly QuestionImportPreviewRow[];
+}
+
 export interface QuestionBankSummary {
   readonly id: string;
   readonly subjectId: string;

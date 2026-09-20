@@ -388,6 +388,61 @@ const mediaUploadBodySchema = t.Object(
   },
   { additionalProperties: false },
 );
+const questionImportPreviewBodySchema = t.Object(
+  {
+    questionBankId: idSchema,
+    csv: t.String({ minLength: 1, maxLength: 1_100_000 }),
+  },
+  { additionalProperties: false },
+);
+const questionImportCommitBodySchema = t.Object(
+  {
+    questionBankId: idSchema,
+    csv: t.String({ minLength: 1, maxLength: 1_100_000 }),
+    sourceHash: t.String({
+      pattern: HEX_SHA256_PATTERN,
+      minLength: 64,
+      maxLength: 64,
+    }),
+  },
+  { additionalProperties: false },
+);
+const questionImportErrorSchema = t.Object(
+  {
+    field: t.String({ minLength: 1, maxLength: 200 }),
+    code: t.String({ minLength: 1, maxLength: 100 }),
+    message: t.String({ minLength: 1, maxLength: 500 }),
+  },
+  { additionalProperties: false },
+);
+const questionImportPreviewRowSchema = t.Object(
+  {
+    rowNumber: t.Integer({ minimum: 2, maximum: 301 }),
+    type: t.Union([t.Null(), t.String({ maxLength: 30 })]),
+    label: t.Union([t.Null(), t.String({ maxLength: 120 })]),
+    status: t.Union([t.Literal("VALID"), t.Literal("ERROR")]),
+    errors: t.Array(questionImportErrorSchema, { maxItems: 100 }),
+  },
+  { additionalProperties: false },
+);
+const questionImportPreviewSchema = t.Object(
+  {
+    sourceHash: t.String({
+      pattern: HEX_SHA256_PATTERN,
+      minLength: 64,
+      maxLength: 64,
+    }),
+    totalRows: t.Integer({ minimum: 1, maximum: 300 }),
+    validCount: t.Integer({ minimum: 0, maximum: 300 }),
+    errorCount: t.Integer({ minimum: 0, maximum: 300 }),
+    rows: t.Array(questionImportPreviewRowSchema, { maxItems: 300 }),
+  },
+  { additionalProperties: false, $id: "QuestionImportPreview" },
+);
+const questionImportCommitResultSchema = t.Object(
+  { createdCount: t.Integer({ minimum: 1, maximum: 300 }) },
+  { additionalProperties: false, $id: "QuestionImportCommitResult" },
+);
 
 const success = <T extends TSchema>(schema: T) =>
   t.Object({ data: schema }, { additionalProperties: false });
@@ -408,6 +463,8 @@ export const questionApiSchemas = {
   publishQuestionRevisionBody: publishQuestionRevisionBodySchema,
   attachMediaBody: attachMediaBodySchema,
   mediaUploadBody: mediaUploadBodySchema,
+  questionImportPreviewBody: questionImportPreviewBodySchema,
+  questionImportCommitBody: questionImportCommitBodySchema,
   emptyBody: emptyBodySchema,
   questionContent: questionContentSchema,
   questionBank: questionBankSummarySchema,
@@ -419,6 +476,8 @@ export const questionApiSchemas = {
   mediaAsset: mediaAssetResourceSchema,
   questionMedia: questionMediaResourceSchema,
   participantQuestion: participantQuestionResourceSchema,
+  questionImportPreview: questionImportPreviewSchema,
+  questionImportCommitResult: questionImportCommitResultSchema,
   questionBankListResponse: success(questionBankPageSchema),
   questionBankResponse: success(questionBankSummarySchema),
   questionRevisionPageResponse: success(questionRevisionPageSchema),
@@ -426,6 +485,8 @@ export const questionApiSchemas = {
   readinessResponse: success(readinessReportSchema),
   mediaAssetResponse: success(mediaAssetResourceSchema),
   questionMediaResponse: success(questionMediaResourceSchema),
+  questionImportPreviewResponse: success(questionImportPreviewSchema),
+  questionImportCommitResponse: success(questionImportCommitResultSchema),
   emptyResponse: success(emptyBodySchema),
 } as const;
 
@@ -538,6 +599,35 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
       status: 201,
       schemaName: "questionRevisionResponse",
       schema: success(questionRevisionResourceSchema),
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/teacher/question-imports/preview",
+    operationId: "previewQuestionImport",
+    summary:
+      "Validasi file CSV soal tanpa menyimpan file atau membuat revision",
+    request: { body: questionImportPreviewBodySchema },
+    response: {
+      status: 200,
+      schemaName: "questionImportPreviewResponse",
+      schema: success(questionImportPreviewSchema),
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/teacher/question-imports/commit",
+    operationId: "commitQuestionImport",
+    summary:
+      "Buat seluruh draft soal dari CSV yang telah dipreview secara atomic",
+    request: {
+      headers: teacherMutationHeaders,
+      body: questionImportCommitBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionImportCommitResponse",
+      schema: success(questionImportCommitResultSchema),
     },
   },
   {
