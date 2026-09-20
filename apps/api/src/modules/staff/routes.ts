@@ -26,7 +26,10 @@ import {
   ExportValidationError,
   exportJobView,
 } from "../exports";
-import type { QuestionImportService } from "../questions/import";
+import {
+  type QuestionImportService,
+  QuestionImportValidationError,
+} from "../questions/import";
 import type { QuestionPublishService } from "../questions/publish";
 import type { QuestionReadinessService } from "../questions/readiness";
 import type { QuestionDraftService } from "../questions/service";
@@ -2455,6 +2458,8 @@ function mapStaffError(error: unknown): Error {
       "Token download tidak valid atau sudah digunakan.",
     );
   if (error instanceof ExportValidationError)
+    return new AppError(422, "VALIDATION_FAILED", error.message);
+  if (error instanceof QuestionImportValidationError)
     return new AppError(422, "VALIDATION_FAILED", error.message);
   if (error instanceof DiskProtectionError)
     return new AppError(
