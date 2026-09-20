@@ -9,9 +9,11 @@ import type {
   ScheduleSummary,
 } from "../features/staff/types";
 import { formatDate, messageFrom } from "../features/staff/helpers";
+import { useStaffAuth } from "../features/staff/auth-store";
 import ScopeSwitcher from "../components/ScopeSwitcher.vue";
 
 const api = new HttpStaffApi();
+const auth = useStaffAuth();
 const items = ref<readonly ScheduleSummary[]>([]);
 const exams = ref<readonly ExamSummary[]>([]);
 const classes = ref<readonly ClassRecord[]>([]);
@@ -28,6 +30,8 @@ const editingVersion = ref("");
 const detailLoading = ref(false);
 const saving = ref(false);
 const revealedCode = ref("");
+const notice = ref("");
+const showingArchived = ref(false);
 type ScheduleForm = {
   examRevisionId: string;
   mode: "MAIN" | "PRACTICE";
@@ -57,11 +61,24 @@ const selectedParticipantCount = computed(() => selectedParticipants.value.lengt
 const hasMainTarget = computed(
   () => selectedClassCount.value > 0 || selectedParticipantCount.value > 0,
 );
+const isAdmin = computed(() => auth.user.value?.role === "ADMIN");
+const emptyTitle = computed(() =>
+  showingArchived.value ? "Belum ada jadwal arsip" : "Belum ada jadwal",
+);
+const emptyCopy = computed(() =>
+  showingArchived.value
+    ? "Jadwal yang diarsipkan akan tampil di sini."
+    : "Jadwal dibuat dari exam revision yang sudah dipublish.",
+);
 async function load(): Promise<void> {
   loading.value = true;
   try {
     const [schedulePage, examPage, classPage, participantPage] = await Promise.all([
-      api.schedules(),
+      api.schedules(
+        showingArchived.value
+          ? { status: "ARCHIVED" }
+          : { includeArchived: false },
+      ),
       api.exams(),
       api.teacherClasses(),
       api.teacherParticipants(),
@@ -207,6 +224,32 @@ async function remove(item: ScheduleSummary): Promise<void> {
     }
   }
 }
+async function archive(item: ScheduleSummary): Promise<void> {
+  if (item.status !== "CLOSED" || !isAdmin.value) return;
+  if (
+    !window.confirm(
+      `Arsipkan jadwal “${item.title}”? Jadwal akan disembunyikan dari daftar utama. Hasil ujian dan audit tetap tersimpan.`,
+    )
+  )
+    return;
+  try {
+    await api.archiveSchedule(item.id, item.updatedAt);
+    notice.value = `Jadwal “${item.title}” telah diarsipkan. Hasil dan audit tetap tersedia.`;
+    await load();
+  } catch (cause) {
+    error.value = messageFrom(cause);
+    if (cause instanceof ApiClientError && cause.code === "VERSION_CONFLICT") {
+      await load();
+      error.value = "Jadwal berubah karena ada data terbaru. Daftar sudah dimuat ulang; coba Arsipkan lagi.";
+    }
+  }
+}
+async function toggleArchived(): Promise<void> {
+  showingArchived.value = !showingArchived.value;
+  error.value = "";
+  notice.value = "";
+  await load();
+}
 async function rotate(item: ScheduleSummary): Promise<void> {
   try {
     const result = await api.rotateCode(item.id, item.mode === "MAIN" ? "main-code" : "practice-token");
@@ -238,9 +281,11 @@ onMounted(() => { void load(); });
   <header class="page-heading between"><div><p class="eyebrow">Guru · Operasional</p><h1>Jadwal</h1><p class="muted">Atur window akses, target peserta, token latihan, dan kode tambahan ujian utama.</p></div><button class="btn-primary" type="button" @click="showForm = !showForm">Buat jadwal</button></header>
   <ScopeSwitcher />
   <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
+  <div v-if="notice" class="alert alert-info" role="status">{{ notice }}</div>
   <div v-if="revealedCode" class="alert alert-info code-reveal" role="status"><strong>Salin kode sekarang: {{ revealedCode }}</strong><span>Kode plaintext hanya ditampilkan sekali; halaman berikutnya hanya menampilkan hint.</span><button class="btn-quiet" type="button" @click="revealedCode = ''">Tutup</button></div>
   <section v-if="showForm" class="card form-panel"><div class="between"><div><h2>{{ isEditing ? 'Edit jadwal' : 'Jadwal baru' }}</h2><p class="muted">Pilih nama ujian dan target dari daftar. ID akan diurus oleh sistem.</p></div><button class="btn-quiet" type="button" @click="closeForm">Batal</button></div><p v-if="detailLoading" class="muted">Memuat detail jadwal…</p><form v-else class="form-grid" @submit.prevent="save"><label class="wide">Ujian<select v-model="form.examRevisionId" required :disabled="isEditing"><option value="" disabled>Pilih ujian yang sudah dipublish</option><option v-for="exam in exams" :key="exam.revisionId" :value="exam.revisionId">{{ examLabel(exam) }}</option></select><small v-if="exams.length === 0" class="muted">Belum ada ujian yang dipublish.</small></label><label>Mode<select v-model="form.mode" :disabled="isEditing"><option value="MAIN">Ujian utama</option><option value="PRACTICE">Latihan</option></select></label><label>Mulai<input v-model="form.startsAt" type="datetime-local" required /></label><label>Selesai<input v-model="form.endsAt" type="datetime-local" required /></label><label>Durasi (detik)<input v-model.number="form.durationSeconds" type="number" min="1" max="86400" required /></label><label>Max attempt<input v-model.number="form.maxAttempts" type="number" min="1" :disabled="form.mode === 'MAIN'" /></label><div v-if="form.mode === 'MAIN'" class="target-picker wide"><div class="between"><div><h3>Target kelas</h3><p class="muted">Peserta dari kelas terpilih akan menjadi target ujian.</p></div><span class="selection-count">{{ selectedClassCount }} dipilih</span></div><div v-if="classes.length" class="option-list"><label v-for="item in classes" :key="item.id" class="target-option"><input v-model="selectedClassIds" type="checkbox" :value="item.id" /><span>{{ classLabel(item) }}</span></label></div><p v-else class="muted">Belum ada kelas dalam scope Anda.</p></div><div v-if="form.mode === 'MAIN'" class="target-picker wide"><div class="between"><div><h3>Target peserta langsung <span class="optional">(opsional)</span></h3><p class="muted">Gunakan pencarian nama atau username untuk menambahkan peserta tertentu.</p></div><span class="selection-count">{{ selectedParticipantCount }} dipilih</span></div><div class="picker-search"><input v-model="participantSearch" placeholder="Cari nama atau username" @keydown.enter.prevent="loadParticipants" /><button class="btn-secondary" type="button" :disabled="participantLoading" @click="loadParticipants">{{ participantLoading ? 'Mencari…' : 'Cari' }}</button></div><div v-if="participants.length" class="option-list"><label v-for="participant in participants" :key="participant.id" class="target-option"><input type="checkbox" :checked="isParticipantSelected(participant.id)" @change="toggleParticipant(participant)" /><span><strong>{{ participant.displayName }}</strong><small>{{ participant.username }}</small></span></label></div><p v-else class="muted">Tidak ada peserta yang cocok.</p></div><p v-if="form.mode === 'MAIN' && !hasMainTarget" class="form-hint wide">Pilih minimal satu kelas atau satu peserta langsung untuk melanjutkan.</p><div class="form-actions wide"><button class="btn-primary" type="submit" :disabled="saving || !form.examRevisionId || (form.mode === 'MAIN' && !hasMainTarget)">{{ saving ? 'Menyimpan…' : isEditing ? 'Simpan perubahan' : 'Simpan draft jadwal' }}</button><button class="btn-secondary" type="button" :disabled="saving" @click="closeForm">Batal</button></div></form></section>
-  <section class="schedule-grid"><article v-for="item in items" :key="item.id" class="card schedule-card"><div class="between"><span class="badge">{{ item.status }}</span><span class="subtle">{{ item.mode === 'MAIN' ? 'Utama' : 'Latihan' }}</span></div><h2>{{ item.title }}</h2><p class="muted">{{ formatDate(item.startsAt) }} – {{ formatDate(item.endsAt) }}</p><dl><div><dt>Durasi</dt><dd>{{ Math.round(item.durationSeconds / 60) }} menit</dd></div><div><dt>Akses</dt><dd>{{ item.hasAccessCode ? 'Hint ' + (item.accessHint ?? 'tersedia') : 'Belum dibuat' }}</dd></div></dl><div class="card-actions"><button v-if="item.status === 'DRAFT'" class="btn-secondary" type="button" @click="transition(item, 'ready')">Siapkan</button><button v-if="item.status === 'DRAFT'" class="btn-quiet" type="button" :disabled="detailLoading" @click="edit(item)">{{ detailLoading ? 'Memuat…' : 'Edit' }}</button><button v-if="item.status === 'DRAFT'" class="btn-danger" type="button" @click="remove(item)">Hapus</button><button v-if="item.status === 'READY'" class="btn-primary" type="button" @click="transition(item, 'open')">Buka</button><button v-if="item.status === 'OPEN'" class="btn-secondary" type="button" @click="transition(item, 'close')">Tutup jadwal</button><button v-if="item.status !== 'CLOSED' && item.status !== 'ARCHIVED'" class="btn-quiet" type="button" @click="rotate(item)">{{ item.mode === 'MAIN' ? 'Rotasi kode' : 'Rotasi token' }}</button><RouterLink v-if="item.status === 'OPEN'" class="btn-quiet action-link" :to="'/teacher/monitoring?scheduleId=' + item.id">Monitoring</RouterLink></div></article><div v-if="!loading && items.length === 0" class="card table-state"><strong>Belum ada jadwal</strong><span class="muted">Jadwal dibuat dari exam revision yang sudah dipublish.</span></div><div v-if="loading" class="card table-state">Memuat jadwal…</div></section>
+  <div class="schedule-toolbar"><p class="muted">{{ showingArchived ? 'Menampilkan jadwal arsip. Jadwal ini hanya untuk histori.' : 'Jadwal arsip disembunyikan dari daftar utama.' }}</p><button class="btn-secondary" type="button" :disabled="loading" @click="toggleArchived">{{ showingArchived ? 'Kembali ke jadwal utama' : 'Tampilkan arsip' }}</button></div>
+  <section class="schedule-grid"><article v-for="item in items" :key="item.id" class="card schedule-card"><div class="between"><span class="badge">{{ item.status }}</span><span class="subtle">{{ item.mode === 'MAIN' ? 'Utama' : 'Latihan' }}</span></div><h2>{{ item.title }}</h2><p class="muted">{{ formatDate(item.startsAt) }} – {{ formatDate(item.endsAt) }}</p><dl><div><dt>Durasi</dt><dd>{{ Math.round(item.durationSeconds / 60) }} menit</dd></div><div><dt>Akses</dt><dd>{{ item.hasAccessCode ? 'Hint ' + (item.accessHint ?? 'tersedia') : 'Belum dibuat' }}</dd></div></dl><div class="card-actions"><button v-if="item.status === 'DRAFT'" class="btn-secondary" type="button" @click="transition(item, 'ready')">Siapkan</button><button v-if="item.status === 'DRAFT'" class="btn-quiet" type="button" :disabled="detailLoading" @click="edit(item)">{{ detailLoading ? 'Memuat…' : 'Edit' }}</button><button v-if="item.status === 'DRAFT'" class="btn-danger" type="button" @click="remove(item)">Hapus</button><button v-if="item.status === 'READY'" class="btn-primary" type="button" @click="transition(item, 'open')">Buka</button><button v-if="item.status === 'OPEN'" class="btn-secondary" type="button" @click="transition(item, 'close')">Tutup jadwal</button><button v-if="item.status === 'CLOSED' && isAdmin" class="btn-secondary" type="button" @click="archive(item)">Arsipkan</button><button v-if="item.status !== 'CLOSED' && item.status !== 'ARCHIVED'" class="btn-quiet" type="button" @click="rotate(item)">{{ item.mode === 'MAIN' ? 'Rotasi kode' : 'Rotasi token' }}</button><RouterLink v-if="item.status === 'OPEN'" class="btn-quiet action-link" :to="'/teacher/monitoring?scheduleId=' + item.id">Monitoring</RouterLink></div></article><div v-if="!loading && items.length === 0" class="card table-state"><strong>{{ emptyTitle }}</strong><span class="muted">{{ emptyCopy }}</span></div><div v-if="loading" class="card table-state">Memuat jadwal…</div></section>
 </template>
 
 <style scoped>
@@ -266,6 +311,8 @@ onMounted(() => { void load(); });
 .picker-search { display: flex; gap: 8px; }
 .picker-search input { min-width: 0; flex: 1; }
 .form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.schedule-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 16px; }
+.schedule-toolbar p { margin: 0; }
 .schedule-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 16px; }
 .schedule-card { display: flex; flex-direction: column; gap: 9px; padding: 18px; }
 .schedule-card h2 { margin: 2px 0 0; font-size: 1.15rem; }
@@ -282,6 +329,7 @@ onMounted(() => { void load(); });
 .muted { color: var(--muted); }
 @media (max-width: 700px) {
   .page-heading { display: grid; }
+  .schedule-toolbar { align-items: stretch; display: grid; }
   .form-grid { grid-template-columns: 1fr; }
   .form-grid label.wide, .form-grid button, .target-picker.wide { grid-column: auto; }
   .option-list { grid-template-columns: 1fr; }

@@ -978,6 +978,23 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         return mapSchedule(schedule);
       }),
   );
+  app.post(
+    "/api/v1/teacher/schedules/:id/archive",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.schedules) throw serviceUnavailable("Schedule service");
+        const payload = objectPayload(body);
+        const schedule = await options.schedules.drafts.archiveSchedule(
+          staffContext,
+          idParam(params),
+          stringField(
+            payload.expectedUpdatedAt,
+            "expectedUpdatedAt",
+          ) as UtcTimestamp,
+        );
+        return mapSchedule(schedule);
+      }),
+  );
 
   // Read-only staff list endpoints keep the UI useful while richer authoring
   // mutations are added through their domain-specific route adapters.
@@ -1050,10 +1067,20 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
   app.get("/api/v1/teacher/schedules", async ({ request, query }) =>
     wrapSqlRead(request, options, "TEACHER", async (actor) => {
       const limit = boundedLimit(queryValue(query, "limit"));
+      const status = scheduleStatusFilter(queryValue(query, "status"));
+      const includeArchived = optionalBooleanQuery(
+        queryValue(query, "includeArchived"),
+        "includeArchived",
+      );
       const scoped =
         actor.user.role === "ADMIN"
           ? "1 = 1"
           : "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = e.subject_id) AND NOT EXISTS (SELECT 1 FROM exam_schedule_classes esc LEFT JOIN teacher_classes tc ON tc.class_id = esc.class_id AND tc.teacher_id = ? WHERE esc.schedule_id = s.id AND tc.teacher_id IS NULL)";
+      const visibility = status
+        ? " AND s.status = ?"
+        : includeArchived
+          ? ""
+          : " AND s.status <> 'ARCHIVED'";
       const rows = await options.database.query<Record<string, unknown>>(
         `SELECT s.id, er.title, s.mode, s.status,
                 DATE_FORMAT(s.starts_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS starts_at,
@@ -1065,12 +1092,13 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
          FROM exam_schedules s
          JOIN exam_revisions er ON er.id = s.exam_revision_id
          JOIN exams e ON e.id = er.exam_id
-         WHERE ${scoped}
+         WHERE ${scoped}${visibility}
          ORDER BY s.starts_at DESC, s.id DESC LIMIT ?`,
         [
           ...(actor.user.role === "ADMIN"
             ? []
             : [actor.user.id, actor.user.id]),
+          ...(status ? [status] : []),
           limit + 1,
         ],
       );
@@ -1650,6 +1678,29 @@ function boundedLimit(value: string | undefined): number {
 function queryValue(query: unknown, key: string): string | undefined {
   const value = (query as Record<string, unknown>)[key];
   return typeof value === "string" ? value : undefined;
+}
+function optionalBooleanQuery(
+  value: string | undefined,
+  field: string,
+): boolean {
+  if (value === undefined) return false;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+}
+function scheduleStatusFilter(
+  value: string | undefined,
+): "DRAFT" | "READY" | "OPEN" | "CLOSED" | "ARCHIVED" | undefined {
+  if (value === undefined) return undefined;
+  if (
+    value === "DRAFT" ||
+    value === "READY" ||
+    value === "OPEN" ||
+    value === "CLOSED" ||
+    value === "ARCHIVED"
+  )
+    return value;
+  throw new AppError(422, "VALIDATION_FAILED", "status jadwal tidak valid.");
 }
 function objectPayload(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value))

@@ -104,6 +104,128 @@ function appFor(currentRole: "ADMIN" | "TEACHER") {
   return { app, queries };
 }
 
+test("schedule archive route delegates a CLOSED schedule to the archive service", async () => {
+  const current = user("ADMIN");
+  const archived = {
+    id: "40" as Id,
+    examRevisionId: "30" as Id,
+    mode: "MAIN",
+    status: "ARCHIVED",
+    startsAt: NOW,
+    endsAt: "2026-09-17T01:00:00.000Z" as UtcTimestamp,
+    durationSeconds: 60,
+    maxAttempts: 1,
+    hardEnd: true,
+    allowLateStart: true,
+    resultReleasePolicy: "MANUAL",
+    hasPracticeToken: false,
+    practiceTokenHint: null,
+    hasMainAccessCode: true,
+    mainAccessCodeHint: "•••-BC",
+    identityFields: null,
+    targetClassIds: [],
+    targetParticipantIds: [],
+    closedAt: NOW,
+    closedByUserId: current.id,
+    closeReason: "Selesai",
+    createdAt: NOW,
+    updatedAt: NOW,
+  };
+  const calls: unknown[][] = [];
+  const appWithSchedules = new Elysia()
+    .use(
+      createStaffRoutes({
+        database: {
+          async query() {
+            return [];
+          },
+          async execute() {
+            return { affectedRows: 1 };
+          },
+          async transaction(operation) {
+            return operation(this);
+          },
+          async close() {
+            return undefined;
+          },
+        },
+        users: {
+          async findById() {
+            return current;
+          },
+          async create() {
+            return current;
+          },
+          async update() {
+            return current;
+          },
+          async disable() {
+            return { ...current, status: "DISABLED" as const };
+          },
+        },
+        sessionService: {
+          async resolve(token: string) {
+            return token === "a".repeat(43)
+              ? session(current.id, current.role)
+              : null;
+          },
+          async verifyCsrfSecret() {
+            return true;
+          },
+        },
+        academics: {
+          async listClassMemberProfiles() {
+            return [];
+          },
+          async replaceClassMembers() {
+            return [];
+          },
+        } as unknown as StaffRouteOptions["academics"],
+        schedules: {
+          drafts: {
+            async archiveSchedule(...input: unknown[]) {
+              calls.push(input);
+              return archived;
+            },
+          } as never,
+          accessCodes: {} as never,
+        },
+        expectedOrigin: "https://cbt.example.test",
+      }),
+    )
+    .onError(({ error, set }) => {
+      if (error instanceof AppError) {
+        set.status = error.status;
+        return { error: { code: error.code } };
+      }
+      set.status = 500;
+      return { error: { code: "INTERNAL_ERROR" } };
+    });
+  const response = await appWithSchedules.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/teacher/schedules/40/archive",
+      {
+        method: "POST",
+        headers: {
+          cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+          origin: "https://cbt.example.test",
+          "content-type": "application/json",
+          "x-csrf-token": "test-token",
+          "idempotency-key": "archive-schedule-test-0001",
+        },
+        body: JSON.stringify({ expectedUpdatedAt: NOW }),
+      },
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    data: { id: "40", status: "ARCHIVED" },
+  });
+  expect(calls).toHaveLength(1);
+  expect(calls[0]?.slice(1)).toEqual(["40", NOW]);
+});
+
 test("staff routes require a session and enforce admin-only users", async () => {
   const admin = appFor("ADMIN").app;
   const unauthenticated = await admin.handle(

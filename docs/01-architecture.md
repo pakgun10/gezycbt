@@ -1157,6 +1157,7 @@ route admin terautentikasi yang akan ditentukan kemudian.
 | `POST /api/v1/teacher/schedules/:id/rotate-token` | Rotate practice token; tampil sekali |
 | `POST /api/v1/teacher/schedules/:id/rotate-main-code` | Rotate MAIN access code; tampil sekali |
 | `POST /api/v1/teacher/schedules/:id/close` | Tutup seluruh schedule dengan reason, version, dan idempotency |
+| `POST /api/v1/teacher/schedules/:id/archive` | Admin mengarsipkan schedule `CLOSED`; histori, hasil, dan audit dipertahankan |
 | `GET /api/v1/teacher/schedules/:id/monitor` | Aggregate monitoring + `generatedAt`/`serverNow` |
 | `GET /api/v1/teacher/schedules/:id/sessions` | Session cursor page untuk monitoring |
 | `POST /api/v1/teacher/exam-sessions/:id/extend-time` | Positive time extension dengan audit |

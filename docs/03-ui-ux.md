@@ -1103,6 +1103,8 @@ Waktu ditampilkan Asia/Jakarta dan summary akhir menyebut tanggal lengkap, bukan
 
 Untuk schedule MAIN dan PRACTICE, guru dapat memilih **Buat Otomatis** atau mengusulkan kode lima karakter. Server menormalisasi uppercase, memvalidasi alfabet, dan menolak kode yang sedang dipakai schedule lain. Kode plaintext hanya ditampilkan sekali setelah pembuatan atau rotasi, dalam dialog yang menjelaskan bahwa kode perlu disalin saat itu. Pada kunjungan berikutnya, card jadwal hanya menampilkan hint tersamarkan dari server, misalnya `••••-AB7K`, waktu rotasi, status aktif, dan action rotasi yang sesuai mode. Hint dipakai untuk membantu guru mengenali kode saat support dan audit; hint tidak dapat dipakai untuk autentikasi atau lookup. Rotasi menolak start baru dengan kode lama, tetapi tidak membatalkan session yang sudah aktif.
 
+Jadwal `CLOSED` dapat diarsipkan oleh admin melalui action **Arsipkan** pada card. Konfirmasi menjelaskan bahwa card akan hilang dari daftar utama, sedangkan hasil ujian dan audit tetap tersedia. Daftar utama secara default tidak memuat `ARCHIVED`; tombol **Tampilkan arsip** mengganti tampilan menjadi daftar arsip yang read-only. Guru dapat melihat schedule `CLOSED` dalam scope-nya, tetapi tidak dapat mengarsipkan. Hard delete hanya berlaku untuk draft yang belum memiliki data runtime.
+
 ### 10.7 Monitoring
 
 Dashboard monitoring memakai polling ringan:

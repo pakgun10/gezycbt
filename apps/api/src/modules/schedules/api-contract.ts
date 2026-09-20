@@ -33,6 +33,7 @@ const cursorQuerySchema = t.Object(
       ]),
     ),
     mode: t.Optional(t.Union([t.Literal("MAIN"), t.Literal("PRACTICE")])),
+    includeArchived: t.Optional(t.Boolean()),
   },
   { additionalProperties: false },
 );
@@ -107,6 +108,10 @@ const scheduleTransitionBodySchema = t.Object(
     expectedUpdatedAt: utcTimestampSchema,
     closeReason: t.Optional(t.String({ minLength: 1, maxLength: 500 })),
   },
+  { additionalProperties: false },
+);
+const scheduleArchiveBodySchema = t.Object(
+  { expectedUpdatedAt: utcTimestampSchema },
   { additionalProperties: false },
 );
 const rotateAccessCodeBodySchema = t.Object(
@@ -192,6 +197,7 @@ export const scheduleApiSchemas = {
   scheduleUpdateBody: scheduleUpdateBodySchema,
   scheduleDeleteBody: scheduleDeleteBodySchema,
   scheduleTransitionBody: scheduleTransitionBodySchema,
+  scheduleArchiveBody: scheduleArchiveBodySchema,
   rotateAccessCodeBody: rotateAccessCodeBodySchema,
   schedule: scheduleResourceSchema,
   schedulePage: schedulePageSchema,
@@ -300,6 +306,18 @@ export const scheduleApiRoutes: readonly ScheduleApiRouteContract[] = [
       params: scheduleIdParamsSchema,
       headers: mutationHeadersSchema,
       body: scheduleTransitionBodySchema,
+    },
+    response: { status: 200, schemaName: "scheduleResponse" },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/teacher/schedules/:id/archive",
+    operationId: "archiveSchedule",
+    summary: "Arsipkan schedule CLOSED; hanya administrator",
+    request: {
+      params: scheduleIdParamsSchema,
+      headers: mutationHeadersSchema,
+      body: scheduleArchiveBodySchema,
     },
     response: { status: 200, schemaName: "scheduleResponse" },
   },

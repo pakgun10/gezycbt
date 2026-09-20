@@ -63,6 +63,9 @@ describe("schedule API contracts", () => {
       scheduleApiSchemas.rotateAccessCodeBody,
     );
     const headers = TypeCompiler.Compile(scheduleApiSchemas.mutationHeaders);
+    const archive = TypeCompiler.Compile(
+      scheduleApiSchemas.scheduleArchiveBody,
+    );
     expect(
       update.Check({
         endsAt: "2026-09-17T03:00:00.000Z",
@@ -82,10 +85,12 @@ describe("schedule API contracts", () => {
         "idempotency-key": "schedule-mutation-0001",
       }),
     ).toBe(true);
+    expect(archive.Check({ expectedUpdatedAt: VERSION })).toBe(true);
+    expect(archive.Check({})).toBe(false);
   });
 
   test("keeps route inventory unique and publishes safe access response schemas", () => {
-    expect(SCHEDULE_API_ROUTE_PATHS.length).toBe(8);
+    expect(SCHEDULE_API_ROUTE_PATHS.length).toBe(9);
     expect(new Set(SCHEDULE_API_ROUTE_PATHS).size).toBe(
       SCHEDULE_API_ROUTE_PATHS.length,
     );
@@ -102,6 +107,9 @@ describe("schedule API contracts", () => {
     ).toBeDefined();
     expect(
       scheduleApiOpenApi.paths["/api/v1/teacher/schedules/{id}"]?.delete,
+    ).toBeDefined();
+    expect(
+      scheduleApiOpenApi.paths["/api/v1/teacher/schedules/{id}/archive"],
     ).toBeDefined();
     expect(
       scheduleApiOpenApiSchemas.RotatedScheduleAccessCodeResponse,

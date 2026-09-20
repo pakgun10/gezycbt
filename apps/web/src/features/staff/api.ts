@@ -27,6 +27,11 @@ import type {
   UserRole,
 } from "./types";
 
+export interface ScheduleListOptions {
+  readonly status?: ScheduleSummary["status"];
+  readonly includeArchived?: boolean;
+}
+
 export interface StaffApi {
   login(username: string, password: string): Promise<StaffLoginResponse>;
   me(): Promise<StaffLoginResponse>;
@@ -152,7 +157,9 @@ export interface StaffApi {
     issues: readonly { severity: string; message: string; fieldPath: string }[];
   }>;
   publishExam(id: string, expectedUpdatedAt: string): Promise<ExamRevision>;
-  schedules(): Promise<CursorPage<ScheduleSummary>>;
+  schedules(
+    options?: ScheduleListOptions,
+  ): Promise<CursorPage<ScheduleSummary>>;
   schedule(id: string): Promise<ScheduleDetail>;
   createSchedule(input: Record<string, unknown>): Promise<ScheduleSummary>;
   updateSchedule(
@@ -164,6 +171,10 @@ export interface StaffApi {
     id: string,
     expectedUpdatedAt: string,
   ): Promise<{ scheduleId: string; deleted: boolean }>;
+  archiveSchedule(
+    id: string,
+    expectedUpdatedAt: string,
+  ): Promise<ScheduleSummary>;
   rotateCode(
     id: string,
     kind: "practice-token" | "main-code",
@@ -589,8 +600,14 @@ export class HttpStaffApi implements StaffApi {
       { expectedUpdatedAt },
     );
   }
-  schedules() {
-    return this.getPage<ScheduleSummary>("/api/v1/teacher/schedules");
+  schedules(options: ScheduleListOptions = {}) {
+    const query = new URLSearchParams();
+    if (options.status) query.set("status", options.status);
+    if (options.includeArchived !== undefined)
+      query.set("includeArchived", String(options.includeArchived));
+    return this.getPage<ScheduleSummary>(
+      `/api/v1/teacher/schedules${query.size ? `?${query.toString()}` : ""}`,
+    );
   }
   schedule(id: string) {
     return this.getData<ScheduleDetail>(
@@ -619,6 +636,13 @@ export class HttpStaffApi implements StaffApi {
     return this.mutate<{ scheduleId: string; deleted: boolean }>(
       `/api/v1/teacher/schedules/${encodeURIComponent(id)}`,
       "DELETE",
+      { expectedUpdatedAt },
+    );
+  }
+  archiveSchedule(id: string, expectedUpdatedAt: string) {
+    return this.mutate<ScheduleSummary>(
+      `/api/v1/teacher/schedules/${encodeURIComponent(id)}/archive`,
+      "POST",
       { expectedUpdatedAt },
     );
   }
