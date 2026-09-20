@@ -1016,7 +1016,7 @@ Editor type:
 - delete option membutuhkan minimal count tetap terpenuhi;
 - validation summary link menuju field bermasalah.
 
-Stimulus selalu diberi label **Stimulus (opsional)**. Stimulus dapat berupa teks panjang, gambar, atau gabungannya; editor tidak meminta guru mengisi teks hanya karena sebuah gambar sudah menjadi konteks soal. Setiap opsi `SINGLE_CHOICE`/`MULTIPLE_RESPONSE` dan setiap pernyataan `TRUE_FALSE` mempunyai area teks panjang serta action **Tambah gambar** sendiri. Thumbnail tampil tepat di bawah targetnya, sehingga guru dapat melihat gambar yang melekat pada opsi/pernyataan tertentu sebelum publish.
+Stimulus selalu diberi label **Stimulus (opsional)**. Stimulus dapat berupa teks panjang, gambar, atau gabungannya; editor tidak meminta guru mengisi teks hanya karena sebuah gambar sudah menjadi konteks soal. Gambar disisipkan pada posisi kursor, sehingga guru dapat membuat urutan seperti “Perhatikan gambar berikut.” → gambar → “Pada gambar tersebut …”. Setiap opsi `SINGLE_CHOICE`/`MULTIPLE_RESPONSE` dan setiap pernyataan `TRUE_FALSE` mempunyai area rich text serta action **Tambah gambar** sendiri. Thumbnail tampil di posisi sisipnya, sehingga guru dapat melihat gambar yang melekat pada opsi/pernyataan tertentu sebelum publish.
 
 #### Import soal CSV
 
@@ -1036,7 +1036,7 @@ Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyeb
 - cancel sebelum upload selesai membatalkan request bila memungkinkan dan membersihkan preview lokal;
 - media baru belum dianggap tersimpan ke revision sampai relasi draft mendapat acknowledgment server.
 
-Media dipilih dari targetnya: stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. UI tidak menawarkan pilihan target global yang dapat salah mengaitkan gambar dengan opsi/pernyataan lain. Media yang telah direferensikan published revision tidak dapat dihapus atau diganti pada revision tersebut. Pada draft baru, guru dapat melepas media dari draft atau memilih asset pengganti; tindakan itu tidak mengubah revision published. Jika asset masih direferensikan di tempat lain, UI menampilkan “Masih digunakan” dan tidak menawarkan penghapusan fisik. Penghapusan asset orphan dilakukan sistem sesuai retention.
+Media dipilih dari targetnya: stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. UI tidak menawarkan pilihan target global yang dapat salah mengaitkan gambar dengan opsi/pernyataan lain. Setelah upload dan alt text lengkap, action **Sisipkan gambar** menaruh gambar pada posisi cursor target; guru dapat menghapusnya dari posisi tersebut atau memilih pengganti. Editor tidak menerima URL gambar manual dan tidak menyimpan base64. Media yang telah direferensikan published revision tidak dapat dihapus atau diganti pada revision tersebut. Pada draft baru, guru dapat melepas media dari draft atau memilih asset pengganti; tindakan itu tidak mengubah revision published. Jika asset masih direferensikan di tempat lain, UI menampilkan “Masih digunakan” dan tidak menawarkan penghapusan fisik. Penghapusan asset orphan dilakukan sistem sesuai retention.
 
 ### 10.4 Editor ujian
 
@@ -1458,7 +1458,7 @@ Option:
 - disabled tetap terbaca;
 - label A/B/C bukan satu-satunya accessible name.
 - teks opsi boleh panjang dan mempertahankan paragraf/list yang aman;
-- gambar opsi ditampilkan di dalam card setelah teks, `max-width: 100%`, `object-fit: contain`, dan dapat dibuka ke viewer tanpa mengubah jawaban;
+- gambar opsi ditampilkan pada posisi sisipnya di dalam card, `max-width: 100%`, `object-fit: contain`, dan dapat dibuka ke viewer tanpa mengubah jawaban;
 - alt text gambar menjadi bagian dari accessible name card bila gambar informatif; gambar dekoratif tidak menambah announcement.
 
 ### 12.7 SINGLE_CHOICE
@@ -1491,7 +1491,7 @@ Stimulus soal
 | 3 | Pernyataan ketiga | ( ) | ( ) |
 ~~~
 
-Setiap baris memiliki satu pasangan radio `Benar`/`Salah` yang saling eksklusif. Teks pernyataan boleh panjang; gambar pernyataan, bila ada, tampil di dalam sel Pernyataan setelah teks dengan ukuran responsif. Kolom radio dipusatkan, garis pemisah tabel halus, dan tidak ada umpan balik benar/salah saat ujian berlangsung. Pada mobile, tabel dapat digeser mendatar di dalam containernya agar empat kolom serta teks/gambar pernyataan tetap terbaca tanpa mengubah pilihan menjadi kontrol lain. Belum dijawab tampil berbeda dari `Salah`.
+Setiap baris memiliki satu pasangan radio `Benar`/`Salah` yang saling eksklusif. Teks pernyataan boleh panjang; gambar pernyataan, bila ada, tampil pada posisi sisipnya di dalam sel Pernyataan dengan ukuran responsif. Kolom radio dipusatkan, garis pemisah tabel halus, dan tidak ada umpan balik benar/salah saat ujian berlangsung. Pada mobile, tabel dapat digeser mendatar di dalam containernya agar empat kolom serta teks/gambar pernyataan tetap terbaca tanpa mengubah pilihan menjadi kontrol lain. Belum dijawab tampil berbeda dari `Salah`.
 
 ### 12.10 Question palette
 

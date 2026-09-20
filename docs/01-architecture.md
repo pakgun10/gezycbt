@@ -645,14 +645,14 @@ Ketiga tipe memakai **exact-match scoring** dan tidak memberikan partial score. 
 
 Aturan validasi ketika menyimpan draft dan publish:
 
-- stimulus bersifat opsional pada ketiga tipe; bila dipakai, stimulus dapat memadukan teks panjang dan gambar;
+- stimulus bersifat opsional pada ketiga tipe; bila dipakai, stimulus dapat memadukan teks panjang dan gambar dalam urutan yang ditentukan guru, misalnya teks → gambar → teks;
 - `SINGLE_CHOICE` dan `MULTIPLE_RESPONSE` memiliki pertanyaan setelah stimulus;
 - `SINGLE_CHOICE` memiliki beberapa opsi dan tepat satu opsi benar;
 - `MULTIPLE_RESPONSE` memiliki beberapa opsi dan minimal satu opsi benar;
 - `TRUE_FALSE` memiliki tepat tiga pernyataan dengan posisi unik 1, 2, dan 3;
 - setiap pernyataan `TRUE_FALSE` memiliki satu answer key boolean;
 - ID opsi atau pernyataan yang diterima dari peserta harus berasal dari question revision pada session tersebut;
-- stimulus, opsi, dan pernyataan menerima teks panjang sesuai batas field serta gambar sesuai kebijakan upload; gambar tidak menggantikan teks answer key;
+- stimulus, opsi, dan pernyataan menerima teks panjang sesuai batas field serta gambar sesuai kebijakan upload; gambar dapat disisipkan di posisi mana pun di antara teks dan tidak menggantikan teks answer key;
 - kunci jawaban dan penjelasan tidak dikirim dalam payload pengerjaan.
 
 Representasi response dalam kontrak API menggunakan discriminated union berdasarkan tipe soal:
@@ -678,7 +678,7 @@ Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format aw
 
 Server membatasi file menjadi 1 MiB dan 300 soal. Preview memvalidasi tipe, struktur opsi/pernyataan, kunci, duplicate content dalam file, dan readiness error yang juga memblokir publish. Commit menerima ulang file serta `sourceHash`, memvalidasi ulang seluruh baris, lalu membuat semua revision sebagai `DRAFT` dalam satu transaction. Satu error memblokir seluruh commit; import tidak menerbitkan soal otomatis, tidak menyalin media, dan tidak menyimpan file atau preview ke MariaDB.
 
-Media dapat ditempelkan ke stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. Gambar informatif wajib mempunyai alt text; gambar dekoratif harus dipilih secara eksplisit dan memakai alt kosong. Gambar milik opsi/pernyataan memakai relasi child khusus agar selalu dapat ditautkan ke opsi/pernyataan yang tepat, bukan hanya ke revision secara umum. Asset yang direferensikan revision published bersifat immutable dan tidak dapat dihapus. Editor draft hanya boleh melepas relasinya sendiri atau mengganti dengan asset lain; penghapusan fisik dilakukan housekeeping setelah terbukti orphan sesuai retention. CSV tidak membawa file gambar atau URL eksternal: guru menempelkan gambar setelah draft hasil import dibuat.
+Media dapat ditempelkan ke stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. Editor menyisipkan placeholder media terstruktur pada posisi kursor di rich text target, sehingga urutan teks → gambar → teks dipertahankan tanpa menyimpan URL eksternal atau base64 di HTML. Saat manifest peserta dibentuk, server hanya meresolve placeholder yang merujuk asset terpasang pada target tersebut menjadi URL media terlindungi. Gambar informatif wajib mempunyai alt text; gambar dekoratif harus dipilih secara eksplisit dan memakai alt kosong. Gambar milik opsi/pernyataan memakai relasi child khusus agar selalu dapat ditautkan ke opsi/pernyataan yang tepat, bukan hanya ke revision secara umum. Asset yang direferensikan revision published bersifat immutable dan tidak dapat dihapus. Editor draft hanya boleh melepas relasinya sendiri atau mengganti dengan asset lain; penghapusan fisik dilakukan housekeeping setelah terbukti orphan sesuai retention. CSV tidak membawa file gambar, placeholder media, atau URL eksternal: guru menempelkan gambar setelah draft hasil import dibuat.
 
 ### C.6 Exams
 
@@ -1517,7 +1517,7 @@ Database `CHECK` membatasi posisi, sedangkan publish transaction memverifikasi j
 
 `media_assets` minimal memuat `id`, `storage_key`, `original_name`, `mime_type`, `byte_size`, `sha256`, `width`, `height`, `status`, `created_by`, dan timestamps. `storage_key` adalah nama acak dan tidak berasal dari filename pengguna.
 
-`question_revision_media` menghubungkan asset dengan area level revision (`STIMULUS`, `PROMPT`, atau `EXPLANATION`) melalui `usage`, `alt_text`, dan `is_decorative`. `question_option_media` menghubungkan asset dengan satu `question_option`; `true_false_statement_media` menghubungkan asset dengan satu `true_false_statement`. Kedua tabel child memakai metadata alt/dekoratif yang sama. Relasi child ini mencegah gambar opsi/pernyataan tertukar ketika peserta mengerjakan ujian. `alt_text` wajib dan tidak kosong untuk media informatif; media dekoratif memakai `is_decorative=true` serta alt kosong. Asset yang masih direferensikan revision published tidak boleh dihapus. Baseline menerima JPEG, PNG, dan WebP; SVG/HTML ditolak.
+`question_revision_media` menghubungkan asset dengan area level revision (`STIMULUS`, `PROMPT`, atau `EXPLANATION`) melalui `usage`, `alt_text`, dan `is_decorative`. `question_option_media` menghubungkan asset dengan satu `question_option`; `true_false_statement_media` menghubungkan asset dengan satu `true_false_statement`. Kedua tabel child memakai metadata alt/dekoratif yang sama. Content HTML menyimpan hanya placeholder terstruktur berisi ID asset, bukan URL atau base64; application service memverifikasi setiap placeholder memang memiliki relasi ke target konten yang sama. Relasi child serta verifikasi placeholder ini mencegah gambar opsi/pernyataan tertukar atau disisipkan ke target yang tidak berhak. `alt_text` wajib dan tidak kosong untuk media informatif; media dekoratif memakai `is_decorative=true` serta alt kosong. Asset yang masih direferensikan revision published tidak boleh dihapus. Baseline menerima JPEG, PNG, dan WebP; SVG/HTML ditolak.
 
 ### D.1.4 Exam definition dan schedule
 

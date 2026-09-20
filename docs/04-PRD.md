@@ -428,8 +428,8 @@ Setiap requirement memiliki prioritas:
 | FR-QB-007 | Must | Validator menghasilkan readiness issues dengan severity, code, field path, message, dan target. |
 | FR-QB-008 | Must | Error memblokir publish; warning memerlukan review tetapi tidak memblokir secara default. |
 | FR-QB-009 | Must | Participant payload tidak pernah memuat answer key atau explanation. |
-| FR-QB-010 | Must | Stimulus opsional pada seluruh tipe soal; bila dipakai dapat memuat teks panjang, gambar, atau keduanya. |
-| FR-QB-011 | Must | Setiap opsi pilihan dan pernyataan Benar/Salah dapat memuat teks panjang serta gambar yang terikat tepat pada item tersebut. |
+| FR-QB-010 | Must | Stimulus opsional pada seluruh tipe soal; bila dipakai dapat memuat teks panjang, gambar, atau keduanya dalam urutan yang ditentukan guru. |
+| FR-QB-011 | Must | Setiap opsi pilihan dan pernyataan Benar/Salah dapat memuat teks panjang serta gambar yang terikat tepat pada item dan posisi sisipnya. |
 
 ### 9.5 Tipe soal dan scoring
 
@@ -458,8 +458,8 @@ Aturan produk:
 | FR-MED-004 | Must | Asset yang direferensikan revision published tidak dapat dihapus. |
 | FR-MED-005 | Must | UI menampilkan preview, progress, retry, serta error type/size/dimension/network. |
 | FR-MED-006 | Must | Media tidak disimpan sebagai base64 di payload soal. |
-| FR-MED-007 | Must | Gambar dapat ditempelkan pada stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan tertentu; participant payload mempertahankan hubungan target tersebut. |
-| FR-MED-008 | Must | Import CSV membawa teks saja. Gambar tidak menerima URL eksternal dan ditempelkan ke draft melalui editor sesudah import. |
+| FR-MED-007 | Must | Gambar dapat ditempelkan pada stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan tertentu; participant payload mempertahankan target dan urutan sisipnya di antara teks. |
+| FR-MED-008 | Must | Import CSV membawa teks saja. Gambar tidak menerima URL eksternal, placeholder media, atau base64 dan ditempelkan ke draft melalui editor sesudah import. |
 
 ### 9.7 Exam authoring
 

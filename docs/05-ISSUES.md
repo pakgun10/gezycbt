@@ -182,7 +182,7 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-160` | `DONE` | Staging production-like dry run lulus untuk staff login, lifecycle jadwal MAIN/PRACTICE, kode/token, start, save, refresh/resume, submit, release hasil, dan cleanup. Evidence ada di [`staging-20260919-iss160-dry-run`](../reports/pilot/staging-20260919-iss160-dry-run/). |
 | `ISS-161` | `IN_REVIEW` | Synthetic rehearsal 30 peserta lulus 30/30 untuk login, start, autosave, resume, submit, result, dan reconciliation tanpa active session. Evidence ada di [`staging-20260919-iss161-synthetic-rehearsal`](../reports/pilot/staging-20260919-iss161-synthetic-rehearsal/). Pilot nyata dengan variasi perangkat/browser/jaringan dan catatan support masih wajib. |
 | `ISS-162` | `IN_REVIEW` | Recovery rehearsal lulus untuk restart API saat session aktif dan timeout deadline; jawaban committed tetap dapat di-resume, service readiness pulih, dan session timeout difinalisasi sebagai `DEADLINE`. Evidence ada di [`staging-20260919-iss162-recovery-rehearsal`](../reports/pilot/staging-20260919-iss162-recovery-rehearsal/). Isolated restore drill dan simulasi jaringan sekolah masih wajib. |
-| `ISS-176` | `READY` | Product delta: stimulus opsional; teks panjang dan gambar untuk stimulus, setiap opsi, serta setiap pernyataan TRUE_FALSE. Perlu migration relasi media target-aware, API/presenter participant, editor guru, renderer responsif, import CSV text-only, serta test immutability/leakage/target binding. |
+| `ISS-176` | `READY` | Product delta: stimulus opsional; teks panjang dan gambar tersisip untuk stimulus, setiap opsi, serta setiap pernyataan TRUE_FALSE. Perlu migration relasi media target-aware, placeholder aman berurutan, API/presenter participant, editor guru, renderer responsif, import CSV text-only, serta test immutability/leakage/target binding. |
 
 Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
 
@@ -615,9 +615,9 @@ Agent A–E dapat dirilis terpisah. `ISS-130` tidak memblokir penggunaan agent u
 
 | ID | P | Size | Issue | Dependency | Acceptance ringkas |
 |---|---:|---:|---|---|---|
-| ISS-176 | P1 | L | Implement stimulus opsional dan media target-aware pada konten soal | ISS-046–ISS-049, ISS-084, ISS-102 | Draft/publish mengizinkan stimulus kosong; teks panjang dan gambar dapat melekat tepat pada stimulus/opsi/pernyataan; media selalu muncul di target yang benar pada manifest peserta; CSV tetap text-only; published revision tetap immutable; mobile, accessibility, leakage, dan migration tests lulus. |
+| ISS-176 | P1 | L | Implement stimulus opsional dan media target-aware pada konten soal | ISS-046–ISS-049, ISS-084, ISS-102 | Draft/publish mengizinkan stimulus kosong; teks panjang dan gambar dapat melekat tepat pada stimulus/opsi/pernyataan serta posisi sisipnya; media selalu muncul di urutan benar pada manifest peserta; CSV tetap text-only; published revision tetap immutable; mobile, accessibility, leakage, dan migration tests lulus. |
 
-`ISS-176` wajib dipecah menjadi migration/contract, service/API, editor/renderer, dan test sebelum coding karena menyentuh persistence serta participant manifest. Ia harus selesai sebelum pilot nyata jika sekolah akan memakai gambar pada soal.
+`ISS-176` wajib dipecah menjadi empat work package sebelum coding: (1) migration relasi media child dan kontrak placeholder aman; (2) service/API serta presenter yang meresolve hanya asset terpasang ke URL terlindungi; (3) editor rich text, upload, alt text, dan sisip/hapus/pengganti gambar pada cursor; (4) renderer peserta, migration, accessibility, immutability, leakage, dan mobile test. Ia harus selesai sebelum pilot nyata jika sekolah akan memakai gambar pada soal.
 
 ---
 
