@@ -33,4 +33,16 @@ describe("participant runtime error contract", () => {
     expect(safeFinalizationReason("STAFF_END")).toBe("Diakhiri Petugas");
     expect(safeFinalizationReason("RESET_ATTEMPT")).toBe("Attempt Direset");
   });
+
+  test("explains that an active session can be resumed", () => {
+    const mapped = toParticipantRuntimeError(
+      new ExamSessionError("SESSION_ALREADY_ACTIVE", "private", 409, {
+        sessionId: "6085",
+      }),
+    );
+    expect(mapped?.message).toBe(
+      "Ujian masih memiliki sesi aktif. Membuka kembali sesi tersebut.",
+    );
+    expect(mapped?.details).toEqual({ sessionId: "6085" });
+  });
 });

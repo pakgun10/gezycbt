@@ -43,7 +43,7 @@ function participantMessage(code: string): string {
     case "ATTEMPT_LIMIT_REACHED":
       return "Batas percobaan ujian sudah tercapai.";
     case "SESSION_ALREADY_ACTIVE":
-      return "Ujian sedang terbuka di perangkat lain.";
+      return "Ujian masih memiliki sesi aktif. Membuka kembali sesi tersebut.";
     case "SESSION_EXPIRED":
     case "DEADLINE_REACHED":
       return "Waktu ujian telah habis.";

@@ -53,6 +53,11 @@ async function start(): Promise<void> {
     await router.push(`/participant/exam/${result.session.id}`);
   }
   catch (cause) {
+    const activeSessionId = activeSessionFromError(cause);
+    if (activeSessionId) {
+      await router.replace(`/participant/exam/${activeSessionId}`);
+      return;
+    }
     actionError.value = cause instanceof ApiClientError ? cause.message : "Koneksi terputus. Periksa status untuk melanjutkan.";
     const retryable = !(cause instanceof ApiClientError) || cause.status === 429 || cause.status >= 500;
     slow.value = retryable;
@@ -70,8 +75,18 @@ async function checkStatus(): Promise<void> {
     const result = await api.startMain(schedule.value.id, startKey, mainAccessCode.value);
     await router.push(`/participant/exam/${result.session.id}`);
   } catch (cause) {
+    const activeSessionId = activeSessionFromError(cause);
+    if (activeSessionId) {
+      await router.replace(`/participant/exam/${activeSessionId}`);
+      return;
+    }
     actionError.value = cause instanceof ApiClientError ? cause.message : "Status belum tersedia. Permintaan akan tetap dicoba dengan kode yang sama.";
   } finally { statusBusy.value = false; }
+}
+function activeSessionFromError(cause: unknown): string | undefined {
+  if (!(cause instanceof ApiClientError) || cause.code !== "SESSION_ALREADY_ACTIVE") return undefined;
+  const sessionId = cause.details.sessionId;
+  return typeof sessionId === "string" && sessionId.length > 0 ? sessionId : undefined;
 }
 const starts = computed(() => schedule.value ? new Intl.DateTimeFormat("id-ID", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date(schedule.value.startsAt)) : "");
 </script>
