@@ -1108,7 +1108,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           : "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = e.subject_id)";
       const search = queryValue(query, "search") ?? "";
       const rows = await options.database.query<Record<string, unknown>>(
-        `SELECT e.id, er.id AS revision_id, er.title, e.subject_id, e.owner_teacher_id, e.status, COUNT(eq.id) AS question_count, e.updated_at FROM exams e JOIN exam_revisions er ON er.id = COALESCE(e.current_published_revision_id, (SELECT er2.id FROM exam_revisions er2 WHERE er2.exam_id = e.id ORDER BY er2.revision_no DESC LIMIT 1)) LEFT JOIN exam_questions eq ON eq.exam_revision_id = er.id WHERE ${scoped} AND (? = '' OR er.title LIKE ?) GROUP BY e.id, er.id ORDER BY e.updated_at DESC, e.id DESC LIMIT ?`,
+        `SELECT e.id, er.id AS revision_id, er.title, er.duration_seconds, e.subject_id, e.owner_teacher_id, e.status, COUNT(eq.id) AS question_count, e.updated_at FROM exams e JOIN exam_revisions er ON er.id = COALESCE(e.current_published_revision_id, (SELECT er2.id FROM exam_revisions er2 WHERE er2.exam_id = e.id ORDER BY er2.revision_no DESC LIMIT 1)) LEFT JOIN exam_questions eq ON eq.exam_revision_id = er.id WHERE ${scoped} AND (? = '' OR er.title LIKE ?) GROUP BY e.id, er.id ORDER BY e.updated_at DESC, e.id DESC LIMIT ?`,
         [
           ...(actor.user.role === "ADMIN" ? [] : [actor.user.id]),
           search,
@@ -1121,6 +1121,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           id: String(row.id),
           revisionId: String(row.revision_id),
           title: String(row.title),
+          durationSeconds: Number(row.duration_seconds),
           subjectId: String(row.subject_id),
           ownerTeacherId: String(row.owner_teacher_id),
           status: String(row.status),

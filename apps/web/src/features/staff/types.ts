@@ -153,6 +153,7 @@ export interface ExamSummary {
   readonly id: string;
   readonly revisionId: string;
   readonly title: string;
+  readonly durationSeconds: number;
   readonly subjectId: string;
   readonly ownerTeacherId: string;
   readonly status: "DRAFT" | "PUBLISHED" | "ARCHIVED";
