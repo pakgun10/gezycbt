@@ -26,13 +26,14 @@ async function logout(): Promise<void> {
     // server session will expire/revoke independently, while this prevents a
     // stale participant UI from remaining visible.
   } finally {
-    // Explicit account logout is the privacy boundary for browser-persisted
-    // exam data. Auth-expiry recovery does not call this path and therefore
-    // still keeps the outbox for the same participant to resume.
-    await participantOutbox.clearAll().catch(() => undefined);
     auth.clear();
     loggingOut.value = false;
     await router.replace("/participant/login");
+    // Clear after navigation so an exam component's in-flight autosave is
+    // disposed before the explicit account-switch cleanup runs. Auth-expiry
+    // recovery does not call this path and therefore keeps the outbox for the
+    // same participant to resume.
+    await participantOutbox.clearAll().catch(() => undefined);
   }
 }
 </script>
