@@ -118,6 +118,11 @@ export interface StaffApi {
   createQuestionBank(
     input: Record<string, unknown>,
   ): Promise<QuestionBankSummary>;
+  updateQuestionBank(
+    id: string,
+    input: Record<string, unknown>,
+    expectedUpdatedAt: string,
+  ): Promise<QuestionBankSummary>;
   questions(
     query?: string,
     cursor?: string,
@@ -488,6 +493,17 @@ export class HttpStaffApi implements StaffApi {
       "/api/v1/teacher/question-banks",
       "POST",
       input,
+    );
+  }
+  updateQuestionBank(
+    id: string,
+    input: Record<string, unknown>,
+    expectedUpdatedAt: string,
+  ) {
+    return this.mutate<QuestionBankSummary>(
+      `/api/v1/teacher/question-banks/${encodeURIComponent(id)}`,
+      "PATCH",
+      { ...input, expectedUpdatedAt },
     );
   }
   questions(query = "", cursor?: string) {

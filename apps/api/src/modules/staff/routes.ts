@@ -625,7 +625,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       params.push(limit + 1);
       const rows = await options.database.query<Record<string, unknown>>(
         `SELECT qb.id, qb.subject_id, qb.owner_teacher_id, qb.name, qb.status,
-                qb.updated_at
+                DATE_FORMAT(qb.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
          FROM question_banks qb
          WHERE ${scoped}${search ? " AND qb.name LIKE ?" : ""}
          ORDER BY qb.updated_at DESC, qb.id DESC LIMIT ?`,
@@ -638,7 +638,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           ownerTeacherId: String(row.owner_teacher_id),
           name: String(row.name),
           status: String(row.status),
-          updatedAt: String(row.updated_at),
+          updatedAt: isoValue(row.updated_at),
         })),
         rows.length > limit ? String(rows[limit]?.id) : null,
       );
@@ -667,7 +667,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           [subjectId, staffContext.actor.userId, name],
         );
         const rows = await connection.query<Record<string, unknown>>(
-          "SELECT id, subject_id, owner_teacher_id, name, status, updated_at FROM question_banks WHERE subject_id = ? AND owner_teacher_id = ? AND name = ? ORDER BY id DESC LIMIT 1",
+          "SELECT id, subject_id, owner_teacher_id, name, status, DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at FROM question_banks WHERE subject_id = ? AND owner_teacher_id = ? AND name = ? ORDER BY id DESC LIMIT 1",
           [subjectId, staffContext.actor.userId, name],
         );
         if (!rows[0]) throw new Error("Question bank could not be read back");
@@ -677,11 +677,97 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           ownerTeacherId: String(rows[0].owner_teacher_id),
           name: String(rows[0].name),
           status: String(rows[0].status),
-          updatedAt: String(rows[0].updated_at),
+          updatedAt: isoValue(rows[0].updated_at),
         };
       });
       return result;
     }),
+  );
+  app.get(
+    "/api/v1/teacher/question-banks/:id",
+    async ({ request, params }) =>
+      wrapSqlRead(request, options, "TEACHER", async (actor) => {
+        const bank = await readQuestionBank(options.database, idParam(params));
+        if (!bank) throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+        await assertQuestionBankAccess(options, actor, bank);
+        return bank;
+      }),
+  );
+  app.patch(
+    "/api/v1/teacher/question-banks/:id",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const name =
+          payload.name === undefined
+            ? undefined
+            : stringField(payload.name, "name").trim();
+        if (name !== undefined && name.length > 200)
+          throw new AppError(422, "VALIDATION_FAILED", "Nama bank terlalu panjang.");
+        const status =
+          payload.status === undefined
+            ? undefined
+            : oneOf(payload.status, ["ACTIVE", "ARCHIVED"] as const, "status");
+        if (name === undefined && status === undefined)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Setidaknya nama atau status bank harus diubah.",
+          );
+
+        const bankId = idParam(params);
+        const before = await readQuestionBank(options.database, bankId);
+        if (!before)
+          throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+        await assertQuestionBankAccess(options, {
+          user: {
+            id: String(staffContext.actor.userId),
+            role: staffContext.actor.role as "ADMIN" | "TEACHER",
+          },
+        }, before);
+
+        return options.database.transaction(async (connection) => {
+          const currentRows = await connection.query<Record<string, unknown>>(
+            `SELECT id, subject_id, owner_teacher_id, name, status,
+                    DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+             FROM question_banks WHERE id = ? FOR UPDATE`,
+            [bankId],
+          );
+          const current = currentRows[0];
+          if (!current)
+            throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+          const updated = await connection.execute(
+            `UPDATE question_banks
+             SET name = ?, status = ?, updated_at = UTC_TIMESTAMP(6)
+             WHERE id = ? AND updated_at = ?`,
+            [
+              name ?? String(current.name),
+              status ?? String(current.status),
+              bankId,
+              databaseTimestamp(expectedUpdatedAt),
+            ],
+          );
+          if (affectedRows(updated) !== 1)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Bank soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+          const rows = await connection.query<Record<string, unknown>>(
+            `SELECT id, subject_id, owner_teacher_id, name, status,
+                    DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+             FROM question_banks WHERE id = ? LIMIT 1`,
+            [bankId],
+          );
+          if (!rows[0])
+            throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+          return mapQuestionBankRow(rows[0]);
+        });
+      }),
   );
   app.get(
     "/api/v1/teacher/question-revisions/:id",
@@ -1813,6 +1899,82 @@ function idValue(value: unknown, field: string): Id {
 function serviceUnavailable(name: string): AppError {
   return new AppError(503, "SERVICE_BUSY", `${name} belum tersedia.`);
 }
+
+async function readQuestionBank(
+  database: DatabasePort,
+  id: Id,
+): Promise<{
+  readonly id: string;
+  readonly subjectId: string;
+  readonly ownerTeacherId: string;
+  readonly name: string;
+  readonly status: "ACTIVE" | "ARCHIVED";
+  readonly updatedAt: string;
+} | null> {
+  const rows = await database.query<Record<string, unknown>>(
+    `SELECT id, subject_id, owner_teacher_id, name, status,
+            DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+     FROM question_banks WHERE id = ? LIMIT 1`,
+    [id],
+  );
+  return rows[0] ? mapQuestionBankRow(rows[0]) : null;
+}
+
+function mapQuestionBankRow(row: Record<string, unknown>): {
+  readonly id: string;
+  readonly subjectId: string;
+  readonly ownerTeacherId: string;
+  readonly name: string;
+  readonly status: "ACTIVE" | "ARCHIVED";
+  readonly updatedAt: string;
+} {
+  const status = String(row.status);
+  if (status !== "ACTIVE" && status !== "ARCHIVED")
+    throw new Error("Database returned invalid question bank status");
+  return {
+    id: String(row.id),
+    subjectId: String(row.subject_id),
+    ownerTeacherId: String(row.owner_teacher_id),
+    name: String(row.name),
+    status,
+    updatedAt: isoValue(row.updated_at),
+  };
+}
+
+async function assertQuestionBankAccess(
+  options: StaffRouteOptions,
+  identity: { readonly user: { readonly id: string; readonly role: UserRole } },
+  bank: { readonly subjectId: string; readonly ownerTeacherId: string },
+): Promise<void> {
+  if (!options.authorization) return;
+  await options.authorization.assertTeacherScope(
+    {
+      actorType: "HUMAN",
+      role: identity.user.role as "ADMIN" | "TEACHER",
+      userId: identity.user.id as Id,
+      requestId: crypto.randomUUID(),
+      active: true,
+    },
+    {
+      ownerTeacherId: bank.ownerTeacherId as Id,
+      subjectId: bank.subjectId as Id,
+    },
+  );
+}
+
+function affectedRows(result: unknown): number {
+  const value = (result as { affectedRows?: unknown } | null)?.affectedRows;
+  if (typeof value !== "number" || !Number.isSafeInteger(value))
+    throw new Error("Database returned invalid affected row count");
+  return value;
+}
+
+function databaseTimestamp(value: UtcTimestamp): string {
+  const withoutZone = value.endsWith("Z") ? value.slice(0, -1) : value;
+  const [date, fraction = ""] = withoutZone.split(".");
+  return `${(date ?? withoutZone).replace("T", " ")}.${fraction.padEnd(6, "0").slice(0, 6)}`;
+}
+
 function oneOf<T extends string>(
   value: unknown,
   values: readonly T[],
