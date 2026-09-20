@@ -13,6 +13,7 @@ import type {
   IntegrationClient,
   IntegrationClientDetail,
   MonitorPage,
+  NumberedPage,
   ParticipantOption,
   QuestionBankSummary,
   QuestionDraft,
@@ -35,7 +36,7 @@ export interface ScheduleListOptions {
 export interface StaffApi {
   login(username: string, password: string): Promise<StaffLoginResponse>;
   me(): Promise<StaffLoginResponse>;
-  users(query?: string, role?: UserRole): Promise<CursorPage<StaffUser>>;
+  users(query?: string, role?: UserRole, page?: number): Promise<NumberedPage<StaffUser>>;
   previewImport(
     academicYearId: string,
     csv: string,
@@ -289,11 +290,12 @@ export class HttpStaffApi implements StaffApi {
       method: "GET",
     });
   }
-  users(query = "", role?: UserRole) {
+  users(query = "", role?: UserRole, page = 1) {
     const params = new URLSearchParams();
     if (query) params.set("search", query);
     if (role) params.set("role", role);
-    return this.getPage<StaffUser>(
+    params.set("page", String(page));
+    return this.getData<NumberedPage<StaffUser>>(
       `/api/v1/admin/users${params.toString() ? `?${params.toString()}` : ""}`,
     );
   }

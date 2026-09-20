@@ -865,6 +865,8 @@ Table:
 - last login bila tersedia;
 - actions.
 
+Daftar pengguna memakai pagination server-side dengan 25 akun per halaman. Kontrol di bawah tabel berbentuk ringkas: `« ‹ 1 2 3 … 25 › »`, dengan halaman aktif terlihat jelas. Simbol memiliki label pembaca layar untuk halaman pertama, sebelumnya, berikutnya, dan terakhir. Search atau perubahan filter selalu kembali ke halaman pertama. UI menampilkan jumlah akun dan posisi halaman, tanpa memuat seluruh daftar sekaligus.
+
 Reset password dan disable account memakai confirmation dengan nama user serta dampak session revoke.
 
 ### 9.3 Import peserta

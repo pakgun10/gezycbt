@@ -126,6 +126,13 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const roleFilter = queryValue(query, "role");
       const limit = boundedLimit(queryValue(query, "limit"));
       const cursor = queryValue(query, "cursor");
+      const requestedPage = optionalPage(queryValue(query, "page"));
+      if (cursor && requestedPage !== undefined)
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "cursor dan page tidak dapat digunakan bersamaan.",
+        );
       const conditions = ["1 = 1"];
       const parameters: unknown[] = [];
       if (q) {
@@ -144,6 +151,34 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
             "role",
           ),
         );
+      }
+      if (requestedPage !== undefined) {
+        const countRows = await options.database.query<Record<string, unknown>>(
+          `SELECT COUNT(*) AS total FROM users u WHERE ${conditions.join(" AND ")}`,
+          parameters,
+        );
+        const totalItems = Number(countRows[0]?.total ?? 0);
+        const totalPages = Math.ceil(totalItems / limit);
+        const page = Math.min(requestedPage, Math.max(totalPages, 1));
+        const offset = (page - 1) * limit;
+        const rows = await options.database.query<Record<string, unknown>>(
+          `SELECT u.id, u.username, u.role, u.status, u.display_name,
+                  u.force_password_change, u.last_login_at, u.updated_at
+           FROM users u WHERE ${conditions.join(" AND ")}
+           ORDER BY u.id ASC LIMIT ? OFFSET ?`,
+          [...parameters, limit, offset],
+        );
+        return {
+          data: {
+            items: rows.map(mapUser),
+            nextCursor: null,
+            page,
+            pageSize: limit,
+            totalItems,
+            totalPages,
+          },
+          actor: actor.user.id,
+        };
       }
       if (cursor && /^\d+$/u.test(cursor)) {
         conditions.push("u.id > ?");
@@ -1674,6 +1709,13 @@ function integerField(value: unknown, field: string): number {
 function boundedLimit(value: string | undefined): number {
   const parsed = value ? Number(value) : 25;
   return Number.isInteger(parsed) ? Math.min(Math.max(parsed, 1), 100) : 25;
+}
+function optionalPage(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  const parsed = Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < 1 || parsed > 10_000)
+    throw new AppError(422, "VALIDATION_FAILED", "page tidak valid.");
+  return parsed;
 }
 function queryValue(query: unknown, key: string): string | undefined {
   const value = (query as Record<string, unknown>)[key];

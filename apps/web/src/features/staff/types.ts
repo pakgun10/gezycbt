@@ -23,6 +23,14 @@ export interface CursorPage<T> {
   readonly nextCursor: string | null;
 }
 
+/** Offset page used only by the bounded admin user directory. */
+export interface NumberedPage<T> extends CursorPage<T> {
+  readonly page: number;
+  readonly pageSize: number;
+  readonly totalItems: number;
+  readonly totalPages: number;
+}
+
 export interface AcademicYear {
   readonly id: string;
   readonly name: string;

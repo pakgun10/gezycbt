@@ -38,14 +38,20 @@ function session(userId: Id, role: "ADMIN" | "TEACHER"): AuthSession {
   };
 }
 
-function appFor(currentRole: "ADMIN" | "TEACHER") {
+function appFor(
+  currentRole: "ADMIN" | "TEACHER",
+  rowsForQuery?: (sql: string) => readonly Record<string, unknown>[],
+) {
   const current = user(currentRole);
   const queries: unknown[][] = [];
   const options: StaffRouteOptions = {
     database: {
-      async query(_sql, parameters) {
+      async query<T extends Record<string, unknown>>(
+        _sql: string,
+        parameters?: readonly unknown[],
+      ): Promise<readonly T[]> {
         queries.push([...(parameters ?? [])]);
-        return [];
+        return (rowsForQuery?.(_sql) ?? []) as readonly T[];
       },
       async execute() {
         return { affectedRows: 1 };
@@ -240,6 +246,30 @@ test("staff routes require a session and enforce admin-only users", async () => 
     }),
   );
   expect(forbidden.status).toBe(403);
+});
+
+test("admin user list returns bounded numbered pages with a total", async () => {
+  const { app, queries } = appFor("ADMIN", (sql) =>
+    sql.includes("COUNT(*) AS total") ? [{ total: 76 }] : [],
+  );
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/admin/users?page=4&limit=25", {
+      headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+    }),
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    data: {
+      items: [],
+      nextCursor: null,
+      page: 4,
+      pageSize: 25,
+      totalItems: 76,
+      totalPages: 4,
+    },
+  });
+  expect(queries).toEqual([[], [25, 75]]);
 });
 
 test("teacher list queries include the authenticated owner scope", async () => {
