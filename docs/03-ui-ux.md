@@ -1466,20 +1466,24 @@ Option:
 
 ### 12.9 TRUE_FALSE
 
-Tepat tiga statement:
+Tepat tiga statement ditampilkan dalam tiga lapisan yang terpisah: stimulus di bagian atas, daftar teks bernomor `(1)` sampai `(3)` di bawahnya, lalu tabel input jawaban. Daftar teks bukan bagian dari tabel; tabel mengulang setiap pernyataan agar peserta dapat memeriksa teks yang sama saat memilih jawaban.
 
 ~~~text
-1. Pernyataan pertama
-   ( ) Benar    ( ) Salah
+Stimulus soal
 
-2. Pernyataan kedua
-   ( ) Benar    ( ) Salah
+Tentukan nilai kebenaran ketiga pernyataan berikut:
+(1) Pernyataan pertama
+(2) Pernyataan kedua
+(3) Pernyataan ketiga
 
-3. Pernyataan ketiga
-   ( ) Benar    ( ) Salah
+| No. | Pernyataan | Benar | Salah |
+| --- | --- | :---: | :---: |
+| 1 | Pernyataan pertama | ( ) | ( ) |
+| 2 | Pernyataan kedua | ( ) | ( ) |
+| 3 | Pernyataan ketiga | ( ) | ( ) |
 ~~~
 
-Pada mobile, Benar/Salah tetap sejajar jika cukup lebar atau menjadi segmented control lebar penuh. Belum dijawab tampil berbeda dari Salah.
+Setiap baris memiliki satu pasangan radio `Benar`/`Salah` yang saling eksklusif. Kolom radio dipusatkan, garis pemisah tabel halus, dan tidak ada umpan balik benar/salah saat ujian berlangsung. Pada mobile, tabel dapat digeser mendatar di dalam containernya agar empat kolom serta teks pernyataan tetap terbaca tanpa mengubah pilihan menjadi kontrol lain. Belum dijawab tampil berbeda dari `Salah`.
 
 ### 12.10 Question palette
 
