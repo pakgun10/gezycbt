@@ -1466,15 +1466,10 @@ Option:
 
 ### 12.9 TRUE_FALSE
 
-Tepat tiga statement ditampilkan dalam tiga lapisan yang terpisah: stimulus di bagian atas, daftar teks bernomor `(1)` sampai `(3)` di bawahnya, lalu tabel input jawaban. Daftar teks bukan bagian dari tabel; tabel mengulang setiap pernyataan agar peserta dapat memeriksa teks yang sama saat memilih jawaban.
+Tepat tiga statement ditampilkan satu kali di dalam tabel input jawaban. Bagian di atas tabel hanya berisi stimulus soal.
 
 ~~~text
 Stimulus soal
-
-Tentukan nilai kebenaran ketiga pernyataan berikut:
-(1) Pernyataan pertama
-(2) Pernyataan kedua
-(3) Pernyataan ketiga
 
 | No. | Pernyataan | Benar | Salah |
 | --- | --- | :---: | :---: |
