@@ -59,6 +59,7 @@ export class ExamSessionController {
   serverOffsetMs = 0;
   private flushPromise: Promise<void> | null = null;
   private channel: BroadcastChannel | null = null;
+  private readonly answerMutationQueues = new Map<string, Promise<void>>();
 
   constructor(options: ExamSessionControllerOptions) {
     this.api = options.api;
@@ -151,6 +152,28 @@ export class ExamSessionController {
   }
 
   async setAnswer(
+    sessionQuestionId: string,
+    response: AnswerResponse,
+  ): Promise<void> {
+    // A user can change an option again before the first IndexedDB write and
+    // autosave finish. Serialize mutations for that question so two writes
+    // never leave the server with the same baseVersion and create a false
+    // conflict on the same browser.
+    const previous =
+      this.answerMutationQueues.get(sessionQuestionId) ?? Promise.resolve();
+    const next = previous
+      .catch(() => undefined)
+      .then(() => this.applyAnswer(sessionQuestionId, response));
+    this.answerMutationQueues.set(sessionQuestionId, next);
+    try {
+      await next;
+    } finally {
+      if (this.answerMutationQueues.get(sessionQuestionId) === next)
+        this.answerMutationQueues.delete(sessionQuestionId);
+    }
+  }
+
+  private async applyAnswer(
     sessionQuestionId: string,
     response: AnswerResponse,
   ): Promise<void> {

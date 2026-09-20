@@ -186,6 +186,25 @@ describe("ExamSessionController", () => {
     controller.dispose();
   });
 
+  test("serializes rapid changes to the same question", async () => {
+    const storage = createMemoryOutbox();
+    const controller = new ExamSessionController({
+      api: fakeApi(),
+      storage,
+      online: () => true,
+    });
+    await controller.start(startData);
+    await Promise.all([
+      controller.setAnswer("901", { selectedOptionId: "10" }),
+      controller.setAnswer("901", { selectedOptionId: "11" }),
+    ]);
+    expect(await storage.listOutbox("900")).toHaveLength(1);
+    expect((await storage.listOutbox("900"))[0]?.response).toEqual({
+      selectedOptionId: "11",
+    });
+    controller.dispose();
+  });
+
   test("offers explicit server or local resolution for optimistic conflicts", async () => {
     const storage = createMemoryOutbox();
     const controller = new ExamSessionController({

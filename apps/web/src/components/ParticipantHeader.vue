@@ -4,6 +4,7 @@ import { useRouter } from "vue-router";
 import ThemeToggle from "./ThemeToggle.vue";
 import { HttpParticipantApi } from "../features/participant/api";
 import { useParticipantAuth } from "../features/participant/auth-store";
+import { participantOutbox } from "../features/exam/outbox";
 
 defineProps<{
   readonly title?: string | undefined;
@@ -25,6 +26,10 @@ async function logout(): Promise<void> {
     // server session will expire/revoke independently, while this prevents a
     // stale participant UI from remaining visible.
   } finally {
+    // Explicit account logout is the privacy boundary for browser-persisted
+    // exam data. Auth-expiry recovery does not call this path and therefore
+    // still keeps the outbox for the same participant to resume.
+    await participantOutbox.clearAll().catch(() => undefined);
     auth.clear();
     loggingOut.value = false;
     await router.replace("/participant/login");

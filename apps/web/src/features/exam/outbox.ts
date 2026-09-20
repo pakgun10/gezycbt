@@ -29,6 +29,7 @@ interface StorageAdapter {
   putOutbox(entry: OutboxEntry): Promise<void>;
   deleteOutbox(id: string): Promise<void>;
   clearOutbox(sessionId: string): Promise<void>;
+  clearAll(): Promise<void>;
 }
 
 const DB_NAME = "gezycbt-participant-runtime";
@@ -78,6 +79,15 @@ export const participantOutbox: StorageAdapter = {
           );
         })
       : memoryStorage.clearOutbox(sessionId),
+  clearAll: () =>
+    hasIndexedDb
+      ? withIndexedDb(async (db) => {
+          await Promise.all([
+            requestClear(db, "snapshots"),
+            requestClear(db, "outbox"),
+          ]);
+        })
+      : memoryStorage.clearAll(),
 };
 
 export function createMemoryOutbox(): StorageAdapter {
@@ -107,6 +117,10 @@ export function createMemoryOutbox(): StorageAdapter {
     async clearOutbox(sessionId) {
       for (const [id, entry] of outbox)
         if (entry.sessionId === sessionId) outbox.delete(id);
+    },
+    async clearAll() {
+      snapshots.clear();
+      outbox.clear();
     },
   };
 }
@@ -209,6 +223,18 @@ function requestDelete(
       .delete(key);
     request.onerror = () =>
       reject(request.error ?? new Error("IndexedDB delete failed"));
+    request.onsuccess = () => resolve();
+  });
+}
+
+function requestClear(db: IDBDatabase, store: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const request = db
+      .transaction(store, "readwrite")
+      .objectStore(store)
+      .clear();
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB clear failed"));
     request.onsuccess = () => resolve();
   });
 }
