@@ -1,8 +1,8 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia; ISS-176 siap sebagai product delta media soal
 **Versi dokumen:** 0.1  
-**Terakhir diperbarui:** 19 September 2026
+**Terakhir diperbarui:** 20 September 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
 **Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md)
 
@@ -182,6 +182,7 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-160` | `DONE` | Staging production-like dry run lulus untuk staff login, lifecycle jadwal MAIN/PRACTICE, kode/token, start, save, refresh/resume, submit, release hasil, dan cleanup. Evidence ada di [`staging-20260919-iss160-dry-run`](../reports/pilot/staging-20260919-iss160-dry-run/). |
 | `ISS-161` | `IN_REVIEW` | Synthetic rehearsal 30 peserta lulus 30/30 untuk login, start, autosave, resume, submit, result, dan reconciliation tanpa active session. Evidence ada di [`staging-20260919-iss161-synthetic-rehearsal`](../reports/pilot/staging-20260919-iss161-synthetic-rehearsal/). Pilot nyata dengan variasi perangkat/browser/jaringan dan catatan support masih wajib. |
 | `ISS-162` | `IN_REVIEW` | Recovery rehearsal lulus untuk restart API saat session aktif dan timeout deadline; jawaban committed tetap dapat di-resume, service readiness pulih, dan session timeout difinalisasi sebagai `DEADLINE`. Evidence ada di [`staging-20260919-iss162-recovery-rehearsal`](../reports/pilot/staging-20260919-iss162-recovery-rehearsal/). Isolated restore drill dan simulasi jaringan sekolah masih wajib. |
+| `ISS-176` | `READY` | Product delta: stimulus opsional; teks panjang dan gambar untuk stimulus, setiap opsi, serta setiap pernyataan TRUE_FALSE. Perlu migration relasi media target-aware, API/presenter participant, editor guru, renderer responsif, import CSV text-only, serta test immutability/leakage/target binding. |
 
 Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
 
@@ -610,7 +611,17 @@ Agent A–E dapat dirilis terpisah. `ISS-130` tidak memblokir penggunaan agent u
 
 ---
 
-## 21. Backlog setelah baseline
+## 21. Product delta siap dikerjakan
+
+| ID | P | Size | Issue | Dependency | Acceptance ringkas |
+|---|---:|---:|---|---|---|
+| ISS-176 | P1 | L | Implement stimulus opsional dan media target-aware pada konten soal | ISS-046–ISS-049, ISS-084, ISS-102 | Draft/publish mengizinkan stimulus kosong; teks panjang dan gambar dapat melekat tepat pada stimulus/opsi/pernyataan; media selalu muncul di target yang benar pada manifest peserta; CSV tetap text-only; published revision tetap immutable; mobile, accessibility, leakage, dan migration tests lulus. |
+
+`ISS-176` wajib dipecah menjadi migration/contract, service/API, editor/renderer, dan test sebelum coding karena menyentuh persistence serta participant manifest. Ia harus selesai sebelum pilot nyata jika sekolah akan memakai gambar pada soal.
+
+---
+
+## 22. Backlog setelah baseline
 
 Item berikut tidak dibuat sebagai issue implementation sebelum ada kebutuhan dan keputusan produk:
 
@@ -633,7 +644,7 @@ Jika salah satu dipromosikan, buat PRD delta dan ADR/migration analysis sebelum 
 
 ---
 
-## 22. Urutan issue yang sudah dijalankan dan langkah berikutnya
+## 23. Urutan issue yang sudah dijalankan dan langkah berikutnya
 
 Issue sampai `ISS-092` telah dikerjakan berurutan sesuai dependency, termasuk
 runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`. Entry
@@ -654,7 +665,7 @@ test, dan hardening host nyata tetap harus lulus sebelum pilot/production.
 
 ---
 
-## 23. Aturan perubahan backlog
+## 24. Aturan perubahan backlog
 
 - ID issue tidak digunakan ulang setelah diterbitkan.
 - Issue baru ditempatkan pada rentang fase terkait.

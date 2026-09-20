@@ -1016,11 +1016,13 @@ Editor type:
 - delete option membutuhkan minimal count tetap terpenuhi;
 - validation summary link menuju field bermasalah.
 
+Stimulus selalu diberi label **Stimulus (opsional)**. Stimulus dapat berupa teks panjang, gambar, atau gabungannya; editor tidak meminta guru mengisi teks hanya karena sebuah gambar sudah menjadi konteks soal. Setiap opsi `SINGLE_CHOICE`/`MULTIPLE_RESPONSE` dan setiap pernyataan `TRUE_FALSE` mempunyai area teks panjang serta action **Tambah gambar** sendiri. Thumbnail tampil tepat di bawah targetnya, sehingga guru dapat melihat gambar yang melekat pada opsi/pernyataan tertentu sebelum publish.
+
 #### Import soal CSV
 
-Di halaman Bank Soal, tombol **Import soal** membuka panel dengan bank tujuan, pemilih file CSV, tombol **Unduh template CSV**, dan action **Preview import**. File tidak langsung menambah soal. Preview menampilkan total, valid, error, serta tabel baris dengan nomor sumber, tipe, ringkasan stimulus, status, dan detail error per field.
+Di halaman Bank Soal, tombol **Import soal** membuka panel dengan bank tujuan, pemilih file CSV, tombol **Unduh template CSV**, dan action **Preview import**. File tidak langsung menambah soal. Preview menampilkan total, valid, error, serta tabel baris dengan nomor sumber, tipe, ringkasan stimulus atau pertanyaan, status, dan detail error per field.
 
-Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyebut jumlah soal dan bank tujuan; hasilnya selalu draft sehingga guru tetap dapat membuka, meninjau, memvalidasi, lalu publish secara terpisah. File maksimum 1 MiB/300 soal. Mengganti file atau bank tujuan membatalkan preview lama; commit menolak file yang berubah setelah preview. Template menjelaskan bahwa kolom opsi dipakai untuk `SINGLE_CHOICE`/`MULTIPLE_RESPONSE`, sedangkan tiga kolom pernyataan dipakai untuk `TRUE_FALSE`.
+Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyebut jumlah soal dan bank tujuan; hasilnya selalu draft sehingga guru tetap dapat membuka, meninjau, memvalidasi, lalu publish secara terpisah. File maksimum 1 MiB/300 soal. Mengganti file atau bank tujuan membatalkan preview lama; commit menolak file yang berubah setelah preview. Kolom stimulus boleh kosong. Template menjelaskan bahwa kolom opsi dipakai untuk `SINGLE_CHOICE`/`MULTIPLE_RESPONSE`, sedangkan tiga kolom pernyataan dipakai untuk `TRUE_FALSE`. CSV membawa teks saja; gambar ditempelkan melalui editor draft setelah import.
 
 #### Media upload dan preview
 
@@ -1034,7 +1036,7 @@ Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyeb
 - cancel sebelum upload selesai membatalkan request bila memungkinkan dan membersihkan preview lokal;
 - media baru belum dianggap tersimpan ke revision sampai relasi draft mendapat acknowledgment server.
 
-Media yang telah direferensikan published revision tidak dapat dihapus atau diganti pada revision tersebut. Pada draft baru, guru dapat melepas media dari draft atau memilih asset pengganti; tindakan itu tidak mengubah revision published. Jika asset masih direferensikan di tempat lain, UI menampilkan “Masih digunakan” dan tidak menawarkan penghapusan fisik. Penghapusan asset orphan dilakukan sistem sesuai retention.
+Media dipilih dari targetnya: stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. UI tidak menawarkan pilihan target global yang dapat salah mengaitkan gambar dengan opsi/pernyataan lain. Media yang telah direferensikan published revision tidak dapat dihapus atau diganti pada revision tersebut. Pada draft baru, guru dapat melepas media dari draft atau memilih asset pengganti; tindakan itu tidak mengubah revision published. Jika asset masih direferensikan di tempat lain, UI menampilkan “Masih digunakan” dan tidak menawarkan penghapusan fisik. Penghapusan asset orphan dilakukan sistem sesuai retention.
 
 ### 10.4 Editor ujian
 
@@ -1455,6 +1457,9 @@ Option:
 - focus ring jelas;
 - disabled tetap terbaca;
 - label A/B/C bukan satu-satunya accessible name.
+- teks opsi boleh panjang dan mempertahankan paragraf/list yang aman;
+- gambar opsi ditampilkan di dalam card setelah teks, `max-width: 100%`, `object-fit: contain`, dan dapat dibuka ke viewer tanpa mengubah jawaban;
+- alt text gambar menjadi bagian dari accessible name card bila gambar informatif; gambar dekoratif tidak menambah announcement.
 
 ### 12.7 SINGLE_CHOICE
 
@@ -1486,7 +1491,7 @@ Stimulus soal
 | 3 | Pernyataan ketiga | ( ) | ( ) |
 ~~~
 
-Setiap baris memiliki satu pasangan radio `Benar`/`Salah` yang saling eksklusif. Kolom radio dipusatkan, garis pemisah tabel halus, dan tidak ada umpan balik benar/salah saat ujian berlangsung. Pada mobile, tabel dapat digeser mendatar di dalam containernya agar empat kolom serta teks pernyataan tetap terbaca tanpa mengubah pilihan menjadi kontrol lain. Belum dijawab tampil berbeda dari `Salah`.
+Setiap baris memiliki satu pasangan radio `Benar`/`Salah` yang saling eksklusif. Teks pernyataan boleh panjang; gambar pernyataan, bila ada, tampil di dalam sel Pernyataan setelah teks dengan ukuran responsif. Kolom radio dipusatkan, garis pemisah tabel halus, dan tidak ada umpan balik benar/salah saat ujian berlangsung. Pada mobile, tabel dapat digeser mendatar di dalam containernya agar empat kolom serta teks/gambar pernyataan tetap terbaca tanpa mengubah pilihan menjadi kontrol lain. Belum dijawab tampil berbeda dari `Salah`.
 
 ### 12.10 Question palette
 

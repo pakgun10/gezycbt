@@ -428,14 +428,16 @@ Setiap requirement memiliki prioritas:
 | FR-QB-007 | Must | Validator menghasilkan readiness issues dengan severity, code, field path, message, dan target. |
 | FR-QB-008 | Must | Error memblokir publish; warning memerlukan review tetapi tidak memblokir secara default. |
 | FR-QB-009 | Must | Participant payload tidak pernah memuat answer key atau explanation. |
+| FR-QB-010 | Must | Stimulus opsional pada seluruh tipe soal; bila dipakai dapat memuat teks panjang, gambar, atau keduanya. |
+| FR-QB-011 | Must | Setiap opsi pilihan dan pernyataan Benar/Salah dapat memuat teks panjang serta gambar yang terikat tepat pada item tersebut. |
 
 ### 9.5 Tipe soal dan scoring
 
 | Tipe | Struktur wajib | Jawaban peserta | Kondisi benar |
 |---|---|---|---|
-| `SINGLE_CHOICE` | Stimulus, pertanyaan, 2–10 opsi | Tepat satu option ID | Pilihan sama dengan satu-satunya key |
-| `MULTIPLE_RESPONSE` | Stimulus, pertanyaan, 2–10 opsi | Satu atau lebih option ID unik | Himpunan pilihan sama persis dengan seluruh key |
-| `TRUE_FALSE` | Stimulus dan tepat 3 pernyataan | Boolean untuk setiap pernyataan | Ketiga nilai tepat |
+| `SINGLE_CHOICE` | Stimulus opsional, pertanyaan, 2–10 opsi | Tepat satu option ID | Pilihan sama dengan satu-satunya key |
+| `MULTIPLE_RESPONSE` | Stimulus opsional, pertanyaan, 2–10 opsi | Satu atau lebih option ID unik | Himpunan pilihan sama persis dengan seluruh key |
+| `TRUE_FALSE` | Stimulus opsional dan tepat 3 pernyataan | Boolean untuk setiap pernyataan | Ketiga nilai tepat |
 
 Aturan produk:
 
@@ -456,6 +458,8 @@ Aturan produk:
 | FR-MED-004 | Must | Asset yang direferensikan revision published tidak dapat dihapus. |
 | FR-MED-005 | Must | UI menampilkan preview, progress, retry, serta error type/size/dimension/network. |
 | FR-MED-006 | Must | Media tidak disimpan sebagai base64 di payload soal. |
+| FR-MED-007 | Must | Gambar dapat ditempelkan pada stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan tertentu; participant payload mempertahankan hubungan target tersebut. |
+| FR-MED-008 | Must | Import CSV membawa teks saja. Gambar tidak menerima URL eksternal dan ditempelkan ke draft melalui editor sesudah import. |
 
 ### 9.7 Exam authoring
 
@@ -1144,6 +1148,7 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - import idempotency;
 - result release/unrelease;
 - media reference protection;
+- media stimulus/opsi/pernyataan tetap terkait target yang tepat pada revision immutable;
 - auth/session expiry/revoke;
 - agent credential/grant/approval/export.
 
@@ -1165,6 +1170,7 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - offline, refresh, multi-tab, auth expiry, timeout;
 - extension, end session, close schedule, reset attempt;
 - light/dark/system;
+- stimulus kosong, stimulus teks panjang, serta gambar pada stimulus/opsi/pernyataan;
 - mobile/tablet/desktop;
 - keyboard dan screen-reader smoke test.
 

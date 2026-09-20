@@ -637,22 +637,22 @@ Jenis soal versi awal dibatasi tepat pada tiga tipe berikut:
 
 | Tipe | Struktur | Jawaban peserta | Aturan benar |
 |---|---|---|---|
-| `SINGLE_CHOICE` | Stimulus, pertanyaan, dan beberapa opsi | Tepat satu opsi | Opsi yang dipilih harus sama dengan satu-satunya answer key |
-| `MULTIPLE_RESPONSE` | Stimulus, pertanyaan, dan beberapa opsi | Satu atau lebih opsi | Himpunan opsi yang dipilih harus sama persis dengan himpunan answer key |
-| `TRUE_FALSE` | Stimulus dan tepat tiga pernyataan | Nilai Benar/Salah untuk setiap pernyataan | Ketiga nilai harus sama dengan answer key |
+| `SINGLE_CHOICE` | Stimulus opsional, pertanyaan, dan beberapa opsi | Tepat satu opsi | Opsi yang dipilih harus sama dengan satu-satunya answer key |
+| `MULTIPLE_RESPONSE` | Stimulus opsional, pertanyaan, dan beberapa opsi | Satu atau lebih opsi | Himpunan opsi yang dipilih harus sama persis dengan himpunan answer key |
+| `TRUE_FALSE` | Stimulus opsional dan tepat tiga pernyataan | Nilai Benar/Salah untuk setiap pernyataan | Ketiga nilai harus sama dengan answer key |
 
 Ketiga tipe memakai **exact-match scoring** dan tidak memberikan partial score. Jawaban kosong, `MULTIPLE_RESPONSE` tanpa pilihan, atau `TRUE_FALSE` yang belum menjawab ketiga pernyataan mendapat skor nol.
 
 Aturan validasi ketika menyimpan draft dan publish:
 
-- ketiga tipe memiliki stimulus; stimulus dapat memadukan teks dan media;
+- stimulus bersifat opsional pada ketiga tipe; bila dipakai, stimulus dapat memadukan teks panjang dan gambar;
 - `SINGLE_CHOICE` dan `MULTIPLE_RESPONSE` memiliki pertanyaan setelah stimulus;
 - `SINGLE_CHOICE` memiliki beberapa opsi dan tepat satu opsi benar;
 - `MULTIPLE_RESPONSE` memiliki beberapa opsi dan minimal satu opsi benar;
 - `TRUE_FALSE` memiliki tepat tiga pernyataan dengan posisi unik 1, 2, dan 3;
 - setiap pernyataan `TRUE_FALSE` memiliki satu answer key boolean;
 - ID opsi atau pernyataan yang diterima dari peserta harus berasal dari question revision pada session tersebut;
-- stimulus boleh memuat teks dan media sesuai kebijakan upload;
+- stimulus, opsi, dan pernyataan menerima teks panjang sesuai batas field serta gambar sesuai kebijakan upload; gambar tidak menggantikan teks answer key;
 - kunci jawaban dan penjelasan tidak dikirim dalam payload pengerjaan.
 
 Representasi response dalam kontrak API menggunakan discriminated union berdasarkan tipe soal:
@@ -674,11 +674,11 @@ Validator draft/publish mengembalikan readiness report terstruktur, bukan hanya 
 
 #### Import soal CSV
 
-Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format awal hanya CSV berbasis template, dengan `type`, `stimulus`, `prompt`, `explanation`, kolom `option_1`–`option_10` beserta `*_correct`, dan kolom `statement_1`–`statement_3` beserta `*_correct`. Nilai kunci menerima `BENAR`/`SALAH`, `TRUE`/`FALSE`, atau `1`/`0`.
+Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format awal hanya CSV berbasis template, dengan `type`, `stimulus` opsional, `prompt`, `explanation`, kolom `option_1`–`option_10` beserta `*_correct`, dan kolom `statement_1`–`statement_3` beserta `*_correct`. Nilai kunci menerima `BENAR`/`SALAH`, `TRUE`/`FALSE`, atau `1`/`0`.
 
 Server membatasi file menjadi 1 MiB dan 300 soal. Preview memvalidasi tipe, struktur opsi/pernyataan, kunci, duplicate content dalam file, dan readiness error yang juga memblokir publish. Commit menerima ulang file serta `sourceHash`, memvalidasi ulang seluruh baris, lalu membuat semua revision sebagai `DRAFT` dalam satu transaction. Satu error memblokir seluruh commit; import tidak menerbitkan soal otomatis, tidak menyalin media, dan tidak menyimpan file atau preview ke MariaDB.
 
-Media ditempelkan pada question revision melalui relasi yang memuat `usage`, `alt_text`, dan penanda dekoratif. Gambar informatif wajib mempunyai alt text; gambar dekoratif harus dipilih secara eksplisit dan memakai alt kosong. Asset yang direferensikan revision published bersifat immutable dan tidak dapat dihapus. Editor draft hanya boleh melepas relasinya sendiri atau mengganti dengan asset lain; penghapusan fisik dilakukan housekeeping setelah terbukti orphan sesuai retention.
+Media dapat ditempelkan ke stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan `TRUE_FALSE` tertentu. Gambar informatif wajib mempunyai alt text; gambar dekoratif harus dipilih secara eksplisit dan memakai alt kosong. Gambar milik opsi/pernyataan memakai relasi child khusus agar selalu dapat ditautkan ke opsi/pernyataan yang tepat, bukan hanya ke revision secara umum. Asset yang direferensikan revision published bersifat immutable dan tidak dapat dihapus. Editor draft hanya boleh melepas relasinya sendiri atau mengganti dengan asset lain; penghapusan fisik dilakukan housekeeping setelah terbukti orphan sesuai retention. CSV tidak membawa file gambar atau URL eksternal: guru menempelkan gambar setelah draft hasil import dibuat.
 
 ### C.6 Exams
 
@@ -1310,6 +1310,8 @@ Diagram menunjukkan relasi inti. Nullable participant pada practice session dan 
 - `true_false_statements`
 - `media_assets`
 - `question_revision_media`
+- `question_option_media`
+- `true_false_statement_media`
 
 #### Definisi ujian
 
@@ -1511,11 +1513,11 @@ Publish validator memastikan tepat satu `is_correct=true` untuk `SINGLE_CHOICE`,
 
 Database `CHECK` membatasi posisi, sedangkan publish transaction memverifikasi jumlah row tepat tiga.
 
-#### `media_assets` dan `question_revision_media`
+#### `media_assets` dan relasi media soal
 
 `media_assets` minimal memuat `id`, `storage_key`, `original_name`, `mime_type`, `byte_size`, `sha256`, `width`, `height`, `status`, `created_by`, dan timestamps. `storage_key` adalah nama acak dan tidak berasal dari filename pengguna.
 
-`question_revision_media` menghubungkan revision dan asset dengan `usage`, `alt_text`, `is_decorative`, serta unique `(question_revision_id, media_asset_id)`. `alt_text` wajib dan tidak kosong untuk media informatif; media dekoratif memakai `is_decorative=true` serta alt kosong. Asset yang masih direferensikan revision published tidak boleh dihapus. Baseline menerima JPEG, PNG, dan WebP; SVG/HTML ditolak.
+`question_revision_media` menghubungkan asset dengan area level revision (`STIMULUS`, `PROMPT`, atau `EXPLANATION`) melalui `usage`, `alt_text`, dan `is_decorative`. `question_option_media` menghubungkan asset dengan satu `question_option`; `true_false_statement_media` menghubungkan asset dengan satu `true_false_statement`. Kedua tabel child memakai metadata alt/dekoratif yang sama. Relasi child ini mencegah gambar opsi/pernyataan tertukar ketika peserta mengerjakan ujian. `alt_text` wajib dan tidak kosong untuk media informatif; media dekoratif memakai `is_decorative=true` serta alt kosong. Asset yang masih direferensikan revision published tidak boleh dihapus. Baseline menerima JPEG, PNG, dan WebP; SVG/HTML ditolak.
 
 ### D.1.4 Exam definition dan schedule
 
@@ -1774,6 +1776,8 @@ Application service tetap memeriksa lifecycle sebelum delete. Foreign key adalah
 | `true_false_statements` | `UNIQUE(question_revision_id, position)` dengan posisi dibatasi 1–3 |
 | `media_assets` | `UNIQUE(storage_key)`, `(sha256)`, `(status, created_at)` |
 | `question_revision_media` | `UNIQUE(question_revision_id, media_asset_id)` |
+| `question_option_media` | `UNIQUE(question_option_id, media_asset_id)` |
+| `true_false_statement_media` | `UNIQUE(true_false_statement_id, media_asset_id)` |
 | `exam_revisions` | `UNIQUE(exam_id, revision_no)` |
 | `exam_questions` | `UNIQUE(exam_revision_id, position)`, `UNIQUE(exam_revision_id, question_revision_id)` |
 | `exam_schedules` | `(status, starts_at)`, `(exam_revision_id, starts_at)`, `UNIQUE(practice_token_hash)`, `UNIQUE(main_access_code_hash)` untuk nilai non-null |
