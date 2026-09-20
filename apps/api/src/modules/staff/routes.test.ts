@@ -283,6 +283,42 @@ test("teacher list queries include the authenticated owner scope", async () => {
   expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
 });
 
+test("question bank and question lists isolate teacher-owned banks", async () => {
+  const teacher = appFor("TEACHER");
+  const cookie = { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` };
+  expect(
+    (
+      await teacher.app.handle(
+        new Request("https://cbt.example.test/api/v1/teacher/question-banks", {
+          headers: cookie,
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(
+    (
+      await teacher.app.handle(
+        new Request("https://cbt.example.test/api/v1/teacher/questions", {
+          headers: cookie,
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(teacher.queries.filter((parameters) => parameters.includes("2"))).toHaveLength(2);
+
+  const admin = appFor("ADMIN");
+  expect(
+    (
+      await admin.app.handle(
+        new Request("https://cbt.example.test/api/v1/teacher/question-banks", {
+          headers: cookie,
+        }),
+      )
+    ).status,
+  ).toBe(200);
+  expect(admin.queries.some((parameters) => parameters.includes("1"))).toBe(false);
+});
+
 test("teacher subject options include only the authenticated teacher scope", async () => {
   const { app, queries } = appFor("TEACHER");
   const response = await app.handle(

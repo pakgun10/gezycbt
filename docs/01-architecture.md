@@ -612,12 +612,18 @@ Teacher scope tidak memberi guru hak mengubah akun peserta. Scope hanya menentuk
 
 Question bank:
 
-- dimiliki oleh guru;
+- dimiliki oleh satu staff owner (guru atau admin);
 - terkait dengan subject;
-- dapat dibagikan kepada guru tertentu jika kebutuhan tersebut muncul;
+- belum mendukung berbagi atau transfer antar-guru pada baseline; fitur transfer
+  akan menjadi operasi eksplisit dan diaudit pada fase lanjutan;
 - memiliki status aktif atau archived.
 
-Admin dapat mengakses seluruh bank soal. Guru hanya dapat mengakses bank milik sendiri atau yang diberikan kepadanya.
+Admin dapat mengakses, mengedit, dan mengarsipkan seluruh bank soal. Guru hanya
+dapat melihat dan mengelola bank yang owner-nya adalah dirinya sendiri serta
+subject-nya masih berada dalam scope guru tersebut. Bank yang dibuat admin
+memiliki admin sebagai owner dan tidak tampil untuk guru. Tidak ada sharing
+implisit; transfer bank antar-guru harus melalui fitur transfer eksplisit yang
+akan ditambahkan kemudian.
 
 Question bank tidak dihapus bila sudah memiliki published revision. Archive hanya mencegah pemakaian baru; exam revision lama tetap valid.
 

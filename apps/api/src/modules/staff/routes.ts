@@ -616,9 +616,9 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const scoped =
         actor.user.role === "ADMIN"
           ? "1 = 1"
-          : "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = qb.subject_id)";
+          : "qb.owner_teacher_id = ? AND EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = qb.subject_id)";
       const params: unknown[] =
-        actor.user.role === "ADMIN" ? [] : [actor.user.id];
+        actor.user.role === "ADMIN" ? [] : [actor.user.id, actor.user.id];
       if (search) {
         params.push(`%${search.slice(0, 100)}%`);
       }
@@ -1164,11 +1164,11 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const scoped =
         actor.user.role === "ADMIN"
           ? "1 = 1"
-          : "EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = qb.subject_id)";
+          : "qb.owner_teacher_id = ? AND EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = qb.subject_id)";
       const rows = await options.database.query<Record<string, unknown>>(
         `SELECT qr.id, qr.question_id, qb.id AS bank_id, qb.name AS bank_name, qb.subject_id, qr.type, qr.status, LEFT(qr.stimulus_html, 180) AS label, qr.updated_at FROM question_revisions qr JOIN questions q ON q.id = qr.question_id JOIN question_banks qb ON qb.id = q.question_bank_id WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?) ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
         [
-          ...(actor.user.role === "ADMIN" ? [] : [actor.user.id]),
+          ...(actor.user.role === "ADMIN" ? [] : [actor.user.id, actor.user.id]),
           search,
           `%${search}%`,
           `%${search}%`,

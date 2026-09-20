@@ -338,7 +338,7 @@ Perubahan keputusan ini memerlukan pembaruan PRD, analisis dampak schema/API/UI/
 | Pengguna | Ya | Tidak | Tidak |
 | Akademik | Ya | Sesuai scope terbatas | Tidak |
 | Guru & Scope | Ya | Tidak | Tidak |
-| Bank Soal | Semua | Milik/diberikan | Tidak |
+| Bank Soal | Semua | Milik sendiri | Tidak |
 | Ujian/Jadwal | Semua | Yang dikelola | Tidak |
 | Monitoring | Semua | Yang dikelola | Tidak |
 | Hasil & Export | Semua | Yang dikelola | Hasil sendiri yang dirilis |
