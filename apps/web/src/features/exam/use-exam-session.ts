@@ -41,7 +41,10 @@ export function useExamSession(
   function sync(): void {
     session.value = controller.session;
     manifest.value = controller.manifest;
-    answers.value = controller.answers;
+    // ExamSessionController mutates its internal Map in place. Expose a new
+    // reference on every sync so Vue recomputes answered counts and response
+    // bindings after a local answer or server acknowledgement.
+    answers.value = new Map(controller.answers);
     state.value = controller.state;
     remainingSeconds.value = controller.remainingSeconds;
     conflicts.value = controller.conflicts;
