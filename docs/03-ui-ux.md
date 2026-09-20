@@ -1566,7 +1566,7 @@ Pending outbox baru dihapus setelah server mengembalikan final outcome. Bila res
 |---|---|---|
 | Network timeout/terputus | “Koneksi terputus. Jawaban yang belum terkirim tetap aman di perangkat; waktu ujian tetap berjalan.” | Cek state session; retry otomatis terbatas dan tombol **Coba Lagi** memakai key/payload sama jika masih active |
 | 503/service busy | “Server sedang sibuk. Mencoba lagi…” + countdown | Ikuti `Retry-After` atau exponential backoff; sediakan **Coba Lagi** |
-| 409 answer conflict | “Jawaban berubah di perangkat lain.” | Tampilkan state authoritative dan pending local, minta peserta menyelesaikan pilihan, lalu submit ulang dengan version terkini dan idempotency key baru sebelum deadline |
+| 409 answer conflict | “Versi jawaban di browser berbeda dengan yang tersimpan di server.” (biasanya karena tab/perangkat lain) | Tampilkan state authoritative dan pending local, minta peserta menyelesaikan pilihan, lalu submit ulang dengan version terkini dan idempotency key baru sebelum deadline |
 | 401 auth expired | “Sesi login berakhir. Masuk ulang untuk melanjutkan.” | Pertahankan outbox, login ulang, resume session yang sama, lalu lanjutkan |
 | `SESSION_ENDED` | Petakan `finalizationReason` aman menjadi “Sesi diakhiri petugas”, “Jadwal telah ditutup”, atau “Attempt telah direset” | Hentikan pengiriman outbox, ambil final state, lalu arahkan ke konfirmasi/hasil sesuai release policy |
 | Session sudah final | Confirmation final | Jangan retry; arahkan ke halaman hasil/status |
