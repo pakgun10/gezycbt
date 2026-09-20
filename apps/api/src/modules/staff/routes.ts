@@ -649,6 +649,12 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const payload = objectPayload(body);
       const subjectId = idValue(payload.subjectId, "subjectId");
       const name = stringField(payload.name, "name").trim();
+      if (options.authorization) {
+        await options.authorization.assertTeacherScope(staffContext.actor, {
+          ownerTeacherId: staffContext.actor.userId as Id,
+          subjectId,
+        });
+      }
       if (name.length > 200)
         throw new AppError(
           422,
