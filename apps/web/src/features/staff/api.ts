@@ -78,6 +78,9 @@ export interface StaffApi {
     previewId: string,
     commitToken: string,
   ): Promise<{ createdUserCount: number; artifactId: string }>;
+  downloadImportCredentials(
+    artifactId: string,
+  ): Promise<{ content: string; filename: string }>;
   reauth(password: string): Promise<{ verified: boolean; expiresAt: string }>;
   createUser(input: {
     username: string;
@@ -375,6 +378,26 @@ export class HttpStaffApi implements StaffApi {
       "POST",
       { previewId, commitToken },
     );
+  }
+  async downloadImportCredentials(
+    artifactId: string,
+  ): Promise<{ content: string; filename: string }> {
+    const response = await this.client.download(
+      `/api/v1/admin/users/import-previews/${encodeURIComponent(artifactId)}/credentials/download`,
+      {
+        method: "POST",
+        headers: mutationHeaders(
+          crypto.randomUUID(),
+          useStaffAuth().csrfToken.value,
+        ),
+        body: {},
+      },
+    );
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const filename =
+      /filename="([^"]+)"/u.exec(disposition)?.[1] ??
+      `gezycbt-credentials-${artifactId}.csv`;
+    return { content: await response.text(), filename };
   }
   reauth(password: string) {
     return this.mutate<{ verified: boolean; expiresAt: string }>(

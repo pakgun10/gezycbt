@@ -1,10 +1,15 @@
 import { expect, test } from "bun:test";
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import { Elysia } from "elysia";
+import type { UseCaseContext } from "../../application/actor-context";
 import { AppError } from "../../http/app-error";
 import type { AuthSession } from "../auth/session";
 import { ScheduleNotReadyError } from "../schedules/domain";
-import { createStaffRoutes, type StaffRouteOptions } from "./routes";
+import {
+  createStaffRoutes,
+  markStaffReauthenticated,
+  type StaffRouteOptions,
+} from "./routes";
 
 const NOW = "2026-09-17T00:00:00.000Z" as UtcTimestamp;
 
@@ -43,6 +48,7 @@ function appFor(
   currentRole: "ADMIN" | "TEACHER",
   rowsForQuery?: (sql: string) => readonly Record<string, unknown>[],
   schedules?: StaffRouteOptions["schedules"],
+  userImports?: StaffRouteOptions["userImports"],
 ) {
   const current = user(currentRole);
   const queries: unknown[][] = [];
@@ -98,6 +104,7 @@ function appFor(
       },
     } as unknown as StaffRouteOptions["academics"],
     ...(schedules ? { schedules } : {}),
+    ...(userImports ? { userImports } : {}),
     expectedOrigin: "https://cbt.example.test",
   };
   const app = new Elysia()
@@ -303,6 +310,48 @@ test("admin user list returns bounded numbered pages with a total", async () => 
     },
   });
   expect(queries).toEqual([[], [25, 75]]);
+});
+
+test("admin credential import download streams the one-time CSV after re-auth", async () => {
+  markStaffReauthenticated("1" as Id);
+  const calls: unknown[][] = [];
+  const { app } = appFor("ADMIN", undefined, undefined, {
+    preview: {} as never,
+    commit: {
+      async download(context: UseCaseContext, artifactId: Id) {
+        calls.push([context.actor.userId, artifactId]);
+        return {
+          filename: "gezycbt-credentials-70.csv",
+          content: "username,display_name,temporary_password\nani,Ani,secret\n",
+          expiresAt: NOW,
+        };
+      },
+    } as never,
+  });
+  const response = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/admin/users/import-previews/70/credentials/download",
+      {
+        method: "POST",
+        headers: {
+          cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+          origin: "https://cbt.example.test",
+          "content-type": "application/json",
+          "x-csrf-token": "test-token",
+          "idempotency-key": "credential-download-test-0001",
+        },
+        body: "{}",
+      },
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toContain("text/csv");
+  expect(response.headers.get("content-disposition")).toContain(
+    "gezycbt-credentials-70.csv",
+  );
+  expect(await response.text()).toContain("temporary_password");
+  expect(calls).toEqual([["1", "70"]]);
 });
 
 test("teacher list queries include the authenticated owner scope", async () => {

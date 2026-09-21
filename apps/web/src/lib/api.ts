@@ -67,6 +67,40 @@ export class ApiClient {
     }
     return payload as T;
   }
+
+  async download(
+    path: string,
+    options: ApiRequestOptions = {},
+  ): Promise<Response> {
+    const headers = new Headers(options.headers);
+    if (options.body !== undefined && !headers.has("content-type"))
+      headers.set("content-type", "application/json");
+    const { body, ...requestInit } = options;
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...requestInit,
+      headers,
+      credentials: "include",
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    if (!response.ok) {
+      const payload = await readPayload(response);
+      const error = isApiErrorPayload(payload)
+        ? payload.error
+        : {
+            code: "INTERNAL_ERROR",
+            message: "Permintaan tidak dapat diproses.",
+            details: {},
+          };
+      throw new ApiClientError(
+        response.status,
+        error.code,
+        error.message,
+        error.details ?? {},
+        error.requestId,
+      );
+    }
+    return response;
+  }
 }
 
 export function mutationHeaders(

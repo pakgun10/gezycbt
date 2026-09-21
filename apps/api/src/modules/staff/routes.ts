@@ -41,6 +41,10 @@ import {
 } from "../schedules/domain";
 import type { ScheduleService } from "../schedules/service";
 import type { UserImportCommitService } from "../user-imports/commit-service";
+import {
+  CredentialArtifactExpiredError,
+  CredentialArtifactNotFoundError,
+} from "../user-imports/domain";
 import type { UserImportPreviewService } from "../user-imports/service";
 import type { StoredUser, UserRole } from "../users";
 
@@ -350,6 +354,41 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         commitToken: stringField(payload.commitToken, "commitToken"),
       });
     }),
+  );
+  app.post(
+    "/api/v1/admin/users/import-previews/:id/credentials/download",
+    async ({ request, params, set }) => {
+      try {
+        const actor = await requireStaff(request, options, "ADMIN");
+        await requireCsrf(request, actor.session, options);
+        if (!options.userImports?.commit)
+          throw serviceUnavailable("Import commit service");
+        if (!isStaffReauthenticated(actor.user.id as Id))
+          throw new AppError(
+            401,
+            "REAUTH_REQUIRED",
+            "Masuk ulang diperlukan sebelum mengunduh credential.",
+          );
+        const idempotencyKey = request.headers.get("idempotency-key");
+        if (!idempotencyKey)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Idempotency-Key wajib diisi.",
+          );
+        const result = await options.userImports.commit.download(
+          actorContext(request, actor, idempotencyKey),
+          idParam(params),
+        );
+        set.headers["content-type"] = "text/csv; charset=utf-8";
+        set.headers["content-disposition"] = `attachment; filename="${result.filename}"`;
+        set.headers["cache-control"] = "no-store";
+        set.headers["x-content-type-options"] = "nosniff";
+        return result.content;
+      } catch (error) {
+        throw mapStaffError(error);
+      }
+    },
   );
   app.post("/api/v1/admin/users/reauth", async ({ request, body }) => {
     try {
@@ -2652,6 +2691,14 @@ function mapStaffError(error: unknown): Error {
     );
   if (error instanceof ExportValidationError)
     return new AppError(422, "VALIDATION_FAILED", error.message);
+  if (error instanceof CredentialArtifactNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Credential import tidak ditemukan.");
+  if (error instanceof CredentialArtifactExpiredError)
+    return new AppError(
+      409,
+      "CREDENTIAL_EXPIRED",
+      "Credential sudah diunduh atau masa berlakunya habis.",
+    );
   if (error instanceof QuestionImportValidationError)
     return new AppError(422, "VALIDATION_FAILED", error.message);
   if (error instanceof DiskProtectionError)
