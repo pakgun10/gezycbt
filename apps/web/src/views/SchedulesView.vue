@@ -76,6 +76,38 @@ const emptyCopy = computed(() =>
     ? "Jadwal yang diarsipkan akan tampil di sini."
     : "Jadwal dibuat dari exam revision yang sudah dipublish.",
 );
+const readinessReasonLabels: Record<string, string> = {
+  EXAM_REVISION_NOT_PUBLISHED: "publish revision ujian terlebih dahulu",
+  EXAM_NOT_PUBLISHED: "publish ujian terlebih dahulu",
+  INVALID_WINDOW: "periksa window mulai dan selesai",
+  DURATION_EXCEEDS_WINDOW: "perpanjang window agar cukup untuk durasi ujian",
+  HARD_END_REQUIRED: "aktifkan batas akhir server",
+  MAIN_ATTEMPT_MUST_BE_ONE: "atur percobaan ujian utama menjadi satu",
+  MAIN_RELEASE_POLICY_INVALID: "gunakan kebijakan rilis manual untuk ujian utama",
+  MAIN_TARGET_REQUIRED: "pilih minimal satu kelas atau peserta",
+  MAIN_ACCESS_CODE_REQUIRED: "buat kode tambahan ujian utama",
+  MAIN_PRACTICE_FIELDS_FORBIDDEN: "hapus token atau field identitas latihan",
+  PRACTICE_ATTEMPTS_INVALID: "atur minimal satu percobaan latihan",
+  PRACTICE_RELEASE_POLICY_INVALID: "gunakan rilis langsung untuk latihan",
+  PRACTICE_TARGETS_FORBIDDEN: "hapus target kelas atau peserta dari latihan",
+  PRACTICE_TOKEN_REQUIRED: "buat token latihan dengan tombol Rotasi token",
+  IDENTITY_FIELDS_REQUIRED: "atur field identitas latihan",
+  IDENTITY_NAME_REQUIRED: "jadikan field Nama sebagai field wajib",
+  PRACTICE_MAIN_CODE_FORBIDDEN: "hapus kode tambahan ujian utama dari latihan",
+  WINDOW_ALREADY_ENDED: "atur window selesai ke waktu yang belum lewat",
+};
+function scheduleTransitionMessage(cause: unknown): string {
+  if (!(cause instanceof ApiClientError)) return messageFrom(cause);
+  if (cause.code !== "SCHEDULE_NOT_READY") return cause.message;
+  const reasons = cause.details.reasons;
+  if (!Array.isArray(reasons)) return cause.message;
+  const labels = reasons
+    .filter((reason): reason is string => typeof reason === "string")
+    .map((reason) => readinessReasonLabels[reason] ?? reason);
+  return labels.length
+    ? `${cause.message} ${labels.join("; ")}.`
+    : cause.message;
+}
 async function load(): Promise<void> {
   loading.value = true;
   try {
@@ -282,7 +314,7 @@ async function transition(item: ScheduleSummary, action: "ready" | "open" | "clo
     await api.transitionSchedule(item.id, action, item.updatedAt, action === "close" ? "Ditutup dari halaman jadwal" : undefined);
     await load();
   } catch (cause) {
-    error.value = messageFrom(cause);
+    error.value = scheduleTransitionMessage(cause);
     if (cause instanceof ApiClientError && cause.code === "VERSION_CONFLICT") {
       await load();
       error.value = "Jadwal berubah karena ada data terbaru. Daftar sudah dimuat ulang; coba Siapkan lagi.";

@@ -34,6 +34,11 @@ import type { QuestionPublishService } from "../questions/publish";
 import type { QuestionReadinessService } from "../questions/readiness";
 import type { QuestionDraftService } from "../questions/service";
 import type { ScheduleAccessCodeService } from "../schedules/access-code";
+import {
+  ScheduleExamRevisionNotPublishedError,
+  ScheduleNotReadyError,
+  ScheduleWindowError,
+} from "../schedules/domain";
 import type { ScheduleService } from "../schedules/service";
 import type { UserImportCommitService } from "../user-imports/commit-service";
 import type { UserImportPreviewService } from "../user-imports/service";
@@ -2604,6 +2609,25 @@ function mapStaffError(error: unknown): Error {
     );
   if (/NotFound/u.test(name))
     return new AppError(404, "NOT_FOUND", "Resource tidak ditemukan.");
+  if (error instanceof ScheduleNotReadyError)
+    return new AppError(
+      422,
+      "SCHEDULE_NOT_READY",
+      "Jadwal belum siap. Lengkapi prasyarat sebelum menyiapkan jadwal.",
+      { reasons: error.reasons },
+    );
+  if (error instanceof ScheduleWindowError)
+    return new AppError(
+      422,
+      "SCHEDULE_WINDOW_CLOSED",
+      "Window jadwal berada di luar waktu yang dapat digunakan.",
+    );
+  if (error instanceof ScheduleExamRevisionNotPublishedError)
+    return new AppError(
+      422,
+      "SCHEDULE_EXAM_NOT_PUBLISHED",
+      "Ujian yang dipakai jadwal belum dipublish.",
+    );
   if (/Reauthentication/u.test(name))
     return new AppError(
       401,

@@ -3,6 +3,7 @@ import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import { Elysia } from "elysia";
 import { AppError } from "../../http/app-error";
 import type { AuthSession } from "../auth/session";
+import { ScheduleNotReadyError } from "../schedules/domain";
 import { createStaffRoutes, type StaffRouteOptions } from "./routes";
 
 const NOW = "2026-09-17T00:00:00.000Z" as UtcTimestamp;
@@ -41,6 +42,7 @@ function session(userId: Id, role: "ADMIN" | "TEACHER"): AuthSession {
 function appFor(
   currentRole: "ADMIN" | "TEACHER",
   rowsForQuery?: (sql: string) => readonly Record<string, unknown>[],
+  schedules?: StaffRouteOptions["schedules"],
 ) {
   const current = user(currentRole);
   const queries: unknown[][] = [];
@@ -95,6 +97,7 @@ function appFor(
         return [];
       },
     } as unknown as StaffRouteOptions["academics"],
+    ...(schedules ? { schedules } : {}),
     expectedOrigin: "https://cbt.example.test",
   };
   const app = new Elysia()
@@ -109,6 +112,36 @@ function appFor(
     });
   return { app, queries };
 }
+
+test("maps schedule readiness failures to an actionable validation response", async () => {
+  const { app } = appFor("TEACHER", undefined, {
+    drafts: {
+      async transitionSchedule() {
+        throw new ScheduleNotReadyError([
+          "PRACTICE_TOKEN_REQUIRED",
+          "IDENTITY_NAME_REQUIRED",
+        ]);
+      },
+    } as never,
+    accessCodes: {} as never,
+  });
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/teacher/schedules/40/ready", {
+      method: "POST",
+      headers: {
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        origin: "https://cbt.example.test",
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+        "idempotency-key": "schedule-ready-test-0001",
+      },
+      body: JSON.stringify({ expectedUpdatedAt: NOW }),
+    }),
+  );
+
+  expect(response.status).toBe(422);
+  expect(await response.text()).toContain("Jadwal belum siap");
+});
 
 test("schedule archive route delegates a CLOSED schedule to the archive service", async () => {
   const current = user("ADMIN");
