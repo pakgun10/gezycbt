@@ -880,6 +880,14 @@ Wizard:
 5. Konfirmasi import.
 6. Hasil dan one-time password download bila ada.
 
+Template peserta yang diunduh dari halaman **Admin → Pengguna → Impor peserta** memakai header:
+
+```csv
+username,display_name,class_code
+```
+
+`username` dan `display_name` wajib diisi. `class_code` opsional dan harus cocok dengan kode kelas pada tahun ajaran yang dipilih. File import tidak boleh memuat kolom password; password sementara dibuat server saat commit dan tersedia melalui artifact credential sekali pakai.
+
 Error row dapat difilter dan diunduh. Commit button disabled sampai blocking errors selesai.
 
 #### Import preview UI

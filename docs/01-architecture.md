@@ -585,6 +585,8 @@ Impor peserta wajib mempunyai tahap preview yang menunjukkan baris valid, duplik
 
 Blocking error mencakup format kolom salah, nilai wajib kosong, username tidak valid/duplikat dalam file, referensi kelas tidak ditemukan, kolom password plaintext, atau operasi yang melanggar mode import. Row `UNCHANGED` bukan error; row `WOULD_UPDATE` menjadi blocking pada mode `create-only`. Daftar preview dapat difilter dan file error yang diunduh tidak boleh memuat credential atau commit token. Template baseline tidak menerima password; akun baru mendapat temporary password acak saat commit melalui protected one-time credential artifact.
 
+Template CSV baseline untuk import peserta memakai header `username,display_name,class_code`. `username` dan `display_name` wajib; `class_code` opsional dan harus merujuk kode kelas pada tahun ajaran yang dipilih. Template dapat diunduh dari halaman admin dan tidak membawa baris credential atau password.
+
 ### C.2 Classes
 
 Modul classes menangani:
