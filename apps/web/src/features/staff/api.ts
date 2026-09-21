@@ -706,11 +706,13 @@ export class HttpStaffApi implements StaffApi {
     );
   }
   rotateCode(id: string, kind: "practice-token" | "main-code") {
+    const endpoint =
+      kind === "practice-token" ? "rotate-token" : "rotate-main-code";
     return this.getData<ScheduleSummary>(
       `/api/v1/teacher/schedules/${encodeURIComponent(id)}`,
     ).then((schedule) =>
       this.mutate<{ scheduleId: string; code: string; hint: string }>(
-        `/api/v1/teacher/schedules/${encodeURIComponent(id)}/rotate-${kind}`,
+        `/api/v1/teacher/schedules/${encodeURIComponent(id)}/${endpoint}`,
         "POST",
         { expectedUpdatedAt: schedule.updatedAt },
       ).then((result) => ({ code: result.code, schedule })),
