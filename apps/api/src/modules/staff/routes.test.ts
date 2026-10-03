@@ -386,7 +386,9 @@ test("question bank and question lists isolate teacher-owned banks", async () =>
       )
     ).status,
   ).toBe(200);
-  expect(teacher.queries.filter((parameters) => parameters.includes("2"))).toHaveLength(2);
+  expect(
+    teacher.queries.filter((parameters) => parameters.includes("2")),
+  ).toHaveLength(2);
 
   const admin = appFor("ADMIN");
   expect(
@@ -398,7 +400,9 @@ test("question bank and question lists isolate teacher-owned banks", async () =>
       )
     ).status,
   ).toBe(200);
-  expect(admin.queries.some((parameters) => parameters.includes("1"))).toBe(false);
+  expect(admin.queries.some((parameters) => parameters.includes("1"))).toBe(
+    false,
+  );
 });
 
 test("teacher subject options include only the authenticated teacher scope", async () => {

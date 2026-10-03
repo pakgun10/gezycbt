@@ -7,9 +7,9 @@ import {
   type UtcTimestamp,
 } from "@gezycbt/contracts";
 import {
-  normalizeDatabaseError,
   type DatabaseConnection,
   type DatabasePort,
+  normalizeDatabaseError,
 } from "@gezycbt/database";
 import type { ParticipantQuestionMedia } from "../questions/participant-presenter";
 import type { ScheduleIdentityField } from "../schedules/domain";
@@ -48,7 +48,9 @@ type Row = Record<string, unknown>;
 
 const START_RETRY_ATTEMPTS = 5;
 
-async function retryOnTransientLock<T>(operation: () => Promise<T>): Promise<T> {
+async function retryOnTransientLock<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
   for (let attempt = 0; ; attempt += 1) {
     try {
       return await operation();
@@ -90,141 +92,145 @@ export class SqlExamRuntimeStore implements RuntimeStore {
         "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
       );
       try {
-      const schedule = await readSchedule(connection, input.scheduleId, false);
-      if (!schedule || schedule.mode !== "MAIN") throw unavailable();
-      const participantName = input.participantName.trim();
-      if (!participantName || participantName.length > 200)
-        throw new ExamSessionError(
-          "INVALID_ANSWER_SHAPE",
-          "Nama peserta tidak valid.",
-          422,
-        );
-      const now = input.now ?? serverNow();
-      const replay = await readSessionByStartKey(
-        connection,
-        schedule.id,
-        input.startIdempotencyKey,
-        true,
-      );
-      if (replay) {
-        if (
-          replay.participantId !== input.participant.participantId ||
-          replay.participantNameSnapshot !== participantName ||
-          replay.classSnapshot !== (input.classSnapshot?.trim() || null) ||
-          replay.institutionSnapshot !==
-            (input.institutionSnapshot?.trim() || null) ||
-          stableRecord(replay.identityExtra) !==
-            stableRecord(input.identityExtra ?? {})
-        )
-          throw new SessionIdempotencyConflictError();
-        return readStartResult(connection, replay, true, now);
-      }
-      if (
-        !isOpen(schedule, now) ||
-        !input.mainAccessCodeDigest ||
-        !bytesEqual(input.mainAccessCodeDigest, schedule.mainAccessCodeHash)
-      )
-        throw unavailable();
-      if (
-        !(await isParticipantEligible(
+        const schedule = await readSchedule(
           connection,
-          schedule,
-          input.participant.participantId,
-          input.participant.participantClassIds,
-        ))
-      )
-        throw unavailable();
-      const participant = await connection.query<Row>(
-        "SELECT id FROM users WHERE id = ? AND role = 'PARTICIPANT' AND status = 'ACTIVE' LIMIT 1 FOR UPDATE",
-        [input.participant.participantId],
-      );
-      if (!participant[0]) throw unavailable();
-      const active = await connection.query<Row>(
-        "SELECT id FROM exam_sessions WHERE schedule_id = ? AND participant_id = ? AND status = 'ACTIVE' LIMIT 1 FOR UPDATE",
-        [schedule.id, input.participant.participantId],
-      );
-      if (active[0])
-        throw new ExamSessionError(
-          "SESSION_ALREADY_ACTIVE",
-          "Peserta masih memiliki sesi ujian aktif.",
-          409,
-          { sessionId: dbId(active[0].id) },
+          input.scheduleId,
+          false,
         );
-      const grants = await connection.query<Row>(
-        "SELECT id, granted_attempt_no FROM exam_attempt_grants WHERE schedule_id = ? AND participant_id = ? AND consumed_by_session_id IS NULL ORDER BY id ASC LIMIT 1 FOR UPDATE",
-        [schedule.id, input.participant.participantId],
-      );
-      const previous = await connection.query<Row>(
-        "SELECT COUNT(*) AS count FROM exam_sessions WHERE schedule_id = ? AND participant_id = ?",
-        [schedule.id, input.participant.participantId],
-      );
-      const grant = grants[0];
-      const attemptNo = grant
-        ? Number(grant.granted_attempt_no)
-        : Number(previous[0]?.count ?? 0) + 1;
-      if (!grant && attemptNo > schedule.maxAttempts)
-        throw new ExamSessionError(
-          "ATTEMPT_LIMIT_REACHED",
-          "Batas percobaan ujian sudah tercapai.",
-          409,
-        );
-      const session = await insertSession(
-        connection,
-        schedule,
-        {
-          participantId: input.participant.participantId,
-          participantName,
-          startIdempotencyKey: input.startIdempotencyKey,
-          ...(input.classSnapshot === undefined
-            ? {}
-            : { classSnapshot: input.classSnapshot }),
-          ...(input.institutionSnapshot === undefined
-            ? {}
-            : { institutionSnapshot: input.institutionSnapshot }),
-          ...(input.identityExtra === undefined
-            ? {}
-            : { identityExtra: input.identityExtra }),
-        },
-        now,
-        attemptNo,
-        undefined,
-      );
-      await insertManifest(
-        connection,
-        session.id,
-        schedule,
-        session.randomSeed,
-      );
-      const currentSchedule = await readSchedule(
-        connection,
-        input.scheduleId,
-        // Do not take an exclusive schedule lock here. The session insert
-        // already holds a shared FK lock on the schedule row; upgrading it
-        // while other starts do the same creates an avoidable deadlock.
-        false,
-      );
-      if (
-        !currentSchedule ||
-        !isOpen(currentSchedule, now) ||
-        !bytesEqual(
-          input.mainAccessCodeDigest ?? new Uint8Array(),
-          currentSchedule.mainAccessCodeHash,
-        )
-      )
-        throw unavailable();
-      if (grant) {
-        const consumed = await connection.execute(
-          "UPDATE exam_attempt_grants SET consumed_by_session_id = ?, consumed_at = ? WHERE id = ? AND consumed_by_session_id IS NULL",
-          [session.id, toDatabaseTimestamp(now), grant.id],
-        );
-        if (consumed.affectedRows !== 1)
+        if (!schedule || schedule.mode !== "MAIN") throw unavailable();
+        const participantName = input.participantName.trim();
+        if (!participantName || participantName.length > 200)
           throw new ExamSessionError(
-            "RESET_NOT_ALLOWED",
-            "Attempt reset sudah digunakan.",
+            "INVALID_ANSWER_SHAPE",
+            "Nama peserta tidak valid.",
+            422,
+          );
+        const now = input.now ?? serverNow();
+        const replay = await readSessionByStartKey(
+          connection,
+          schedule.id,
+          input.startIdempotencyKey,
+          true,
+        );
+        if (replay) {
+          if (
+            replay.participantId !== input.participant.participantId ||
+            replay.participantNameSnapshot !== participantName ||
+            replay.classSnapshot !== (input.classSnapshot?.trim() || null) ||
+            replay.institutionSnapshot !==
+              (input.institutionSnapshot?.trim() || null) ||
+            stableRecord(replay.identityExtra) !==
+              stableRecord(input.identityExtra ?? {})
+          )
+            throw new SessionIdempotencyConflictError();
+          return readStartResult(connection, replay, true, now);
+        }
+        if (
+          !isOpen(schedule, now) ||
+          !input.mainAccessCodeDigest ||
+          !bytesEqual(input.mainAccessCodeDigest, schedule.mainAccessCodeHash)
+        )
+          throw unavailable();
+        if (
+          !(await isParticipantEligible(
+            connection,
+            schedule,
+            input.participant.participantId,
+            input.participant.participantClassIds,
+          ))
+        )
+          throw unavailable();
+        const participant = await connection.query<Row>(
+          "SELECT id FROM users WHERE id = ? AND role = 'PARTICIPANT' AND status = 'ACTIVE' LIMIT 1 FOR UPDATE",
+          [input.participant.participantId],
+        );
+        if (!participant[0]) throw unavailable();
+        const active = await connection.query<Row>(
+          "SELECT id FROM exam_sessions WHERE schedule_id = ? AND participant_id = ? AND status = 'ACTIVE' LIMIT 1 FOR UPDATE",
+          [schedule.id, input.participant.participantId],
+        );
+        if (active[0])
+          throw new ExamSessionError(
+            "SESSION_ALREADY_ACTIVE",
+            "Peserta masih memiliki sesi ujian aktif.",
+            409,
+            { sessionId: dbId(active[0].id) },
+          );
+        const grants = await connection.query<Row>(
+          "SELECT id, granted_attempt_no FROM exam_attempt_grants WHERE schedule_id = ? AND participant_id = ? AND consumed_by_session_id IS NULL ORDER BY id ASC LIMIT 1 FOR UPDATE",
+          [schedule.id, input.participant.participantId],
+        );
+        const previous = await connection.query<Row>(
+          "SELECT COUNT(*) AS count FROM exam_sessions WHERE schedule_id = ? AND participant_id = ?",
+          [schedule.id, input.participant.participantId],
+        );
+        const grant = grants[0];
+        const attemptNo = grant
+          ? Number(grant.granted_attempt_no)
+          : Number(previous[0]?.count ?? 0) + 1;
+        if (!grant && attemptNo > schedule.maxAttempts)
+          throw new ExamSessionError(
+            "ATTEMPT_LIMIT_REACHED",
+            "Batas percobaan ujian sudah tercapai.",
             409,
           );
-      }
-      return readStartResult(connection, session, false, now);
+        const session = await insertSession(
+          connection,
+          schedule,
+          {
+            participantId: input.participant.participantId,
+            participantName,
+            startIdempotencyKey: input.startIdempotencyKey,
+            ...(input.classSnapshot === undefined
+              ? {}
+              : { classSnapshot: input.classSnapshot }),
+            ...(input.institutionSnapshot === undefined
+              ? {}
+              : { institutionSnapshot: input.institutionSnapshot }),
+            ...(input.identityExtra === undefined
+              ? {}
+              : { identityExtra: input.identityExtra }),
+          },
+          now,
+          attemptNo,
+          undefined,
+        );
+        await insertManifest(
+          connection,
+          session.id,
+          schedule,
+          session.randomSeed,
+        );
+        const currentSchedule = await readSchedule(
+          connection,
+          input.scheduleId,
+          // Do not take an exclusive schedule lock here. The session insert
+          // already holds a shared FK lock on the schedule row; upgrading it
+          // while other starts do the same creates an avoidable deadlock.
+          false,
+        );
+        if (
+          !currentSchedule ||
+          !isOpen(currentSchedule, now) ||
+          !bytesEqual(
+            input.mainAccessCodeDigest ?? new Uint8Array(),
+            currentSchedule.mainAccessCodeHash,
+          )
+        )
+          throw unavailable();
+        if (grant) {
+          const consumed = await connection.execute(
+            "UPDATE exam_attempt_grants SET consumed_by_session_id = ?, consumed_at = ? WHERE id = ? AND consumed_by_session_id IS NULL",
+            [session.id, toDatabaseTimestamp(now), grant.id],
+          );
+          if (consumed.affectedRows !== 1)
+            throw new ExamSessionError(
+              "RESET_NOT_ALLOWED",
+              "Attempt reset sudah digunakan.",
+              409,
+            );
+        }
+        return readStartResult(connection, session, false, now);
       } finally {
         // Pool connections are reused by unrelated transactions. Restore the
         // application baseline before this handle is returned to the pool.
@@ -1757,12 +1763,9 @@ function parseJson(value: unknown): unknown {
     return null;
   }
 }
-function parseJsonRecord(
-  value: unknown,
-): Readonly<Record<string, string>> {
+function parseJsonRecord(value: unknown): Readonly<Record<string, string>> {
   const parsed = parseJson(value);
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
-    return {};
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
   return Object.fromEntries(
     Object.entries(parsed).filter(
       (entry): entry is [string, string] => typeof entry[1] === "string",

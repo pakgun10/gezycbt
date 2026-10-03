@@ -381,7 +381,8 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           idParam(params),
         );
         set.headers["content-type"] = "text/csv; charset=utf-8";
-        set.headers["content-disposition"] = `attachment; filename="${result.filename}"`;
+        set.headers["content-disposition"] =
+          `attachment; filename="${result.filename}"`;
         set.headers["cache-control"] = "no-store";
         set.headers["x-content-type-options"] = "nosniff";
         return result.content;
@@ -727,15 +728,14 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       return result;
     }),
   );
-  app.get(
-    "/api/v1/teacher/question-banks/:id",
-    async ({ request, params }) =>
-      wrapSqlRead(request, options, "TEACHER", async (actor) => {
-        const bank = await readQuestionBank(options.database, idParam(params));
-        if (!bank) throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
-        await assertQuestionBankAccess(options, actor, bank);
-        return bank;
-      }),
+  app.get("/api/v1/teacher/question-banks/:id", async ({ request, params }) =>
+    wrapSqlRead(request, options, "TEACHER", async (actor) => {
+      const bank = await readQuestionBank(options.database, idParam(params));
+      if (!bank)
+        throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+      await assertQuestionBankAccess(options, actor, bank);
+      return bank;
+    }),
   );
   app.patch(
     "/api/v1/teacher/question-banks/:id",
@@ -751,7 +751,11 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
             ? undefined
             : stringField(payload.name, "name").trim();
         if (name !== undefined && name.length > 200)
-          throw new AppError(422, "VALIDATION_FAILED", "Nama bank terlalu panjang.");
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Nama bank terlalu panjang.",
+          );
         const status =
           payload.status === undefined
             ? undefined
@@ -767,12 +771,16 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         const before = await readQuestionBank(options.database, bankId);
         if (!before)
           throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
-        await assertQuestionBankAccess(options, {
-          user: {
-            id: String(staffContext.actor.userId),
-            role: staffContext.actor.role as "ADMIN" | "TEACHER",
+        await assertQuestionBankAccess(
+          options,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role as "ADMIN" | "TEACHER",
+            },
           },
-        }, before);
+          before,
+        );
 
         return options.database.transaction(async (connection) => {
           const currentRows = await connection.query<Record<string, unknown>>(
@@ -1212,7 +1220,9 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const rows = await options.database.query<Record<string, unknown>>(
         `SELECT qr.id, qr.question_id, qb.id AS bank_id, qb.name AS bank_name, qb.subject_id, qr.type, qr.status, LEFT(qr.stimulus_html, 180) AS label, qr.updated_at FROM question_revisions qr JOIN questions q ON q.id = qr.question_id JOIN question_banks qb ON qb.id = q.question_bank_id WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?) ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
         [
-          ...(actor.user.role === "ADMIN" ? [] : [actor.user.id, actor.user.id]),
+          ...(actor.user.role === "ADMIN"
+            ? []
+            : [actor.user.id, actor.user.id]),
           search,
           `%${search}%`,
           `%${search}%`,
