@@ -33,6 +33,27 @@ describe("SqlMediaRelationRepository", () => {
     ).toBe(true);
   });
 
+  test("accepts numeric IDs returned by the MariaDB driver", async () => {
+    const database = new FakeMediaDatabase();
+    database.assetRowsUseNumbers = true;
+    const repository = new SqlMediaRelationRepository(database);
+
+    const result = await repository.create({
+      storageKey: "media/random-key",
+      originalName: "diagram.png",
+      mimeType: "image/png",
+      byteSize: 100,
+      sha256: new Uint8Array(32),
+      width: 100,
+      height: 100,
+      status: "READY",
+      createdBy: "10" as Id,
+    });
+
+    expect(result.id).toBe("30" as Id);
+    expect(result.createdBy).toBe("10" as Id);
+  });
+
   test("attaches a validated relation to a draft revision transactionally", async () => {
     const database = new FakeMediaDatabase();
     const repository = new SqlMediaRelationRepository(database);
@@ -145,13 +166,14 @@ class FakeMediaDatabase implements DatabasePort {
   revisionStatus: "DRAFT" | "PUBLISHED" = "DRAFT";
   references: Array<{ status: "DRAFT" | "PUBLISHED" }> = [];
   relationRows: Array<Record<string, unknown>> = [];
+  assetRowsUseNumbers = false;
 
   async query<T extends Record<string, unknown>>(
     sql: string,
   ): Promise<readonly T[]> {
     this.statements.push(sql);
     if (sql.includes("FROM media_assets"))
-      return [assetRow()] as unknown as readonly T[];
+      return [assetRow(this.assetRowsUseNumbers)] as unknown as readonly T[];
     if (sql.includes("FROM question_revisions qr"))
       return [revisionRow(this.revisionStatus)] as unknown as readonly T[];
     if (sql.includes("SELECT qrm.question_revision_id, qrm.media_asset_id"))
@@ -183,9 +205,9 @@ class FakeMediaDatabase implements DatabasePort {
   async close(): Promise<void> {}
 }
 
-function assetRow(): Record<string, unknown> {
+function assetRow(useNumbers = false): Record<string, unknown> {
   return {
-    id: 30n,
+    id: useNumbers ? 30 : 30n,
     storage_key: "media/random-key",
     original_name: "diagram.png",
     mime_type: "image/png",
@@ -194,7 +216,7 @@ function assetRow(): Record<string, unknown> {
     width: 100,
     height: 100,
     status: "READY",
-    created_by: 10n,
+    created_by: useNumbers ? 10 : 10n,
   };
 }
 

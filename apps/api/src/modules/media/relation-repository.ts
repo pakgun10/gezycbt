@@ -771,6 +771,8 @@ function toHashEntry(relation: MediaRelation): CanonicalMediaHashEntry {
 
 function parseDatabaseId(value: unknown): Id | null {
   if (typeof value === "bigint") return formatId(value);
+  if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+    return formatId(BigInt(value));
   return parseId(value) ?? null;
 }
 
