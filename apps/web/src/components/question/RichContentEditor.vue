@@ -78,6 +78,7 @@ const editor = useEditor({
       class: "rich-editor-surface",
       role: "textbox",
       "aria-multiline": "true",
+      "aria-label": props.label,
       "data-placeholder": props.placeholder,
     },
   },
@@ -196,6 +197,7 @@ function toEditorHtml(value: string): string {
 
 <template>
   <div class="rich-editor" :class="{ disabled }">
+    <div class="rich-editor-label">{{ label }}</div>
     <div class="rich-editor-toolbar" role="toolbar" :aria-label="`${label} formatting`">
       <button type="button" class="btn-quiet" :disabled="disabled" title="Urungkan" @click="undo">↶</button>
       <button type="button" class="btn-quiet" :disabled="disabled" title="Ulangi" @click="redo">↷</button>
@@ -209,7 +211,6 @@ function toEditorHtml(value: string): string {
       <button type="button" class="btn-quiet" :disabled="disabled" @click="openMath('inline')">ƒx LaTeX</button>
       <button type="button" class="btn-quiet" :disabled="disabled" @click="openMath('block')">∑ LaTeX blok</button>
     </div>
-    <label class="sr-only">{{ label }}</label>
     <EditorContent v-if="editor" :editor="editor" />
     <div v-if="mathDialog" class="math-dialog" role="dialog" aria-modal="true" aria-label="Sisipkan LaTeX">
       <label>LaTeX {{ mathDialog === 'inline' ? 'inline' : 'blok' }}<textarea v-model="latex" rows="3" maxlength="2000" placeholder="Contoh: x^2 + y^2 = z^2" @keyup.ctrl.enter="insertMath" /></label>
@@ -220,7 +221,7 @@ function toEditorHtml(value: string): string {
 </template>
 
 <style scoped>
-.rich-editor { display: grid; gap: 6px; }.rich-editor-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border: 1px solid var(--border); border-bottom: 0; border-radius: 8px 8px 0 0; background: var(--canvas); }.rich-editor-toolbar button { min-height: 32px; }.rich-editor :deep(.rich-editor-surface) { min-height: 96px; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 0 0 8px 8px; outline: none; color: var(--text); background: var(--surface); }.rich-editor :deep(.rich-editor-surface p:first-child) { margin-top: 0; }.rich-editor :deep(.rich-editor-surface p:last-child) { margin-bottom: 0; }.rich-editor :deep(.rich-editor-surface:empty::before) { content: attr(data-placeholder); color: var(--subtle); pointer-events: none; }.math-dialog { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-elevated); }.math-dialog label { display: grid; gap: 6px; font-weight: 600; }.math-dialog textarea { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px; color: var(--text); background: var(--surface); }.disabled { opacity: .75; }
+.rich-editor { display: grid; gap: 6px; }.rich-editor-label { color: var(--text); font-weight: 700; }.rich-editor-toolbar { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; border: 1px solid var(--border); border-bottom: 0; border-radius: 8px 8px 0 0; background: var(--canvas); }.rich-editor-toolbar button { min-height: 32px; }.rich-editor :deep(.rich-editor-surface) { min-height: 96px; overflow: auto; resize: vertical; padding: 10px 12px; border: 1px solid var(--border-strong); border-radius: 0 0 8px 8px; outline: none; color: var(--text); background: var(--surface); }.rich-editor :deep(.rich-editor-surface p:first-child) { margin-top: 0; }.rich-editor :deep(.rich-editor-surface p:last-child) { margin-bottom: 0; }.rich-editor :deep(.rich-editor-surface:empty::before) { content: attr(data-placeholder); color: var(--subtle); pointer-events: none; }.math-dialog { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface-elevated); }.math-dialog label { display: grid; gap: 6px; font-weight: 600; }.math-dialog textarea { width: 100%; min-height: 72px; resize: vertical; overflow: auto; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px; color: var(--text); background: var(--surface); }.disabled { opacity: .75; }
 .rich-editor :deep(figure[data-content-node="question-media"]) { display: grid; place-items: center; min-height: 48px; margin: 10px 0; border: 1px dashed var(--primary); border-radius: 8px; color: var(--primary); background: var(--primary-soft); }
 .rich-editor :deep(figure[data-content-node="question-media"]::before) { content: "Gambar terpasang — atur detail pada panel gambar"; font-size: .82rem; }
 </style>
