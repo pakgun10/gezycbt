@@ -119,6 +119,7 @@ type QuestionReferenceRow = Record<string, unknown> & {
   subject_id: unknown;
   owner_teacher_id: unknown;
   status: unknown;
+  question_status: unknown;
 };
 
 const REVISION_COLUMNS = `
@@ -159,7 +160,7 @@ export class SqlExamDraftRepository implements ExamDraftRepository {
   async findQuestionRevision(id: Id): Promise<ExamQuestionReference | null> {
     const rows = await this.database.query<QuestionReferenceRow>(
       `SELECT qr.id, qr.question_id, qb.subject_id, qb.owner_teacher_id,
-              qr.status
+              qr.status, q.status AS question_status
        FROM question_revisions qr
        JOIN questions q ON q.id = qr.question_id
        JOIN question_banks qb ON qb.id = q.question_bank_id
@@ -623,12 +624,15 @@ function mapQuestionReference(
 ): ExamQuestionReference {
   if (row.status !== "DRAFT" && row.status !== "PUBLISHED")
     throw new Error("Database returned invalid question revision status");
+  if (row.question_status !== "ACTIVE" && row.question_status !== "ARCHIVED")
+    throw new Error("Database returned invalid question status");
   return {
     id: requiredId(row.id, "question revision ID"),
     questionId: requiredId(row.question_id, "question ID"),
     subjectId: requiredId(row.subject_id, "subject ID"),
     ownerTeacherId: requiredId(row.owner_teacher_id, "owner teacher ID"),
     status: row.status,
+    questionStatus: row.question_status,
   };
 }
 

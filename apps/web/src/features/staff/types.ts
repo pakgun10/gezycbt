@@ -120,6 +120,9 @@ export interface QuestionSummary {
   readonly bankId: string;
   readonly bankName: string;
   readonly subjectId: string;
+  readonly questionStatus: "ACTIVE" | "ARCHIVED";
+  readonly questionUpdatedAt: string;
+  readonly canPermanentlyDelete: boolean;
   readonly type: QuestionType;
   readonly status: "DRAFT" | "PUBLISHED";
   readonly label: string;
@@ -163,6 +166,7 @@ export interface QuestionDraft {
     readonly name: string;
     readonly subjectId: string;
   };
+  readonly questionStatus: "ACTIVE" | "ARCHIVED";
   readonly revisionNo: number;
   readonly type: QuestionType;
   readonly status: "DRAFT" | "PUBLISHED";

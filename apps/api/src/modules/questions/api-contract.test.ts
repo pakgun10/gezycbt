@@ -110,6 +110,26 @@ describe("question API contracts", () => {
     expect(publishCheck.Check({})).toBe(false);
   });
 
+  test("requires an optimistic version for question and bank deletion", () => {
+    const bankDeleteCheck = TypeCompiler.Compile(
+      questionApiSchemas.questionBankDeleteBody,
+    );
+    const questionDeleteCheck = TypeCompiler.Compile(
+      questionApiSchemas.questionDeleteBody,
+    );
+    const lifecycleCheck = TypeCompiler.Compile(
+      questionApiSchemas.questionStatusUpdateBody,
+    );
+    expect(bankDeleteCheck.Check({ expectedUpdatedAt: NOW })).toBe(true);
+    expect(questionDeleteCheck.Check({})).toBe(false);
+    expect(
+      lifecycleCheck.Check({ status: "ARCHIVED", expectedUpdatedAt: NOW }),
+    ).toBe(true);
+    expect(
+      lifecycleCheck.Check({ status: "DELETED", expectedUpdatedAt: NOW }),
+    ).toBe(false);
+  });
+
   test("requires CSRF and bounded idempotency headers for mutations", () => {
     const check = TypeCompiler.Compile(questionApiSchemas.mutationHeaders);
     expect(
@@ -141,8 +161,8 @@ describe("question API contracts", () => {
   });
 
   test("publishes the canonical teacher route inventory to OpenAPI", () => {
-    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(21);
-    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(21);
+    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(24);
+    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(24);
     expect(
       questionApiRoutes.every((route) =>
         route.path.startsWith("/api/v1/teacher/"),
@@ -159,6 +179,7 @@ describe("question API contracts", () => {
 
     const paths = questionApiOpenApi.paths;
     expect(paths["/api/v1/teacher/question-banks/{id}"]).toBeDefined();
+    expect(paths["/api/v1/teacher/questions/{id}"]).toBeDefined();
     expect(
       paths["/api/v1/teacher/question-revisions/{id}/publish"],
     ).toBeDefined();

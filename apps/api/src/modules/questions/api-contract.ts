@@ -232,6 +232,21 @@ const questionBankUpdateBodySchema = t.Object(
   },
   { additionalProperties: false },
 );
+const questionBankDeleteBodySchema = t.Object(
+  { expectedUpdatedAt: utcTimestampSchema },
+  { additionalProperties: false },
+);
+const questionStatusUpdateBodySchema = t.Object(
+  {
+    status: questionBankStatusSchema,
+    expectedUpdatedAt: utcTimestampSchema,
+  },
+  { additionalProperties: false },
+);
+const questionDeleteBodySchema = t.Object(
+  { expectedUpdatedAt: utcTimestampSchema },
+  { additionalProperties: false },
+);
 
 const questionOptionResourceSchema = t.Object(
   {
@@ -274,6 +289,8 @@ const questionRevisionSummarySchema = t.Object(
     questionId: idSchema,
     questionBank: questionBankSummarySchema,
     questionStatus: questionBankStatusSchema,
+    questionUpdatedAt: t.Optional(utcTimestampSchema),
+    canPermanentlyDelete: t.Optional(t.Boolean()),
     revisionNo: t.Integer({ minimum: 1 }),
     type: questionTypeSchema,
     status: revisionStatusSchema,
@@ -281,6 +298,14 @@ const questionRevisionSummarySchema = t.Object(
     updatedAt: utcTimestampSchema,
   },
   { additionalProperties: false, $id: "QuestionRevisionSummary" },
+);
+const questionLifecycleSchema = t.Object(
+  {
+    questionId: idSchema,
+    status: questionBankStatusSchema,
+    updatedAt: utcTimestampSchema,
+  },
+  { additionalProperties: false, $id: "QuestionLifecycle" },
 );
 const questionRevisionResourceSchema = t.Object(
   {
@@ -441,6 +466,14 @@ const mediaDetachResponseSchema = t.Object(
   { mediaId: t.String({ minLength: 1, maxLength: 128 }), deleted: t.Boolean() },
   { additionalProperties: false, $id: "MediaDetachResponse" },
 );
+const questionBankDeleteResponseSchema = t.Object(
+  { questionBankId: idSchema, deleted: t.Boolean() },
+  { additionalProperties: false, $id: "QuestionBankDeleteResponse" },
+);
+const questionDeleteResponseSchema = t.Object(
+  { questionId: idSchema, deleted: t.Boolean() },
+  { additionalProperties: false, $id: "QuestionDeleteResponse" },
+);
 const updateMediaBodySchema = t.Object(
   {
     altText: t.Optional(t.Union([t.Null(), t.String({ maxLength: 500 })])),
@@ -524,6 +557,9 @@ export const questionApiSchemas = {
   mutationHeaders: mutationHeadersSchema,
   questionBankCreateBody: questionBankCreateBodySchema,
   questionBankUpdateBody: questionBankUpdateBodySchema,
+  questionBankDeleteBody: questionBankDeleteBodySchema,
+  questionStatusUpdateBody: questionStatusUpdateBodySchema,
+  questionDeleteBody: questionDeleteBodySchema,
   createQuestionDraftBody: createQuestionDraftBodySchema,
   updateQuestionRevisionBody: updateQuestionRevisionBodySchema,
   publishQuestionRevisionBody: publishQuestionRevisionBodySchema,
@@ -536,6 +572,7 @@ export const questionApiSchemas = {
   questionBank: questionBankSummarySchema,
   questionBankPage: questionBankPageSchema,
   questionRevisionSummary: questionRevisionSummarySchema,
+  questionLifecycle: questionLifecycleSchema,
   questionRevision: questionRevisionResourceSchema,
   questionRevisionPage: questionRevisionPageSchema,
   readinessReport: readinessReportSchema,
@@ -549,12 +586,15 @@ export const questionApiSchemas = {
   questionBankResponse: success(questionBankSummarySchema),
   questionRevisionPageResponse: success(questionRevisionPageSchema),
   questionRevisionResponse: success(questionRevisionResourceSchema),
+  questionLifecycleResponse: success(questionLifecycleSchema),
   readinessResponse: success(readinessReportSchema),
   mediaAssetResponse: success(mediaAssetResourceSchema),
   mediaAssetListResponse: success(mediaAssetListSchema),
   mediaContentResponse: t.Any(),
   mediaDeleteResponse: success(mediaDeleteResponseSchema),
   mediaDetachResponse: success(mediaDetachResponseSchema),
+  questionBankDeleteResponse: success(questionBankDeleteResponseSchema),
+  questionDeleteResponse: success(questionDeleteResponseSchema),
   questionMediaResponse: success(questionMediaResourceSchema),
   questionImportPreviewResponse: success(questionImportPreviewSchema),
   questionImportCommitResponse: success(questionImportCommitResultSchema),
@@ -643,6 +683,22 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     },
   },
   {
+    method: "DELETE",
+    path: "/api/v1/teacher/question-banks/:id",
+    operationId: "deleteQuestionBank",
+    summary: "Hapus permanen question bank kosong",
+    request: {
+      params: questionBankIdParamsSchema,
+      headers: teacherMutationHeaders,
+      body: questionBankDeleteBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionBankDeleteResponse",
+      schema: success(questionBankDeleteResponseSchema),
+    },
+  },
+  {
     method: "GET",
     path: "/api/v1/teacher/question-banks/:id/questions",
     operationId: "listQuestionBankQuestions",
@@ -655,6 +711,38 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
       status: 200,
       schemaName: "questionRevisionPageResponse",
       schema: success(questionRevisionPageSchema),
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/teacher/questions/:id",
+    operationId: "updateQuestionLifecycle",
+    summary: "Arsipkan atau pulihkan logical question",
+    request: {
+      params: questionIdParamsSchema,
+      headers: teacherMutationHeaders,
+      body: questionStatusUpdateBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionLifecycleResponse",
+      schema: success(questionLifecycleSchema),
+    },
+  },
+  {
+    method: "DELETE",
+    path: "/api/v1/teacher/questions/:id",
+    operationId: "deleteQuestion",
+    summary: "Hapus permanen logical question draft yang belum direferensikan",
+    request: {
+      params: questionIdParamsSchema,
+      headers: teacherMutationHeaders,
+      body: questionDeleteBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionDeleteResponse",
+      schema: success(questionDeleteResponseSchema),
     },
   },
   {

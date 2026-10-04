@@ -104,7 +104,7 @@ describe("ExamDraftService", () => {
     ).rejects.toBeInstanceOf(ExamQuestionDuplicateError);
   });
 
-  test("rejects unpublished and cross-subject question revisions", async () => {
+  test("rejects unpublished, archived, and cross-subject question revisions", async () => {
     const repository = new FakeExamRepository();
     const service = new ExamDraftService(repository, new FakeAuthorization());
     repository.question = {
@@ -123,7 +123,23 @@ describe("ExamDraftService", () => {
     repository.question = {
       ...repository.question,
       status: "PUBLISHED",
+      subjectId: SUBJECT,
+      questionStatus: "ARCHIVED",
+    };
+    await expect(
+      service.addQuestion(
+        ACTOR,
+        repository.revision.id,
+        { questionRevisionId: repository.question.id, points: "1" },
+        NOW,
+      ),
+    ).rejects.toBeInstanceOf(ExamQuestionNotFoundError);
+
+    repository.question = {
+      ...repository.question,
+      status: "PUBLISHED",
       subjectId: OTHER_SUBJECT,
+      questionStatus: "ACTIVE",
     };
     await expect(
       service.addQuestion(

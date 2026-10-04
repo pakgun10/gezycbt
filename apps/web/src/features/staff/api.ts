@@ -128,11 +128,28 @@ export interface StaffApi {
     input: Record<string, unknown>,
     expectedUpdatedAt: string,
   ): Promise<QuestionBankSummary>;
+  deleteQuestionBank(
+    id: string,
+    expectedUpdatedAt: string,
+  ): Promise<{ questionBankId: string; deleted: boolean }>;
   questions(
     query?: string,
     cursor?: string,
   ): Promise<CursorPage<QuestionSummary>>;
   question(id: string): Promise<QuestionDraft>;
+  updateQuestionLifecycle(
+    id: string,
+    status: "ACTIVE" | "ARCHIVED",
+    expectedUpdatedAt: string,
+  ): Promise<{
+    questionId: string;
+    status: "ACTIVE" | "ARCHIVED";
+    updatedAt: string;
+  }>;
+  deleteQuestion(
+    id: string,
+    expectedUpdatedAt: string,
+  ): Promise<{ questionId: string; deleted: boolean }>;
   createQuestion(input: Record<string, unknown>): Promise<QuestionDraft>;
   previewQuestionImport(
     questionBankId: string,
@@ -548,6 +565,13 @@ export class HttpStaffApi implements StaffApi {
       { ...input, expectedUpdatedAt },
     );
   }
+  deleteQuestionBank(id: string, expectedUpdatedAt: string) {
+    return this.mutate<{ questionBankId: string; deleted: boolean }>(
+      `/api/v1/teacher/question-banks/${encodeURIComponent(id)}`,
+      "DELETE",
+      { expectedUpdatedAt },
+    );
+  }
   questions(query = "", cursor?: string) {
     return this.getPage<QuestionSummary>(
       `/api/v1/teacher/questions?${new URLSearchParams({
@@ -559,6 +583,27 @@ export class HttpStaffApi implements StaffApi {
   question(id: string) {
     return this.getData<QuestionDraft>(
       `/api/v1/teacher/question-revisions/${encodeURIComponent(id)}`,
+    );
+  }
+  updateQuestionLifecycle(
+    id: string,
+    status: "ACTIVE" | "ARCHIVED",
+    expectedUpdatedAt: string,
+  ) {
+    return this.mutate<{
+      questionId: string;
+      status: "ACTIVE" | "ARCHIVED";
+      updatedAt: string;
+    }>(`/api/v1/teacher/questions/${encodeURIComponent(id)}`, "PATCH", {
+      status,
+      expectedUpdatedAt,
+    });
+  }
+  deleteQuestion(id: string, expectedUpdatedAt: string) {
+    return this.mutate<{ questionId: string; deleted: boolean }>(
+      `/api/v1/teacher/questions/${encodeURIComponent(id)}`,
+      "DELETE",
+      { expectedUpdatedAt },
     );
   }
   createQuestion(input: Record<string, unknown>) {

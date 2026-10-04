@@ -51,6 +51,7 @@ export interface ExamQuestionReference {
   readonly subjectId: Id;
   readonly ownerTeacherId: Id;
   readonly status: ExamRevisionStatus;
+  readonly questionStatus?: "ACTIVE" | "ARCHIVED";
 }
 
 export interface ExamDraftMetadata {

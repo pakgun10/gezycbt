@@ -52,6 +52,7 @@ function appFor(
 ) {
   const current = user(currentRole);
   const queries: unknown[][] = [];
+  const executions: unknown[][] = [];
   const options: StaffRouteOptions = {
     database: {
       async query<T extends Record<string, unknown>>(
@@ -61,7 +62,8 @@ function appFor(
         queries.push([...(parameters ?? [])]);
         return (rowsForQuery?.(_sql) ?? []) as readonly T[];
       },
-      async execute() {
+      async execute(sql: string, parameters?: readonly unknown[]) {
+        executions.push([sql, ...(parameters ?? [])]);
         return { affectedRows: 1 };
       },
       async transaction(operation) {
@@ -117,8 +119,77 @@ function appFor(
       set.status = 500;
       return { error: { code: "INTERNAL_ERROR" } };
     });
-  return { app, queries };
+  return { app, queries, executions };
 }
+
+test("refuses to delete a question bank that still contains questions", async () => {
+  const { app } = appFor("TEACHER", (sql) => {
+    if (sql.includes("FROM question_banks WHERE id = ?"))
+      return [
+        {
+          id: "40",
+          subject_id: "30",
+          owner_teacher_id: "2",
+          name: "Bank Matematika",
+          status: "ACTIVE",
+          updated_at: NOW,
+        },
+      ];
+    if (sql.includes("COUNT(*) AS total FROM questions"))
+      return [{ total: 12 }];
+    return [];
+  });
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/teacher/question-banks/40", {
+      method: "DELETE",
+      headers: {
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        origin: "https://cbt.example.test",
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+        "idempotency-key": "bank-delete-test-0001",
+      },
+      body: JSON.stringify({ expectedUpdatedAt: NOW }),
+    }),
+  );
+
+  expect(response.status).toBe(409);
+  expect(await response.text()).toContain("Bank soal masih memiliki 12 butir soal");
+});
+
+test("refuses to permanently delete a question with published history", async () => {
+  const lifecycle = {
+    id: "50",
+    status: "ACTIVE",
+    updated_at: NOW,
+    subject_id: "30",
+    owner_teacher_id: "2",
+  };
+  const { app, executions } = appFor("TEACHER", (sql) => {
+    if (sql.includes("FROM questions q") && sql.includes("question_banks qb"))
+      return [lifecycle];
+    if (sql.includes("FROM question_revisions") && sql.includes("PUBLISHED"))
+      return [{ total: 1 }];
+    return [];
+  });
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/teacher/questions/50", {
+      method: "DELETE",
+      headers: {
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        origin: "https://cbt.example.test",
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+        "idempotency-key": "question-delete-test-0001",
+      },
+      body: JSON.stringify({ expectedUpdatedAt: NOW }),
+    }),
+  );
+
+  expect(response.status).toBe(409);
+  expect(await response.text()).toContain("pernah dipublikasikan");
+  expect(executions).toEqual([]);
+});
 
 test("maps schedule readiness failures to an actionable validation response", async () => {
   const { app } = appFor("TEACHER", undefined, {

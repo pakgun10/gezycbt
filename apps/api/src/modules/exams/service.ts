@@ -130,7 +130,11 @@ export class ExamDraftService {
     );
     if (!question) throw new ExamQuestionNotFoundError();
     await this.authorization.assertTeacherScope(context.actor, question);
-    if (question.status !== "PUBLISHED") throw new ExamQuestionNotFoundError();
+    if (
+      question.status !== "PUBLISHED" ||
+      question.questionStatus === "ARCHIVED"
+    )
+      throw new ExamQuestionNotFoundError();
     if (question.subjectId !== revision.exam.subjectId)
       throw new ExamQuestionNotFoundError();
     const updated = await this.repository.addQuestion(

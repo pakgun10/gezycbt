@@ -844,6 +844,72 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         });
       }),
   );
+  app.delete(
+    "/api/v1/teacher/question-banks/:id",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const bankId = idParam(params);
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const before = await readQuestionBank(options.database, bankId);
+        if (!before)
+          throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+        await assertQuestionBankAccess(
+          options,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role as "ADMIN" | "TEACHER",
+            },
+          },
+          before,
+        );
+        await options.database.transaction(async (connection) => {
+          const currentRows = await connection.query<Record<string, unknown>>(
+            `SELECT id, subject_id, owner_teacher_id, name, status,
+                    DATE_FORMAT(updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+             FROM question_banks WHERE id = ? FOR UPDATE`,
+            [bankId],
+          );
+          if (!currentRows[0])
+            throw new AppError(404, "NOT_FOUND", "Bank soal tidak ditemukan.");
+          const current = mapQuestionBankRow(currentRows[0]);
+          if (current.updatedAt !== expectedUpdatedAt)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Bank soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+          const countRows = await connection.query<{ total: unknown }>(
+            "SELECT COUNT(*) AS total FROM questions WHERE question_bank_id = ?",
+            [bankId],
+          );
+          const questionCount = Number(countRows[0]?.total ?? 0);
+          if (!Number.isSafeInteger(questionCount) || questionCount < 0)
+            throw new Error("Database returned invalid question count");
+          if (questionCount > 0)
+            throw new AppError(
+              409,
+              "QUESTION_BANK_NOT_EMPTY",
+              `Bank soal masih memiliki ${questionCount} butir soal. Arsipkan bank ini sebagai gantinya.`,
+            );
+          const deleted = await connection.execute(
+            "DELETE FROM question_banks WHERE id = ? AND updated_at = ?",
+            [bankId, databaseTimestamp(expectedUpdatedAt)],
+          );
+          if (affectedRows(deleted) !== 1)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Bank soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+        });
+        return { questionBankId: String(bankId), deleted: true };
+      }),
+  );
   app.get(
     "/api/v1/teacher/question-revisions/:id",
     async ({ request, params }) =>
@@ -866,6 +932,181 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           questionBankId: idParam(params),
         } as never);
         return mapQuestionDraft(draft);
+      }),
+  );
+  app.patch(
+    "/api/v1/teacher/questions/:id",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const questionId = idParam(params);
+        const payload = objectPayload(body);
+        const status = oneOf(
+          payload.status,
+          ["ACTIVE", "ARCHIVED"] as const,
+          "status",
+        );
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const before = await readQuestionLifecycle(
+          options.database,
+          questionId,
+        );
+        if (!before)
+          throw new AppError(404, "NOT_FOUND", "Butir soal tidak ditemukan.");
+        await assertQuestionBankAccess(
+          options,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role as "ADMIN" | "TEACHER",
+            },
+          },
+          before,
+        );
+        return options.database.transaction(async (connection) => {
+          const currentRows = await connection.query<Record<string, unknown>>(
+            `${QUESTION_LIFECYCLE_SELECT} WHERE q.id = ? FOR UPDATE`,
+            [questionId],
+          );
+          if (!currentRows[0])
+            throw new AppError(404, "NOT_FOUND", "Butir soal tidak ditemukan.");
+          const current = mapQuestionLifecycleRow(currentRows[0]);
+          if (current.updatedAt !== expectedUpdatedAt)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Butir soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+          if (current.status === status) return current;
+          const updated = await connection.execute(
+            `UPDATE questions SET status = ?, updated_at = UTC_TIMESTAMP(6)
+             WHERE id = ? AND updated_at = ?`,
+            [status, questionId, databaseTimestamp(expectedUpdatedAt)],
+          );
+          if (affectedRows(updated) !== 1)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Butir soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+          const rows = await connection.query<Record<string, unknown>>(
+            `${QUESTION_LIFECYCLE_SELECT} WHERE q.id = ? LIMIT 1`,
+            [questionId],
+          );
+          if (!rows[0]) throw new Error("Updated question could not be read");
+          return mapQuestionLifecycleRow(rows[0]);
+        });
+      }),
+  );
+  app.delete(
+    "/api/v1/teacher/questions/:id",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const questionId = idParam(params);
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const before = await readQuestionLifecycle(
+          options.database,
+          questionId,
+        );
+        if (!before)
+          throw new AppError(404, "NOT_FOUND", "Butir soal tidak ditemukan.");
+        await assertQuestionBankAccess(
+          options,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role as "ADMIN" | "TEACHER",
+            },
+          },
+          before,
+        );
+        await options.database.transaction(async (connection) => {
+          const currentRows = await connection.query<Record<string, unknown>>(
+            `${QUESTION_LIFECYCLE_SELECT} WHERE q.id = ? FOR UPDATE`,
+            [questionId],
+          );
+          if (!currentRows[0])
+            throw new AppError(404, "NOT_FOUND", "Butir soal tidak ditemukan.");
+          const current = mapQuestionLifecycleRow(currentRows[0]);
+          if (current.updatedAt !== expectedUpdatedAt)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Butir soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+          const publishedRows = await connection.query<{ total: unknown }>(
+            `SELECT COUNT(*) AS total FROM question_revisions
+             WHERE question_id = ? AND status = 'PUBLISHED'`,
+            [questionId],
+          );
+          if (Number(publishedRows[0]?.total ?? 0) > 0)
+            throw new AppError(
+              409,
+              "QUESTION_PUBLISHED_HISTORY",
+              "Butir soal pernah dipublikasikan sehingga hanya dapat diarsipkan.",
+            );
+          const referenceRows = await connection.query<{ total: unknown }>(
+            `SELECT
+               (SELECT COUNT(*) FROM exam_questions eq
+                JOIN question_revisions qr ON qr.id = eq.question_revision_id
+                WHERE qr.question_id = ?) +
+               (SELECT COUNT(*) FROM exam_session_questions esq
+                JOIN question_revisions qr ON qr.id = esq.question_revision_id
+                WHERE qr.question_id = ?) AS total`,
+            [questionId, questionId],
+          );
+          if (Number(referenceRows[0]?.total ?? 0) > 0)
+            throw new AppError(
+              409,
+              "QUESTION_REFERENCED",
+              "Butir soal sudah digunakan oleh ujian atau sesi ujian sehingga hanya dapat diarsipkan.",
+            );
+          await connection.execute(
+            `DELETE p FROM question_media_placements p
+             JOIN question_revisions qr ON qr.id = p.question_revision_id
+             WHERE qr.question_id = ?`,
+            [questionId],
+          );
+          await connection.execute(
+            `DELETE qrm FROM question_revision_media qrm
+             JOIN question_revisions qr ON qr.id = qrm.question_revision_id
+             WHERE qr.question_id = ?`,
+            [questionId],
+          );
+          await connection.execute(
+            `DELETE qo FROM question_options qo
+             JOIN question_revisions qr ON qr.id = qo.question_revision_id
+             WHERE qr.question_id = ?`,
+            [questionId],
+          );
+          await connection.execute(
+            `DELETE tfs FROM true_false_statements tfs
+             JOIN question_revisions qr ON qr.id = tfs.question_revision_id
+             WHERE qr.question_id = ?`,
+            [questionId],
+          );
+          await connection.execute(
+            "DELETE FROM question_revisions WHERE question_id = ?",
+            [questionId],
+          );
+          const deleted = await connection.execute(
+            "DELETE FROM questions WHERE id = ? AND updated_at = ?",
+            [questionId, databaseTimestamp(expectedUpdatedAt)],
+          );
+          if (affectedRows(deleted) !== 1)
+            throw new AppError(
+              409,
+              "VERSION_CONFLICT",
+              "Butir soal berubah karena ada data terbaru. Muat ulang lalu coba lagi.",
+            );
+        });
+        return { questionId: String(questionId), deleted: true };
       }),
   );
   app.post(
@@ -1540,7 +1781,28 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           ? "1 = 1"
           : "qb.owner_teacher_id = ? AND EXISTS (SELECT 1 FROM teacher_subjects ts WHERE ts.teacher_id = ? AND ts.subject_id = qb.subject_id)";
       const rows = await options.database.query<Record<string, unknown>>(
-        `SELECT qr.id, qr.question_id, qb.id AS bank_id, qb.name AS bank_name, qb.subject_id, qr.type, qr.status, LEFT(qr.stimulus_html, 180) AS label, qr.updated_at FROM question_revisions qr JOIN questions q ON q.id = qr.question_id JOIN question_banks qb ON qb.id = q.question_bank_id WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?) ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
+        `SELECT qr.id, qr.question_id, qb.id AS bank_id, qb.name AS bank_name,
+                qb.subject_id, q.status AS question_status,
+                DATE_FORMAT(q.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS question_updated_at,
+                NOT EXISTS (
+                  SELECT 1 FROM question_revisions published
+                  WHERE published.question_id = q.id AND published.status = 'PUBLISHED'
+                ) AND NOT EXISTS (
+                  SELECT 1 FROM exam_questions eq
+                  JOIN question_revisions referenced ON referenced.id = eq.question_revision_id
+                  WHERE referenced.question_id = q.id
+                ) AND NOT EXISTS (
+                  SELECT 1 FROM exam_session_questions esq
+                  JOIN question_revisions referenced ON referenced.id = esq.question_revision_id
+                  WHERE referenced.question_id = q.id
+                ) AS can_permanently_delete,
+                qr.type, qr.status, LEFT(qr.stimulus_html, 180) AS label,
+                DATE_FORMAT(qr.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
+         FROM question_revisions qr
+         JOIN questions q ON q.id = qr.question_id
+         JOIN question_banks qb ON qb.id = q.question_bank_id
+         WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?)
+         ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
         [
           ...(actor.user.role === "ADMIN"
             ? []
@@ -1558,6 +1820,11 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           bankId: String(row.bank_id),
           bankName: String(row.bank_name),
           subjectId: String(row.subject_id),
+          questionStatus: String(row.question_status),
+          questionUpdatedAt: isoValue(row.question_updated_at),
+          canPermanentlyDelete:
+            row.can_permanently_delete === true ||
+            Number(row.can_permanently_delete) === 1,
           type: String(row.type),
           status: String(row.status),
           label: String(row.label ?? ""),
@@ -2294,6 +2561,47 @@ function idValue(value: unknown, field: string): Id {
 }
 function serviceUnavailable(name: string): AppError {
   return new AppError(503, "SERVICE_BUSY", `${name} belum tersedia.`);
+}
+
+const QUESTION_LIFECYCLE_SELECT = `
+  SELECT q.id, q.status,
+         DATE_FORMAT(q.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at,
+         qb.subject_id, qb.owner_teacher_id
+  FROM questions q
+  JOIN question_banks qb ON qb.id = q.question_bank_id`;
+
+type QuestionLifecycle = {
+  readonly questionId: string;
+  readonly status: "ACTIVE" | "ARCHIVED";
+  readonly updatedAt: string;
+  readonly subjectId: string;
+  readonly ownerTeacherId: string;
+};
+
+async function readQuestionLifecycle(
+  database: DatabasePort,
+  id: Id,
+): Promise<QuestionLifecycle | null> {
+  const rows = await database.query<Record<string, unknown>>(
+    `${QUESTION_LIFECYCLE_SELECT} WHERE q.id = ? LIMIT 1`,
+    [id],
+  );
+  return rows[0] ? mapQuestionLifecycleRow(rows[0]) : null;
+}
+
+function mapQuestionLifecycleRow(
+  row: Record<string, unknown>,
+): QuestionLifecycle {
+  const status = String(row.status);
+  if (status !== "ACTIVE" && status !== "ARCHIVED")
+    throw new Error("Database returned invalid question status");
+  return {
+    questionId: String(row.id),
+    status,
+    updatedAt: isoValue(row.updated_at),
+    subjectId: String(row.subject_id),
+    ownerTeacherId: String(row.owner_teacher_id),
+  };
 }
 
 async function readQuestionBank(

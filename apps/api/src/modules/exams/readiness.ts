@@ -209,6 +209,16 @@ export function validateExamReadiness(
       } else {
         publishedCount += 1;
       }
+      if (reference.questionStatus === "ARCHIVED") {
+        add(
+          "ERROR",
+          "EXAM_QUESTION_ARCHIVED",
+          entityId,
+          `${fieldPath}.questionRevisionId`,
+          "Butir soal yang diarsipkan tidak dapat dipakai pada ujian baru.",
+          "Pulihkan butir soal atau ganti dengan soal aktif.",
+        );
+      }
       if (reference.subjectId !== revision.exam.subjectId) {
         add(
           "ERROR",
