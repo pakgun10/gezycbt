@@ -93,6 +93,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
         "SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
       );
       try {
+        await lockScheduleForStart(connection, input.scheduleId);
         const schedule = await readSchedule(
           connection,
           input.scheduleId,
@@ -196,6 +197,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
           attemptNo,
           undefined,
         );
+        await markScheduleStructureLocked(connection, schedule.id, session.id);
         await insertManifest(
           connection,
           session.id,
@@ -286,6 +288,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
 
   async startPractice(input: StartPracticeInput): Promise<SessionStartResult> {
     return this.database.transaction(async (connection) => {
+      await lockScheduleForStart(connection, input.scheduleId);
       const schedule = await readSchedule(connection, input.scheduleId, false);
       const now = input.now ?? serverNow();
       if (
@@ -365,6 +368,7 @@ export class SqlExamRuntimeStore implements RuntimeStore {
         input.practiceTokenDigest,
         input.practiceCredentialDigest,
       );
+      await markScheduleStructureLocked(connection, schedule.id, session.id);
       await insertManifest(
         connection,
         session.id,
@@ -1033,7 +1037,13 @@ async function readSchedule(
   const mainAccessCodeHash = bytes(row.main_access_code_hash);
   const practiceTokenHash = bytes(row.practice_token_hash);
   const definitions = await connection.query<Row>(
-    "SELECT question_revision_id, points FROM exam_questions WHERE exam_revision_id = ? ORDER BY position ASC, id ASC",
+    `SELECT eq.question_revision_id AS baseline_question_revision_id,
+            q.current_published_revision_id, eq.points
+     FROM exam_questions eq
+     JOIN question_revisions qr ON qr.id = eq.question_revision_id
+     JOIN questions q ON q.id = qr.question_id
+     WHERE eq.exam_revision_id = ?
+     ORDER BY eq.position ASC, eq.id ASC`,
     [row.exam_revision_id],
   );
   const classes = await connection.query<Row>(
@@ -1068,11 +1078,93 @@ async function readSchedule(
     targetClassIds: classes.map((item) => dbId(item.class_id)),
     targetParticipantIds: participants.map((item) => dbId(item.participant_id)),
     updatedAt: dbTimestamp(row.updated_at),
-    questionDefinitions: definitions.map((item) => ({
-      questionRevisionId: dbId(item.question_revision_id),
-      points: String(item.points),
-    })),
+    questionDefinitions: await Promise.all(
+      definitions.map(async (item) => {
+        const baselineRevisionId = dbId(item.baseline_question_revision_id);
+        const activeRevisionId =
+          item.current_published_revision_id == null
+            ? baselineRevisionId
+            : dbId(item.current_published_revision_id);
+        return {
+          questionRevisionId: await compatibleRevisionOrBaseline(
+            connection,
+            baselineRevisionId,
+            activeRevisionId,
+          ),
+          points: String(item.points),
+        };
+      }),
+    ),
   };
+}
+
+async function lockScheduleForStart(
+  connection: DatabaseConnection,
+  scheduleId: Id,
+): Promise<void> {
+  // Hold this row lock until session and manifest are written. It serializes
+  // the first accepted start with any future schedule-rebind mutation.
+  const rows = await connection.query<Row>(
+    "SELECT id FROM exam_schedules WHERE id = ? LIMIT 1 FOR UPDATE",
+    [scheduleId],
+  );
+  if (!rows[0]) throw unavailable();
+}
+
+async function markScheduleStructureLocked(
+  connection: DatabaseConnection,
+  scheduleId: Id,
+  sessionId: Id,
+): Promise<void> {
+  await connection.execute(
+    `UPDATE exam_schedules
+     SET structure_locked_at = COALESCE(structure_locked_at, UTC_TIMESTAMP(6)),
+         structure_locked_by_session_id = COALESCE(structure_locked_by_session_id, ?)
+     WHERE id = ?`,
+    [sessionId, scheduleId],
+  );
+}
+
+async function compatibleRevisionOrBaseline(
+  connection: DatabaseConnection,
+  baselineRevisionId: Id,
+  candidateRevisionId: Id,
+): Promise<Id> {
+  if (baselineRevisionId === candidateRevisionId) return baselineRevisionId;
+  const revisions = await connection.query<Row>(
+    `SELECT id, \`type\`
+     FROM question_revisions
+     WHERE id IN (?, ?) AND status = 'PUBLISHED'`,
+    [baselineRevisionId, candidateRevisionId],
+  );
+  const types = new Map(
+    revisions.map((row) => [dbId(row.id), String(row.type)]),
+  );
+  const baselineType = types.get(baselineRevisionId);
+  const candidateType = types.get(candidateRevisionId);
+  if (!baselineType || baselineType !== candidateType)
+    return baselineRevisionId;
+  const table =
+    baselineType === "TRUE_FALSE"
+      ? "true_false_statements"
+      : "question_options";
+  const rows = await connection.query<Row>(
+    `SELECT question_revision_id, stable_key
+     FROM ${table}
+     WHERE question_revision_id IN (?, ?)
+     ORDER BY stable_key ASC`,
+    [baselineRevisionId, candidateRevisionId],
+  );
+  const baselineKeys = rows
+    .filter((row) => dbId(row.question_revision_id) === baselineRevisionId)
+    .map((row) => String(row.stable_key));
+  const candidateKeys = rows
+    .filter((row) => dbId(row.question_revision_id) === candidateRevisionId)
+    .map((row) => String(row.stable_key));
+  return baselineKeys.length === candidateKeys.length &&
+    baselineKeys.every((key, index) => key === candidateKeys[index])
+    ? candidateRevisionId
+    : baselineRevisionId;
 }
 
 async function isParticipantEligible(

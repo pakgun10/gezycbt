@@ -12,6 +12,10 @@ describe("performance indexes migration", () => {
     expect(performanceIndexesMigration.statements[1]).toContain(
       "idx_exam_results_schedule_id",
     );
-    expect(migrations.at(-2)).toBe(performanceIndexesMigration);
+    expect(migrations.indexOf(performanceIndexesMigration)).toBeGreaterThan(
+      migrations.findIndex(
+        (migration) => migration.id === "0013_exam_sessions",
+      ),
+    );
   });
 });

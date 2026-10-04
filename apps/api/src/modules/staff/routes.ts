@@ -1,5 +1,5 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
-import type { DatabasePort } from "@gezycbt/database";
+import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
 import { Elysia } from "elysia";
 import type { UseCaseContext } from "../../application/actor-context";
 import type { AuthorizationPolicyService } from "../../application/authorization";
@@ -49,7 +49,10 @@ import {
   type QuestionImportService,
   QuestionImportValidationError,
 } from "../questions/import";
-import type { QuestionPublishService } from "../questions/publish";
+import {
+  QuestionPublishBlockedError,
+  type QuestionPublishService,
+} from "../questions/publish";
 import type { QuestionReadinessService } from "../questions/readiness";
 import type { QuestionDraftService } from "../questions/service";
 import type { ScheduleAccessCodeService } from "../schedules/access-code";
@@ -59,6 +62,11 @@ import {
   ScheduleWindowError,
 } from "../schedules/domain";
 import type { ScheduleService } from "../schedules/service";
+import {
+  type ScoringQuestionSnapshot,
+  type ScoringResponse,
+  ScoringService,
+} from "../scoring";
 import type { UserImportCommitService } from "../user-imports/commit-service";
 import {
   CredentialArtifactExpiredError,
@@ -1272,6 +1280,42 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         return mapQuestionDraft(draft);
       }),
   );
+  app.post(
+    "/api/v1/teacher/question-revisions/:id/save",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.questions) throw serviceUnavailable("Question service");
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const { expectedUpdatedAt: _expected, ...content } = payload;
+        const savedDraft = await options.questions.drafts.updateDraft(
+          staffContext,
+          idParam(params),
+          content as never,
+          expectedUpdatedAt,
+        );
+        try {
+          const published = await options.questions.publish.publish(
+            staffContext,
+            savedDraft.id,
+            savedDraft.updatedAt,
+          );
+          return mapQuestionDraft(published);
+        } catch (error) {
+          if (error instanceof QuestionPublishBlockedError)
+            throw new AppError(
+              422,
+              "QUESTION_NOT_READY",
+              "Soal disimpan sebagai pekerjaan belum lengkap. Lengkapi field yang ditandai.",
+              { revision: mapQuestionDraft(savedDraft), report: error.report },
+            );
+          throw error;
+        }
+      }),
+  );
   app.delete(
     "/api/v1/teacher/schedules/:id",
     async ({ request, params, body }) =>
@@ -1914,8 +1958,13 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
                 ) AS can_permanently_delete,
                 qr.type, qr.status, LEFT(qr.stimulus_html, 180) AS label,
                 DATE_FORMAT(qr.updated_at, '%Y-%m-%dT%H:%i:%s.%fZ') AS updated_at
-         FROM question_revisions qr
-         JOIN questions q ON q.id = qr.question_id
+         FROM questions q
+         JOIN question_revisions qr ON qr.id = COALESCE(
+           q.current_published_revision_id,
+           (SELECT draft.id FROM question_revisions draft
+            WHERE draft.question_id = q.id
+            ORDER BY draft.revision_no DESC, draft.id DESC LIMIT 1)
+         )
          JOIN question_banks qb ON qb.id = q.question_bank_id
          WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?)
          ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
@@ -2229,6 +2278,70 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           scheduleId,
           queryValue(query, "cursor"),
           queryValue(query, "filter"),
+        );
+      }),
+  );
+  app.post(
+    "/api/v1/teacher/schedules/:id/regrade-preview",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const scheduleId = idParam(params);
+        await assertStaffScheduleAccess(
+          options.database,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role === "ADMIN" ? "ADMIN" : "TEACHER",
+            },
+          },
+          scheduleId,
+          options.teacherScopeLookup,
+        );
+        return previewScheduleRegrade(
+          options.database,
+          scheduleId,
+          selectedResultIds(objectPayload(body)),
+        );
+      }),
+  );
+  app.post(
+    "/api/v1/teacher/schedules/:id/regrade",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        const scheduleId = idParam(params);
+        await assertStaffScheduleAccess(
+          options.database,
+          {
+            user: {
+              id: String(staffContext.actor.userId),
+              role: staffContext.actor.role === "ADMIN" ? "ADMIN" : "TEACHER",
+            },
+          },
+          scheduleId,
+          options.teacherScopeLookup,
+        );
+        const payload = objectPayload(body);
+        const reason = stringField(payload.reason, "reason").trim();
+        if (reason.length < 3 || reason.length > 500)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Alasan Regrade harus berisi 3 sampai 500 karakter.",
+          );
+        const requestKey = request.headers.get("idempotency-key")?.trim();
+        if (!requestKey || requestKey.length > 128)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Idempotency-Key wajib diisi untuk Regrade.",
+          );
+        return executeScheduleRegrade(
+          options.database,
+          scheduleId,
+          String(staffContext.actor.userId) as Id,
+          requestKey,
+          reason,
+          selectedResultIds(payload),
         );
       }),
   );
@@ -3133,6 +3246,516 @@ async function updateResultRelease(
       failed: 0,
     };
   });
+}
+
+type RegradeTotals = {
+  readonly correctCount: number;
+  readonly incorrectCount: number;
+  readonly unansweredCount: number;
+  readonly earnedScore: string;
+  readonly maxScore: string;
+  readonly percentage: string;
+};
+
+type RegradeEvaluation = {
+  readonly resultId: Id;
+  readonly sessionId: Id;
+  readonly eligible: boolean;
+  readonly reasonCode: string | null;
+  readonly before: RegradeTotals;
+  readonly after: RegradeTotals | null;
+  readonly sourceRevisionId: Id | null;
+  readonly targetRevisionId: Id | null;
+  readonly answerScores: readonly {
+    readonly sessionQuestionId: Id;
+    readonly correct: boolean;
+    readonly points: string;
+  }[];
+};
+
+function selectedResultIds(payload: Record<string, unknown>): readonly Id[] {
+  const values = Array.isArray(payload.ids) ? payload.ids : [];
+  if (values.length === 0)
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Pilih sedikitnya satu hasil untuk Regrade.",
+    );
+  if (values.length > 500)
+    throw new AppError(422, "VALIDATION_FAILED", "Maksimal 500 hasil.");
+  return values.map((value) => idValue(value, "resultId"));
+}
+
+async function previewScheduleRegrade(
+  database: DatabasePort,
+  scheduleId: Id,
+  resultIds: readonly Id[],
+) {
+  return database.transaction(async (connection) => {
+    const evaluations = await evaluateScheduleRegrade(
+      connection,
+      scheduleId,
+      resultIds,
+      false,
+    );
+    return {
+      eligibleCount: evaluations.filter((item) => item.eligible).length,
+      ineligibleCount: evaluations.filter((item) => !item.eligible).length,
+      items: evaluations.map((item) => ({
+        resultId: String(item.resultId),
+        sessionId: String(item.sessionId),
+        eligible: item.eligible,
+        reasonCode: item.reasonCode,
+        before: item.before,
+        after: item.after,
+        sourceQuestionRevisionId: item.sourceRevisionId
+          ? String(item.sourceRevisionId)
+          : null,
+        targetQuestionRevisionId: item.targetRevisionId
+          ? String(item.targetRevisionId)
+          : null,
+      })),
+    };
+  });
+}
+
+async function executeScheduleRegrade(
+  database: DatabasePort,
+  scheduleId: Id,
+  actorUserId: Id,
+  requestKey: string,
+  reason: string,
+  resultIds: readonly Id[],
+) {
+  return database.transaction(async (connection) => {
+    const existing = await connection.query<Record<string, unknown>>(
+      `SELECT id FROM exam_regrade_runs
+       WHERE schedule_id = ? AND request_key = ? LIMIT 1 FOR UPDATE`,
+      [scheduleId, requestKey],
+    );
+    if (existing[0]) {
+      const runId = String(existing[0].id);
+      const counts = await connection.query<Record<string, unknown>>(
+        `SELECT SUM(eligible = TRUE) AS eligible_count, SUM(eligible = FALSE) AS ineligible_count
+         FROM exam_regrade_items WHERE regrade_run_id = ?`,
+        [runId],
+      );
+      return {
+        runId,
+        replayed: true,
+        eligibleCount: Number(counts[0]?.eligible_count ?? 0),
+        ineligibleCount: Number(counts[0]?.ineligible_count ?? 0),
+      };
+    }
+    const evaluations = await evaluateScheduleRegrade(
+      connection,
+      scheduleId,
+      resultIds,
+      true,
+    );
+    const created = await connection.execute(
+      `INSERT INTO exam_regrade_runs
+         (schedule_id, requested_by_user_id, request_key, reason, status, completed_at)
+       VALUES (?, ?, ?, ?, 'COMPLETED', UTC_TIMESTAMP(6))`,
+      [scheduleId, actorUserId, requestKey, reason],
+    );
+    if (created.insertId === undefined)
+      throw new Error("Regrade run insert did not return an ID");
+    const runId = String(created.insertId) as Id;
+    for (const item of evaluations) {
+      await connection.execute(
+        `INSERT INTO exam_regrade_items
+           (regrade_run_id, result_id, source_question_revision_id,
+            target_question_revision_id, eligible, reason_code,
+            before_correct_count, before_incorrect_count, before_unanswered_count,
+            before_earned_score, before_max_score, before_percentage,
+            after_correct_count, after_incorrect_count, after_unanswered_count,
+            after_earned_score, after_max_score, after_percentage)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          runId,
+          item.resultId,
+          item.sourceRevisionId,
+          item.targetRevisionId,
+          item.eligible,
+          item.reasonCode,
+          item.before.correctCount,
+          item.before.incorrectCount,
+          item.before.unansweredCount,
+          item.before.earnedScore,
+          item.before.maxScore,
+          item.before.percentage,
+          item.after?.correctCount ?? null,
+          item.after?.incorrectCount ?? null,
+          item.after?.unansweredCount ?? null,
+          item.after?.earnedScore ?? null,
+          item.after?.maxScore ?? null,
+          item.after?.percentage ?? null,
+        ],
+      );
+      if (!item.eligible || !item.after) continue;
+      await connection.execute(
+        `UPDATE exam_results SET correct_count = ?, incorrect_count = ?,
+           unanswered_count = ?, earned_score = ?, max_score = ?, percentage = ?,
+           scored_at = UTC_TIMESTAMP(6) WHERE id = ?`,
+        [
+          item.after.correctCount,
+          item.after.incorrectCount,
+          item.after.unansweredCount,
+          item.after.earnedScore,
+          item.after.maxScore,
+          item.after.percentage,
+          item.resultId,
+        ],
+      );
+      for (const answer of item.answerScores) {
+        await connection.execute(
+          `UPDATE answers SET is_correct = ?, awarded_points = ?,
+             scored_at = UTC_TIMESTAMP(6)
+           WHERE session_id = ? AND session_question_id = ?`,
+          [
+            answer.correct,
+            answer.points,
+            item.sessionId,
+            answer.sessionQuestionId,
+          ],
+        );
+      }
+    }
+    return {
+      runId: String(runId),
+      replayed: false,
+      eligibleCount: evaluations.filter((item) => item.eligible).length,
+      ineligibleCount: evaluations.filter((item) => !item.eligible).length,
+    };
+  });
+}
+
+async function evaluateScheduleRegrade(
+  connection: DatabaseConnection,
+  scheduleId: Id,
+  resultIds: readonly Id[],
+  lock: boolean,
+): Promise<readonly RegradeEvaluation[]> {
+  const conditions = ["r.schedule_id = ?"];
+  const parameters: unknown[] = [scheduleId];
+  if (resultIds.length) {
+    conditions.push(`r.id IN (${resultIds.map(() => "?").join(",")})`);
+    parameters.push(...resultIds);
+  }
+  const results = await connection.query<Record<string, unknown>>(
+    `SELECT r.id, r.session_id, r.correct_count, r.incorrect_count,
+            r.unanswered_count, r.earned_score, r.max_score, r.percentage
+     FROM exam_results r
+     JOIN exam_sessions s ON s.id = r.session_id AND s.status = 'SCORED'
+     WHERE ${conditions.join(" AND ")}
+     ORDER BY r.id ASC${lock ? " FOR UPDATE" : ""}`,
+    parameters,
+  );
+  return Promise.all(
+    results.map((result) => evaluateRegradeResult(connection, result)),
+  );
+}
+
+async function evaluateRegradeResult(
+  connection: DatabaseConnection,
+  result: Record<string, unknown>,
+): Promise<RegradeEvaluation> {
+  const resultId = String(result.id) as Id;
+  const sessionId = String(result.session_id) as Id;
+  const before: RegradeTotals = {
+    correctCount: Number(result.correct_count),
+    incorrectCount: Number(result.incorrect_count),
+    unansweredCount: Number(result.unanswered_count),
+    earnedScore: String(result.earned_score),
+    maxScore: String(result.max_score),
+    percentage: String(result.percentage),
+  };
+  const manifest = await connection.query<Record<string, unknown>>(
+    `SELECT esq.id AS session_question_id, esq.question_revision_id, esq.points,
+            qr.question_id
+     FROM exam_session_questions esq
+     JOIN question_revisions qr ON qr.id = esq.question_revision_id
+     WHERE esq.session_id = ? ORDER BY esq.display_position ASC`,
+    [sessionId],
+  );
+  const answers = await connection.query<Record<string, unknown>>(
+    "SELECT session_question_id, response_json FROM answers WHERE session_id = ?",
+    [sessionId],
+  );
+  const answerBySessionQuestion = new Map(
+    answers.map((answer) => [
+      String(answer.session_question_id),
+      answer.response_json,
+    ]),
+  );
+  const snapshots: ScoringQuestionSnapshot[] = [];
+  const responses: Array<{ questionId: Id; response: ScoringResponse }> = [];
+  const answerQuestionIds: Array<{ sessionQuestionId: Id; questionId: Id }> =
+    [];
+  let sourceRevisionId: Id | null = null;
+  let targetRevisionId: Id | null = null;
+  for (const item of manifest) {
+    const sourceId = String(item.question_revision_id) as Id;
+    const resolved = await resolveRegradeQuestion(connection, sourceId);
+    if (!resolved) {
+      return ineligibleRegrade(
+        resultId,
+        sessionId,
+        before,
+        "STRUCTURAL_CHANGE",
+        sourceId,
+        null,
+      );
+    }
+    if (resolved.targetRevisionId !== sourceId && sourceRevisionId === null) {
+      sourceRevisionId = sourceId;
+      targetRevisionId = resolved.targetRevisionId;
+    }
+    snapshots.push({
+      questionId: String(item.question_id) as Id,
+      questionRevisionId: resolved.targetRevisionId,
+      status: "PUBLISHED",
+      type: resolved.type,
+      points: String(item.points),
+      options: resolved.options,
+      statements: resolved.statements,
+    });
+    const responseValue = answerBySessionQuestion.get(
+      String(item.session_question_id),
+    );
+    if (responseValue !== undefined) {
+      const mapped = mapRegradeResponse(
+        parseRegradeResponse(responseValue),
+        resolved.optionMap,
+        resolved.statementMap,
+      );
+      if (!mapped)
+        return ineligibleRegrade(
+          resultId,
+          sessionId,
+          before,
+          "ANSWER_LINEAGE_MISSING",
+          sourceId,
+          resolved.targetRevisionId,
+        );
+      responses.push({
+        questionId: String(item.question_id) as Id,
+        response: mapped,
+      });
+    }
+    answerQuestionIds.push({
+      sessionQuestionId: String(item.session_question_id) as Id,
+      questionId: String(item.question_id) as Id,
+    });
+  }
+  try {
+    const score = new ScoringService().score({
+      questions: snapshots,
+      answers: responses,
+    });
+    const byQuestion = new Map(
+      score.questionScores.map((item) => [item.questionId, item]),
+    );
+    return {
+      resultId,
+      sessionId,
+      eligible: true,
+      reasonCode: null,
+      before,
+      after: {
+        correctCount: score.correctCount,
+        incorrectCount: score.incorrectCount,
+        unansweredCount: score.unansweredCount,
+        earnedScore: score.earnedScore,
+        maxScore: score.maxScore,
+        percentage: score.percentage,
+      },
+      sourceRevisionId,
+      targetRevisionId,
+      answerScores: answerQuestionIds.flatMap((item) => {
+        const question = byQuestion.get(item.questionId);
+        return question
+          ? [
+              {
+                sessionQuestionId: item.sessionQuestionId,
+                correct: question.outcome === "CORRECT",
+                points: question.awardedPoints,
+              },
+            ]
+          : [];
+      }),
+    };
+  } catch {
+    return ineligibleRegrade(
+      resultId,
+      sessionId,
+      before,
+      "SCORING_INVALID",
+      sourceRevisionId,
+      targetRevisionId,
+    );
+  }
+}
+
+function ineligibleRegrade(
+  resultId: Id,
+  sessionId: Id,
+  before: RegradeTotals,
+  reasonCode: string,
+  sourceRevisionId: Id | null,
+  targetRevisionId: Id | null,
+): RegradeEvaluation {
+  return {
+    resultId,
+    sessionId,
+    eligible: false,
+    reasonCode,
+    before,
+    after: null,
+    sourceRevisionId,
+    targetRevisionId,
+    answerScores: [],
+  };
+}
+
+async function resolveRegradeQuestion(
+  connection: DatabaseConnection,
+  sourceRevisionId: Id,
+): Promise<{
+  readonly targetRevisionId: Id;
+  readonly type: "SINGLE_CHOICE" | "MULTIPLE_RESPONSE" | "TRUE_FALSE";
+  readonly options: readonly { id: Id; isCorrect: boolean }[];
+  readonly statements: readonly { id: Id; correctValue: boolean }[];
+  readonly optionMap: ReadonlyMap<string, Id>;
+  readonly statementMap: ReadonlyMap<string, Id>;
+} | null> {
+  const revisions = await connection.query<Record<string, unknown>>(
+    `SELECT source.id AS source_id, source.\`type\` AS source_type,
+            q.current_published_revision_id
+     FROM question_revisions source
+     JOIN questions q ON q.id = source.question_id
+     WHERE source.id = ? AND source.status = 'PUBLISHED' LIMIT 1`,
+    [sourceRevisionId],
+  );
+  const source = revisions[0];
+  if (!source) return null;
+  const targetRevisionId =
+    source.current_published_revision_id == null
+      ? sourceRevisionId
+      : (String(source.current_published_revision_id) as Id);
+  const type = String(source.source_type) as
+    | "SINGLE_CHOICE"
+    | "MULTIPLE_RESPONSE"
+    | "TRUE_FALSE";
+  const targetRows = await connection.query<Record<string, unknown>>(
+    `SELECT id, \`type\` FROM question_revisions
+     WHERE id = ? AND status = 'PUBLISHED' LIMIT 1`,
+    [targetRevisionId],
+  );
+  if (!targetRows[0] || String(targetRows[0].type) !== type) return null;
+  const table =
+    type === "TRUE_FALSE" ? "true_false_statements" : "question_options";
+  const keyRows = await connection.query<Record<string, unknown>>(
+    `SELECT question_revision_id, id, stable_key,
+            ${type === "TRUE_FALSE" ? "correct_value" : "is_correct"} AS correct_value
+     FROM ${table}
+     WHERE question_revision_id IN (?, ?) ORDER BY stable_key ASC`,
+    [sourceRevisionId, targetRevisionId],
+  );
+  const sourceKeys = keyRows
+    .filter((row) => String(row.question_revision_id) === sourceRevisionId)
+    .map((row) => String(row.stable_key));
+  const targetKeys = keyRows
+    .filter((row) => String(row.question_revision_id) === targetRevisionId)
+    .map((row) => String(row.stable_key));
+  if (
+    sourceKeys.length !== targetKeys.length ||
+    !sourceKeys.every((key, index) => key === targetKeys[index])
+  )
+    return null;
+  const target = keyRows.filter(
+    (row) => String(row.question_revision_id) === targetRevisionId,
+  );
+  const sourceRows = keyRows.filter(
+    (row) => String(row.question_revision_id) === sourceRevisionId,
+  );
+  const targetByKey = new Map(
+    target.map((row) => [String(row.stable_key), String(row.id) as Id]),
+  );
+  const sourceIdToTargetId = new Map(
+    sourceRows.map((row) => [
+      String(row.id),
+      targetByKey.get(String(row.stable_key)) as Id,
+    ]),
+  );
+  const correct = (value: unknown) =>
+    value === true || value === 1 || value === 1n || value === "1";
+  return {
+    targetRevisionId,
+    type,
+    options:
+      type === "TRUE_FALSE"
+        ? []
+        : target.map((row) => ({
+            id: String(row.id) as Id,
+            isCorrect: correct(row.correct_value),
+          })),
+    statements:
+      type === "TRUE_FALSE"
+        ? target.map((row) => ({
+            id: String(row.id) as Id,
+            correctValue: correct(row.correct_value),
+          }))
+        : [],
+    optionMap: type === "TRUE_FALSE" ? new Map() : sourceIdToTargetId,
+    statementMap: type === "TRUE_FALSE" ? sourceIdToTargetId : new Map(),
+  };
+}
+
+function parseRegradeResponse(value: unknown): ScoringResponse | null {
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return parsed && typeof parsed === "object"
+      ? (parsed as ScoringResponse)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+function mapRegradeResponse(
+  response: ScoringResponse | null,
+  optionMap: ReadonlyMap<string, Id>,
+  statementMap: ReadonlyMap<string, Id>,
+): ScoringResponse | null {
+  if (response === null) return null;
+  if ("selectedOptionId" in response) {
+    if (response.selectedOptionId === null) return response;
+    const id = optionMap.get(String(response.selectedOptionId));
+    return id ? { selectedOptionId: id } : null;
+  }
+  if ("selectedOptionIds" in response) {
+    const ids = response.selectedOptionIds.map((id) =>
+      optionMap.get(String(id)),
+    );
+    return ids.every((id): id is Id => id !== undefined)
+      ? { selectedOptionIds: ids }
+      : null;
+  }
+  if ("statements" in response) {
+    const statements = response.statements.map((statement) => {
+      const id = statementMap.get(String(statement.statementId));
+      return id ? { statementId: id, value: statement.value } : null;
+    });
+    return statements.every(
+      (statement): statement is { statementId: Id; value: boolean } =>
+        statement !== null,
+    )
+      ? { statements }
+      : null;
+  }
+  return null;
 }
 
 function isoValue(value: unknown): string {

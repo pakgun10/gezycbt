@@ -91,6 +91,9 @@ describe("question API contracts", () => {
     const publishCheck = TypeCompiler.Compile(
       questionApiSchemas.publishQuestionRevisionBody,
     );
+    const saveCheck = TypeCompiler.Compile(
+      questionApiSchemas.saveQuestionRevisionBody,
+    );
     const content = {
       type: "SINGLE_CHOICE",
       stimulusHtml: "Stimulus",
@@ -108,6 +111,7 @@ describe("question API contracts", () => {
     );
     expect(publishCheck.Check({ expectedUpdatedAt: NOW })).toBe(true);
     expect(publishCheck.Check({})).toBe(false);
+    expect(saveCheck.Check({ ...content, expectedUpdatedAt: NOW })).toBe(true);
   });
 
   test("requires an optimistic version for question and bank deletion", () => {
@@ -188,8 +192,8 @@ describe("question API contracts", () => {
   });
 
   test("publishes the canonical teacher route inventory to OpenAPI", () => {
-    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(24);
-    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(24);
+    expect(QUESTION_API_ROUTE_PATHS).toHaveLength(25);
+    expect(new Set(QUESTION_API_ROUTE_PATHS).size).toBe(25);
     expect(
       questionApiRoutes.every((route) =>
         route.path.startsWith("/api/v1/teacher/"),
@@ -210,6 +214,7 @@ describe("question API contracts", () => {
     expect(
       paths["/api/v1/teacher/question-revisions/{id}/publish"],
     ).toBeDefined();
+    expect(paths["/api/v1/teacher/question-revisions/{id}/save"]).toBeDefined();
     expect(
       paths["/api/v1/teacher/question-revisions/{id}/media/{mediaId}"],
     ).toBeDefined();

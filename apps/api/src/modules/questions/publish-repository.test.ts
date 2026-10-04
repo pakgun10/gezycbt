@@ -112,8 +112,20 @@ class FakeQuestionDatabase implements DatabasePort {
     this.statements.push(sql);
     if (sql.includes("FROM question_options")) {
       return [
-        { id: 101n, position: 1, content_html: "A", is_correct: 1 },
-        { id: 102n, position: 2, content_html: "B", is_correct: 0 },
+        {
+          id: 101n,
+          stable_key: "11111111-1111-4111-8111-111111111111",
+          position: 1,
+          content_html: "A",
+          is_correct: 1,
+        },
+        {
+          id: 102n,
+          stable_key: "22222222-2222-4222-8222-222222222222",
+          position: 2,
+          content_html: "B",
+          is_correct: 0,
+        },
       ] as unknown as readonly T[];
     }
     if (sql.includes("FROM true_false_statements")) {

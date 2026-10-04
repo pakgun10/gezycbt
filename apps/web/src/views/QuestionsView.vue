@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { HttpStaffApi } from "../features/staff/api";
+import { ApiClientError } from "../lib/api";
 import type { MediaAlignment, MediaAsset, MediaUsage, QuestionBankSummary, QuestionDraft, QuestionImportPreview, QuestionMedia, QuestionSummary, Subject } from "../features/staff/types";
 import { messageFrom, safeHtmlPreview } from "../features/staff/helpers";
 import { subjectOptionLabel } from "../features/staff/master-data-policies";
@@ -153,31 +154,66 @@ function hydrateForm(draft: QuestionDraft): void {
 function close(): void { selected.value = null; report.value = null; publishMessage.value = ""; mediaFeedback.value = {}; }
 function addOption(): void { if (form.value.options.length < 10) form.value.options.push({ contentHtml: "", isCorrect: false }); }
 function addStatement(): void { if (form.value.statements.length < 3) form.value.statements.push({ statementHtml: "", correctValue: false }); }
-async function save(): Promise<boolean> {
-  if (!selected.value) return false; saving.value = true; error.value = "";
+function questionPayload(): Record<string, unknown> {
+  return {
+    type: form.value.type,
+    stimulusHtml: form.value.stimulusHtml,
+    promptHtml: form.value.type === "TRUE_FALSE" ? null : form.value.promptHtml || null,
+    explanationHtml: form.value.explanationHtml || null,
+    options: form.value.type === "TRUE_FALSE" ? [] : form.value.options.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, contentHtml: item.contentHtml, isCorrect: item.isCorrect })),
+    statements: form.value.type === "TRUE_FALSE" ? form.value.statements.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, statementHtml: item.statementHtml, correctValue: item.correctValue })) : [],
+  };
+}
+async function ensureEditableDraft(): Promise<boolean> {
+  const current = selected.value;
+  if (!current) return false;
+  const payload = questionPayload();
   try {
-    const payload = { type: form.value.type, stimulusHtml: form.value.stimulusHtml, promptHtml: form.value.type === "TRUE_FALSE" ? null : form.value.promptHtml || null, explanationHtml: form.value.explanationHtml || null, options: form.value.type === "TRUE_FALSE" ? [] : form.value.options.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, contentHtml: item.contentHtml, isCorrect: item.isCorrect })), statements: form.value.type === "TRUE_FALSE" ? form.value.statements.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, statementHtml: item.statementHtml, correctValue: item.correctValue })) : [] };
-    selected.value = selected.value.id === "new" ? await api.createQuestion({ questionBankId: form.value.questionBankId, ...payload }) : await api.updateQuestion(selected.value.id, payload, selected.value.updatedAt);
+    selected.value = current.id === "new"
+      ? await api.createQuestion({ questionBankId: form.value.questionBankId, ...payload })
+      : current.status === "PUBLISHED"
+        ? await api.updateQuestion(current.id, payload, current.updatedAt)
+        : current;
     hydrateForm(selected.value);
+    return true;
+  } catch (cause) {
+    error.value = messageFrom(cause, "Draft belum dapat disiapkan.");
+    return false;
+  }
+}
+async function save(): Promise<boolean> {
+  if (!selected.value) return false;
+  saving.value = true;
+  error.value = "";
+  publishMessage.value = "";
+  try {
+    if (!await ensureEditableDraft() || !selected.value) return false;
+    const saved = await api.saveQuestion(
+      selected.value.id,
+      questionPayload(),
+      selected.value.updatedAt,
+    );
+    selected.value = saved;
+    hydrateForm(saved);
     report.value = null;
+    publishMessage.value = `Soal tersimpan sebagai revision ${saved.revisionNo}.`;
     await load();
     return true;
-  } catch (cause) { error.value = messageFrom(cause); return false; } finally { saving.value = false; }
-}
-async function validate(): Promise<void> { if (!selected.value || selected.value.id === "new") { report.value = { isReady: false, issues: [{ severity: "ERROR", message: "Simpan draft sebelum validasi.", fieldPath: "" }] }; return; } try { report.value = await api.validateQuestion(selected.value.id); } catch (cause) { error.value = messageFrom(cause); } }
-async function publish(): Promise<void> {
-  const current = selected.value;
-  if (!current || !report.value?.isReady) return;
-  if (!window.confirm("Publish revision soal? Setelah publish, revisi menjadi immutable.")) return;
-  try {
-    const published = await api.publishQuestion(current.id, current.updatedAt);
-    // Keep the drawer anchored to the revision that was being edited. The
-    // publish response is merged when present, but it must never replace the
-    // current editor with an empty/partial response.
-    selected.value = { ...current, ...(published ?? {}), status: "PUBLISHED" };
-    publishMessage.value = "Revision berhasil dipublish. Editor tetap terbuka; revision ini sekarang immutable.";
-    await load();
-  } catch (cause) { error.value = messageFrom(cause); }
+  } catch (cause) {
+    if (cause instanceof ApiClientError && cause.code === "QUESTION_NOT_READY") {
+      const revision = cause.details.revision as QuestionDraft | undefined;
+      const readiness = cause.details.report as typeof report.value;
+      if (revision) {
+        selected.value = revision;
+        hydrateForm(revision);
+      }
+      if (readiness) report.value = readiness;
+    }
+    error.value = messageFrom(cause, "Soal belum dapat disimpan.");
+    return false;
+  } finally {
+    saving.value = false;
+  }
 }
 function mediaFeedbackKey(usage: MediaUsage, targetId?: string): string {
   return `${usage}:${targetId ?? ""}`;
@@ -239,11 +275,11 @@ async function attachRichMedia(usage: MediaUsage, targetId: string | undefined, 
   mediaBusy.value = true;
   setMediaFeedback(usage, targetId, "Mengunggah gambar…");
   try {
-    if (current.id === "new" || ((usage === "OPTION" || usage === "STATEMENT") && !resolvedTargetId)) {
-      const saved = await save();
+    if (current.id === "new" || current.status === "PUBLISHED" || ((usage === "OPTION" || usage === "STATEMENT") && !resolvedTargetId)) {
+      const saved = await ensureEditableDraft();
       current = selected.value;
       if (!saved || !current || current.id === "new") {
-        setMediaFeedback(usage, targetId, "Draft belum tersimpan. Lengkapi soal lalu coba lagi.");
+        setMediaFeedback(usage, targetId, "Draft belum dapat disiapkan. Lengkapi data dasar lalu coba lagi.");
         return;
       }
       resolvedTargetId = usage === "OPTION"
@@ -252,7 +288,7 @@ async function attachRichMedia(usage: MediaUsage, targetId: string | undefined, 
           ? form.value.statements[targetIndex ?? -1]?.id
           : undefined;
       if ((usage === "OPTION" || usage === "STATEMENT") && !resolvedTargetId) {
-        setMediaFeedback(usage, targetId, "Field ini belum memiliki ID. Simpan draft lalu coba lagi.");
+        setMediaFeedback(usage, targetId, "Field ini belum memiliki ID. Coba pasang gambar sekali lagi.");
         return;
       }
     }
@@ -275,7 +311,7 @@ async function attachRichMedia(usage: MediaUsage, targetId: string | undefined, 
     });
     selected.value = await api.question(current.id);
     appendMediaPlaceholder(usage, resolvedTargetId, relation.placementKey ?? "");
-    setMediaFeedback(usage, resolvedTargetId, "Gambar berhasil dipasang pada field ini. Simpan draft untuk menyimpan teksnya.");
+    setMediaFeedback(usage, resolvedTargetId, "Gambar berhasil dipasang. Tekan Simpan untuk menerbitkan perubahan.");
   } catch (cause) {
     setMediaFeedback(usage, resolvedTargetId, messageFrom(cause, "Gambar belum dapat diunggah."));
   } finally {
@@ -392,8 +428,8 @@ onMounted(() => { void load(); void loadOrphanMedia(); });
   <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
   <section class="card table-card"><div v-if="loading" class="table-state">Memuat bank soal…</div><div v-else-if="items.length === 0" class="table-state"><strong>Belum ada soal</strong><span class="muted">Buat draft pertama dari tombol di atas.</span></div><div v-else class="table-scroll"><table><caption class="sr-only">Daftar soal</caption><thead><tr><th>Preview</th><th>Tipe</th><th>Revision</th><th>Ketersediaan</th><th>Updated</th><th>Aksi</th></tr></thead><tbody><tr v-for="item in items" :key="item.id"><td><strong>{{ item.bankName }}</strong><small>{{ safeHtmlPreview(item.label) }}</small></td><td>{{ item.type }}</td><td><span class="badge" :class="item.status === 'PUBLISHED' ? 'badge-success' : 'badge-warning'">{{ item.status }}</span></td><td><span class="badge" :class="item.questionStatus === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ item.questionStatus === 'ACTIVE' ? 'Aktif' : 'Arsip' }}</span></td><td>{{ item.updatedAt }}</td><td><div class="question-actions"><button class="btn-quiet" type="button" :disabled="questionActionBusy === item.questionId" @click="open(item)">Buka editor</button><button v-if="item.questionStatus === 'ACTIVE'" class="btn-quiet danger-action" type="button" :disabled="questionActionBusy === item.questionId" @click="changeQuestionStatus(item, 'ARCHIVED')">Arsipkan</button><button v-else class="btn-quiet" type="button" :disabled="questionActionBusy === item.questionId" @click="changeQuestionStatus(item, 'ACTIVE')">Pulihkan</button><button v-if="item.canPermanentlyDelete" class="btn-quiet danger-action" type="button" :disabled="questionActionBusy === item.questionId" @click="deleteQuestion(item)">Hapus</button></div></td></tr></tbody></table></div></section>
   <div v-if="selected" class="overlay" role="dialog" aria-modal="true" aria-labelledby="question-editor-title"><section class="drawer"><div class="between"><div><p class="eyebrow">{{ selected.status }}</p><h2 id="question-editor-title">Editor soal</h2></div><div class="stack"><button class="btn-secondary" type="button" @click="previewOpen = true">Pratinjau</button><button class="btn-quiet" type="button" @click="close">Tutup</button></div></div><p v-if="publishMessage" class="alert alert-info" role="status">{{ publishMessage }}</p><form @submit.prevent="save"><div v-if="selected.id === 'new'" class="form-row"><label for="question-bank-id">Bank soal</label><select id="question-bank-id" v-model="form.questionBankId" required><option value="" disabled>Pilih bank soal</option><option v-for="bank in activeBanks" :key="bank.id" :value="bank.id">{{ bank.name }} · {{ bankSubjectLabel(bank.subjectId) }}</option></select><small v-if="activeBanks.length === 0" class="muted">Buat bank soal terlebih dahulu.</small></div><div class="form-row"><label for="question-type">Tipe soal</label><select id="question-type" v-model="form.type"><option value="SINGLE_CHOICE">Single choice · exact match</option><option value="MULTIPLE_RESPONSE">Multiple response · semua tepat</option><option value="TRUE_FALSE">True/False · tiga pernyataan</option></select></div><div class="form-row"><RichContentEditor v-model="form.stimulusHtml" label="Stimulus" placeholder="Tulis stimulus, diagram, atau konteks soal…" :media="mediaFor('STIMULUS')" :media-busy="mediaBusy" :media-limit-reached="mediaLimitReached()" :media-disabled="mediaIsDisabled('STIMULUS')" :media-disabled-reason="mediaUnavailableReason('STIMULUS')" :media-notice="mediaNoticeFor('STIMULUS')" @add-media="(input) => attachRichMedia('STIMULUS', undefined, input)" @remove-media="(media) => removeMedia(media)" @update-media="(media, input) => updateMediaDetails(media, input)" /></div><div v-if="form.type !== 'TRUE_FALSE'" class="form-row"><RichContentEditor v-model="form.promptHtml" label="Pertanyaan/soal" placeholder="Tulis pertanyaan…" :media="mediaFor('PROMPT')" :media-busy="mediaBusy" :media-limit-reached="mediaLimitReached()" :media-disabled="mediaIsDisabled('PROMPT')" :media-disabled-reason="mediaUnavailableReason('PROMPT')" :media-notice="mediaNoticeFor('PROMPT')" @add-media="(input) => attachRichMedia('PROMPT', undefined, input)" @remove-media="(media) => removeMedia(media)" @update-media="(media, input) => updateMediaDetails(media, input)" /></div><div v-if="form.type !== 'TRUE_FALSE'" class="child-editor"><div class="between"><h3>Opsi jawaban</h3><button class="btn-quiet" type="button" @click="addOption">Tambah opsi</button></div><div v-for="(option, index) in form.options" :key="index" class="child-row"><RichContentEditor v-model="option.contentHtml" :label="`Isi opsi ${index + 1}`" :media="mediaFor('OPTION', option.id)" :media-busy="mediaBusy" :media-limit-reached="mediaLimitReached()" :media-disabled="mediaIsDisabled('OPTION', option.id, index)" :media-disabled-reason="mediaUnavailableReason('OPTION', option.id, index)" :media-notice="mediaNoticeFor('OPTION', option.id)" @add-media="(input) => attachRichMedia('OPTION', option.id, input, index)" @remove-media="(media) => removeMedia(media)" @update-media="(media, input) => updateMediaDetails(media, input)" /><label><input v-model="option.isCorrect" type="checkbox" /> benar</label></div><p class="muted small-copy">Single choice harus tepat satu benar; multiple response minimal satu dan semua key harus tepat.</p></div><div v-else class="child-editor"><div class="between"><h3>Tiga pernyataan</h3><button class="btn-quiet" type="button" @click="addStatement">Tambah</button></div><div v-for="(statement, index) in form.statements" :key="index" class="child-row"><RichContentEditor v-model="statement.statementHtml" :label="`Pernyataan ${index + 1}`" :media="mediaFor('STATEMENT', statement.id)" :media-busy="mediaBusy" :media-limit-reached="mediaLimitReached()" :media-disabled="mediaIsDisabled('STATEMENT', statement.id, index)" :media-disabled-reason="mediaUnavailableReason('STATEMENT', statement.id, index)" :media-notice="mediaNoticeFor('STATEMENT', statement.id)" @add-media="(input) => attachRichMedia('STATEMENT', statement.id, input, index)" @remove-media="(media) => removeMedia(media)" @update-media="(media, input) => updateMediaDetails(media, input)" /><select v-model="statement.correctValue" :aria-label="`Jawaban pernyataan ${index + 1}`"><option :value="true">Benar</option><option :value="false">Salah</option></select></div></div><div class="form-row"><RichContentEditor v-model="form.explanationHtml" label="Pembahasan (opsional)" placeholder="Tulis pembahasan…" :media="mediaFor('EXPLANATION')" :media-busy="mediaBusy" :media-limit-reached="mediaLimitReached()" :media-disabled="mediaIsDisabled('EXPLANATION')" :media-disabled-reason="mediaUnavailableReason('EXPLANATION')" :media-notice="mediaNoticeFor('EXPLANATION')" @add-media="(input) => attachRichMedia('EXPLANATION', undefined, input)" @remove-media="(media) => removeMedia(media)" @update-media="(media, input) => updateMediaDetails(media, input)" /></div>
-      <p class="muted small-copy media-total-hint">{{ selected.media?.length ?? 0 }}/3 gambar terpasang. Tambahkan gambar melalui tombol “🖼 Gambar” di masing-masing field; pada soal baru, draft akan disimpan otomatis saat gambar dipasang.</p>
-      <div v-if="report" class="readiness" :class="report.isReady ? 'ready' : 'blocked'"><strong>{{ report.isReady ? 'Siap dipublish' : 'Belum siap dipublish' }}</strong><ul><li v-for="issue in report.issues" :key="`${issue.fieldPath}-${issue.message}`">{{ issue.severity }} · {{ issue.message }} <button v-if="issue.fieldPath" class="link-button" type="button">Buka field</button></li></ul></div><div class="editor-actions"><button class="btn-secondary" type="button" :disabled="saving" @click="validate">Validasi</button><button class="btn-primary" type="submit" :disabled="saving">{{ saving ? 'Menyimpan…' : 'Simpan draft' }}</button><button v-if="selected.status === 'DRAFT'" class="btn-secondary" type="button" :disabled="saving || !report?.isReady" @click="publish">Publish</button></div></form></section></div>
+      <p class="muted small-copy media-total-hint">{{ selected.media?.length ?? 0 }}/3 gambar terpasang. Tambahkan gambar melalui tombol “🖼 Gambar” di masing-masing field; draft internal disiapkan otomatis bila diperlukan.</p>
+      <div v-if="report" class="readiness" :class="report.isReady ? 'ready' : 'blocked'"><strong>{{ report.isReady ? 'Siap disimpan' : 'Belum dapat disimpan' }}</strong><ul><li v-for="issue in report.issues" :key="`${issue.fieldPath}-${issue.message}`">{{ issue.severity }} · {{ issue.message }} <button v-if="issue.fieldPath" class="link-button" type="button">Buka field</button></li></ul></div><div class="editor-actions"><button class="btn-primary" type="submit" :disabled="saving">{{ saving ? 'Menyimpan…' : 'Simpan' }}</button></div></form></section></div>
       <div v-if="previewOpen && selected" class="overlay preview-overlay" role="dialog" aria-modal="true" aria-labelledby="question-preview-title"><section class="preview-card" :class="`preview-${previewViewport}`"><div class="between"><h2 id="question-preview-title">Pratinjau soal</h2><button class="btn-quiet" type="button" @click="previewOpen = false">Tutup</button></div><div class="preview-viewport-switch" role="group" aria-label="Ukuran pratinjau"><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'phone' }" @click="previewViewport = 'phone'">360 px</button><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'tablet' }" @click="previewViewport = 'tablet'">768 px</button><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'desktop' }" @click="previewViewport = 'desktop'">Desktop</button></div><SafeQuestionContent :html="form.stimulusHtml" :media="selected.media?.filter((media) => media.usage === 'STIMULUS')" /><SafeQuestionContent v-if="form.type !== 'TRUE_FALSE'" :html="form.promptHtml" :media="selected.media?.filter((media) => media.usage === 'PROMPT')" /><div v-if="form.type !== 'TRUE_FALSE'" class="preview-options"><div v-for="(option, index) in form.options" :key="index" class="preview-option"><strong>{{ String.fromCharCode(65 + index) }}.</strong><SafeQuestionContent :html="option.contentHtml" :media="previewOptionMedia(index)" /></div></div><div v-else class="preview-options"><div v-for="(statement, index) in form.statements" :key="index" class="preview-option"><strong>{{ index + 1 }}.</strong><SafeQuestionContent :html="statement.statementHtml" :media="previewStatementMedia(index)" /></div></div><SafeQuestionContent :html="form.explanationHtml" :media="selected.media?.filter((media) => media.usage === 'EXPLANATION')" /></section></div>
 </template>
 

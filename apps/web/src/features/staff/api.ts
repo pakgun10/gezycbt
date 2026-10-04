@@ -21,6 +21,7 @@ import type {
   QuestionImportPreview,
   QuestionMedia,
   QuestionSummary,
+  RegradePreview,
   ResultRow,
   ScheduleDetail,
   ScheduleSummary,
@@ -176,6 +177,11 @@ export interface StaffApi {
     input: Record<string, unknown>,
     expectedUpdatedAt: string,
   ): Promise<QuestionDraft>;
+  saveQuestion(
+    id: string,
+    input: Record<string, unknown>,
+    expectedUpdatedAt: string,
+  ): Promise<QuestionDraft>;
   validateQuestion(id: string): Promise<{
     isReady: boolean;
     issues: readonly { severity: string; message: string; fieldPath: string }[];
@@ -295,6 +301,20 @@ export interface StaffApi {
     allFiltered?: boolean,
     filter?: string,
   ): Promise<{ released: number; skipped: number; failed: number }>;
+  previewRegrade(
+    scheduleId: string,
+    ids: readonly string[],
+  ): Promise<RegradePreview>;
+  regrade(
+    scheduleId: string,
+    ids: readonly string[],
+    reason: string,
+  ): Promise<{
+    runId: string;
+    replayed: boolean;
+    eligibleCount: number;
+    ineligibleCount: number;
+  }>;
   exports(scheduleId?: string): Promise<CursorPage<ExportJob>>;
   createExport(
     scheduleId: string,
@@ -679,6 +699,17 @@ export class HttpStaffApi implements StaffApi {
       { ...input, expectedUpdatedAt },
     );
   }
+  saveQuestion(
+    id: string,
+    input: Record<string, unknown>,
+    expectedUpdatedAt: string,
+  ) {
+    return this.mutate<QuestionDraft>(
+      `/api/v1/teacher/question-revisions/${encodeURIComponent(id)}/save`,
+      "POST",
+      { ...input, expectedUpdatedAt },
+    );
+  }
   validateQuestion(id: string) {
     return this.mutate<{
       isReady: boolean;
@@ -974,6 +1005,25 @@ export class HttpStaffApi implements StaffApi {
       `/api/v1/teacher/schedules/${encodeURIComponent(scheduleId)}/unrelease-results`,
       "POST",
       { ids, reason, allFiltered, filter },
+    );
+  }
+  previewRegrade(scheduleId: string, ids: readonly string[]) {
+    return this.mutate<RegradePreview>(
+      `/api/v1/teacher/schedules/${encodeURIComponent(scheduleId)}/regrade-preview`,
+      "POST",
+      { ids },
+    );
+  }
+  regrade(scheduleId: string, ids: readonly string[], reason: string) {
+    return this.mutate<{
+      runId: string;
+      replayed: boolean;
+      eligibleCount: number;
+      ineligibleCount: number;
+    }>(
+      `/api/v1/teacher/schedules/${encodeURIComponent(scheduleId)}/regrade`,
+      "POST",
+      { ids, reason },
     );
   }
   exports(scheduleId?: string) {

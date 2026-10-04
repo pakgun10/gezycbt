@@ -105,6 +105,7 @@ type RevisionRow = Record<string, unknown> & {
 
 type OptionRow = Record<string, unknown> & {
   id: unknown;
+  stable_key: unknown;
   position: unknown;
   content_html: unknown;
   is_correct: unknown;
@@ -112,6 +113,7 @@ type OptionRow = Record<string, unknown> & {
 
 type StatementRow = Record<string, unknown> & {
   id: unknown;
+  stable_key: unknown;
   position: unknown;
   statement_html: unknown;
   correct_value: unknown;
@@ -180,7 +182,7 @@ export class SqlQuestionDraftRepository
     return this.database.transaction(async (connection) => {
       const rows = await connection.query<{ id: unknown }>(
         `${REVISION_COLUMNS}
-         WHERE q.question_id = ?
+         WHERE q.id = ?
          ORDER BY qr.revision_no DESC, qr.id DESC
          LIMIT 1`,
         [questionId],
@@ -343,7 +345,11 @@ export class SqlQuestionDraftRepository
       if (revision.insertId === undefined)
         throw new Error("Question revision insert did not return an ID");
       const revisionId = formatId(revision.insertId);
-      await insertChildren(connection, revisionId, withoutChildIds(content));
+      await insertChildren(
+        connection,
+        revisionId,
+        cloneChildrenWithStableKeys(source, content),
+      );
       await copyMediaRelations(
         connection,
         sourceRevisionId,
@@ -378,6 +384,12 @@ export class SqlQuestionDraftRepository
         [id],
       );
       if (result.affectedRows !== 1) throw new QuestionVersionConflictError();
+      await connection.execute(
+        `UPDATE questions
+         SET current_published_revision_id = ?, updated_at = UTC_TIMESTAMP(6)
+         WHERE id = ?`,
+        [id, current.questionId],
+      );
       const published = await readRevision(connection, id);
       if (!published) throw new Error("Published revision could not be read");
       return published;
@@ -461,16 +473,41 @@ async function copyMediaRelations(
   );
 }
 
-function withoutChildIds(content: QuestionDraftContent): QuestionDraftContent {
+function cloneChildrenWithStableKeys(
+  source: QuestionDraft,
+  content: QuestionDraftContent,
+): QuestionDraftContent {
+  const optionKeys = new Map(
+    source.options.flatMap((option) =>
+      option.id && option.stableKey
+        ? [[option.id, option.stableKey] as const]
+        : [],
+    ),
+  );
+  const statementKeys = new Map(
+    source.statements.flatMap((statement) =>
+      statement.id && statement.stableKey
+        ? [[statement.id, statement.stableKey] as const]
+        : [],
+    ),
+  );
   return {
     ...content,
-    options: content.options.map(({ position, contentHtml, isCorrect }) => ({
-      position,
-      contentHtml,
-      isCorrect,
-    })),
+    options: content.options.map(
+      ({ id, position, contentHtml, isCorrect }) => ({
+        stableKey: id
+          ? (optionKeys.get(id) ?? crypto.randomUUID())
+          : crypto.randomUUID(),
+        position,
+        contentHtml,
+        isCorrect,
+      }),
+    ),
     statements: content.statements.map(
-      ({ position, statementHtml, correctValue }) => ({
+      ({ id, position, statementHtml, correctValue }) => ({
+        stableKey: id
+          ? (statementKeys.get(id) ?? crypto.randomUUID())
+          : crypto.randomUUID(),
         position,
         statementHtml,
         correctValue,
@@ -549,12 +586,12 @@ async function readRevision(
   if (!rows[0]) return null;
   const row = rows[0];
   const optionRows = await connection.query<OptionRow>(
-    `SELECT id, position, content_html, is_correct
+    `SELECT id, stable_key, position, content_html, is_correct
      FROM question_options WHERE question_revision_id = ? ORDER BY position ASC`,
     [id],
   );
   const statementRows = await connection.query<StatementRow>(
-    `SELECT id, position, statement_html, correct_value
+    `SELECT id, stable_key, position, statement_html, correct_value
      FROM true_false_statements WHERE question_revision_id = ? ORDER BY position ASC`,
     [id],
   );
@@ -631,18 +668,25 @@ async function insertChildren(
     if (option.id !== undefined) throw new QuestionForeignReferenceError();
     await connection.execute(
       `INSERT INTO question_options
-         (question_revision_id, position, content_html, is_correct)
-       VALUES (?, ?, ?, ?)`,
-      [revisionId, option.position, option.contentHtml, option.isCorrect],
+         (stable_key, question_revision_id, position, content_html, is_correct)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        option.stableKey ?? crypto.randomUUID(),
+        revisionId,
+        option.position,
+        option.contentHtml,
+        option.isCorrect,
+      ],
     );
   }
   for (const statement of content.statements) {
     if (statement.id !== undefined) throw new QuestionForeignReferenceError();
     await connection.execute(
       `INSERT INTO true_false_statements
-         (question_revision_id, position, statement_html, correct_value)
-       VALUES (?, ?, ?, ?)`,
+         (stable_key, question_revision_id, position, statement_html, correct_value)
+       VALUES (?, ?, ?, ?, ?)`,
       [
+        statement.stableKey ?? crypto.randomUUID(),
         revisionId,
         statement.position,
         statement.statementHtml,
@@ -695,9 +739,15 @@ async function syncOptions(
     } else {
       await connection.execute(
         `INSERT INTO question_options
-           (question_revision_id, position, content_html, is_correct)
-         VALUES (?, ?, ?, ?)`,
-        [revisionId, option.position, option.contentHtml, option.isCorrect],
+           (stable_key, question_revision_id, position, content_html, is_correct)
+         VALUES (?, ?, ?, ?, ?)`,
+        [
+          option.stableKey ?? crypto.randomUUID(),
+          revisionId,
+          option.position,
+          option.contentHtml,
+          option.isCorrect,
+        ],
       );
     }
   }
@@ -735,9 +785,10 @@ async function syncStatements(
     } else {
       await connection.execute(
         `INSERT INTO true_false_statements
-           (question_revision_id, position, statement_html, correct_value)
-         VALUES (?, ?, ?, ?)`,
+           (stable_key, question_revision_id, position, statement_html, correct_value)
+         VALUES (?, ?, ?, ?, ?)`,
         [
+          statement.stableKey ?? crypto.randomUUID(),
           revisionId,
           statement.position,
           statement.statementHtml,
@@ -811,6 +862,7 @@ function mapOptionRow(row: OptionRow) {
     throw new Error("Database returned invalid question option");
   return {
     id,
+    stableKey: requireStableKey(row.stable_key),
     position,
     contentHtml: requireText(row.content_html, "content_html"),
     isCorrect: toBoolean(row.is_correct),
@@ -824,6 +876,7 @@ function mapStatementRow(row: StatementRow) {
     throw new Error("Database returned invalid true/false statement");
   return {
     id,
+    stableKey: requireStableKey(row.stable_key),
     position,
     statementHtml: requireText(row.statement_html, "statement_html"),
     correctValue: toBoolean(row.correct_value),
@@ -841,6 +894,13 @@ function requireText(value: unknown, field: string): string {
   if (typeof value !== "string")
     throw new Error(`Database returned invalid ${field}`);
   return value;
+}
+
+function requireStableKey(value: unknown): string {
+  const stableKey = requireText(value, "stable_key").toLowerCase();
+  if (!/^[0-9a-f-]{36}$/u.test(stableKey))
+    throw new Error("Database returned invalid stable question child key");
+  return stableKey;
 }
 
 function nullableText(value: unknown): string | null {

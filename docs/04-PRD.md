@@ -1,8 +1,8 @@
 # Product Requirements Document — GezyCBT
 
-**Status:** Baseline produk aktif; product delta rich content, LaTeX, dan media soal siap diimplementasikan
-**Versi dokumen:** 0.2
-**Terakhir diperbarui:** 4 Oktober 2026
+**Status:** Baseline produk aktif; product delta question versioning, quiz structure lock, dan regrade siap diimplementasikan
+**Versi dokumen:** 0.3
+**Terakhir diperbarui:** 5 Oktober 2026
 **Pemilik produk:** Pemilik deployment GezyCBT  
 **Target deployment:** Satu sekolah, satu deployment, satu database  
 **Target kapasitas:** Hingga 1.000 peserta aktif bersamaan  
@@ -12,11 +12,13 @@
 
 **Product delta v0.2:** kebutuhan rich content terbatas, LaTeX, gambar target-aware, resize, alt text, pratinjau, authorized delivery, dan orphan cleanup ditetapkan pada 4 Oktober 2026. Implementasi dilacak melalui `ISS-176–ISS-186` dan wajib selesai sebelum pilot nyata yang memakai formula atau gambar soal.
 
+**Product delta v0.3:** alur satu tombol Simpan, versi soal per attempt, penguncian struktur kuis pada attempt pertama, pemakaian revision kompatibel untuk attempt baru, dan Regrade eksplisit ditetapkan pada 5 Oktober 2026. Implementasi dilacak melalui `ISS-187–ISS-196` dan wajib lulus gate konkurensi serta histori sebelum dipakai pada jadwal nyata.
+
 ### Status baseline
 
 Review lintas dokumen terhadap arsitektur v0.13, integrasi agent v0.3, dan UI/UX v0.6 menghasilkan keputusan berikut:
 
-- keputusan produk `P-01` sampai `P-12` telah disetujui dan konsisten di seluruh dokumen;
+- keputusan produk `P-01` sampai `P-16` telah disetujui; `P-13` sampai `P-16` merupakan delta versioning/lock/Regrade yang menunggu implementasi;
 - batas single-tenant, target satu sekolah, target 1.000 peserta, serta batas VPS sekitar 2 GB tetap berlaku;
 - scope core MVP, staging external agent, tiga tipe soal, exact-match scoring, attempt policy, result release, serta exam-session reliability sudah mempunyai requirement dan acceptance scenario;
 - UI/UX sudah selaras dengan PRD untuk role menu, theme System/Terang/Gelap, responsive exam flow, accessibility, monitoring, export, dan recovery state;
@@ -37,7 +39,7 @@ Gate Fase 0 yang masih terbuka dan bukan keputusan yang boleh ditebak implemente
 4. pengesahan target SLO, RPO, dan RTO oleh pemilik operasional;
 5. compatibility spike adapter production Hivekeep atau Hermes.
 
-Perubahan pada keputusan `P-01` sampai `P-12`, scope MVP, scoring, attempt, result visibility, session correctness, authorization, atau agent permission wajib memperbarui PRD sebelum issue implementation terkait dikerjakan.
+Perubahan pada keputusan `P-01` sampai `P-16`, scope MVP, scoring, attempt, result visibility, session correctness, authorization, atau agent permission wajib memperbarui PRD sebelum issue implementation terkait dikerjakan.
 
 Dokumen ini menjelaskan **produk apa yang harus dibangun**, untuk siapa, masalah apa yang diselesaikan, ruang lingkup rilis, kebutuhan fungsional, kebutuhan nonfungsional, dan kriteria penerimaannya. Detail implementasi teknis mengikuti dokumen arsitektur. Detail visual dan interaksi mengikuti dokumen UI/UX.
 
@@ -297,6 +299,10 @@ Kegagalan atau downtime agent tidak boleh mengurangi fungsi web GezyCBT.
 | P-10 | Peserta utama dapat resume dari perangkat lain setelah login ulang. |
 | P-11 | UI memakai zona `Asia/Jakarta`; waktu database disimpan UTC. |
 | P-12 | Audit disimpan minimal 1 tahun. |
+| P-13 | Struktur kuis dikunci secara atomik ketika attempt pertama berhasil dibuat; setelah itu tambah, hapus, ganti, dan susun ulang soal pada jadwal tersebut ditolak. |
+| P-14 | Editor soal menyediakan satu tindakan utama **Simpan**; validasi, pembentukan revision, dan aktivasi revision valid dijalankan server sebagai satu use case. |
+| P-15 | Setiap attempt membekukan revision soal yang dipakai. Attempt baru boleh memakai revision published terbaru yang kompatibel, sedangkan perubahan struktural memerlukan revision kuis atau jadwal baru. |
+| P-16 | Regrade hanya merupakan tindakan eksplisit dan diaudit terhadap attempt final menggunakan revision yang kompatibel; manifest, respons peserta, dan konten yang pernah dilihat peserta tidak diubah. |
 
 Perubahan keputusan ini memerlukan pembaruan PRD, analisis dampak schema/API/UI/test, dan ADR bila berdampak teknis.
 
@@ -321,7 +327,7 @@ Perubahan keputusan ini memerlukan pembaruan PRD, analisis dampak schema/API/UI/
 - Ujian
 - Jadwal
 - Monitoring
-- Hasil & Export
+- Hasil, Regrade & Export
 
 ### 8.3 Area peserta
 
@@ -434,6 +440,14 @@ Setiap requirement memiliki prioritas:
 | FR-QB-011 | Must | Setiap opsi pilihan dan pernyataan Benar/Salah dapat memuat teks panjang serta gambar yang terikat tepat pada item dan posisi sisipnya. |
 | FR-QB-012 | Must | Guru dapat membuka pratinjau draft yang memakai renderer, urutan konten, ukuran media, dan aturan responsive yang sama dengan halaman peserta. |
 | FR-QB-013 | Must | Perubahan rich content atau media pada draft memakai optimistic version dan ikut membentuk hash revision; seluruh bagian published revision tetap immutable. |
+| FR-QB-014 | Must | Editor soal hanya menampilkan satu tindakan simpan utama. Server otomatis menyimpan, memvalidasi, dan mengaktifkan revision bila valid tanpa meminta guru menjalankan langkah Validasi dan Publish terpisah. |
+| FR-QB-015 | Must | Simpan yang belum memenuhi readiness mempertahankan draft internal dan mengembalikan error bertaut field; revision published aktif sebelumnya tetap berlaku. |
+| FR-QB-016 | Must | Menyimpan perubahan terhadap soal published membuat revision baru dan tidak mengubah revision lama. |
+| FR-QB-017 | Must | Soal mempunyai tepat satu pointer revision published aktif untuk read model guru dan resolusi attempt baru; perpindahan pointer berlangsung atomik dengan publish. |
+| FR-QB-018 | Must | Opsi dan pernyataan mempunyai identitas logis stabil lintas revision agar respons revision lama dapat dipetakan untuk pemeriksaan kompatibilitas dan Regrade. |
+| FR-QB-019 | Must | Sistem mengklasifikasikan perubahan revision sebagai `CONTENT_COMPATIBLE` atau `STRUCTURAL`; tipe soal serta penambahan/penghapusan identitas opsi atau pernyataan merupakan perubahan struktural. |
+| FR-QB-020 | Must | Daftar bank soal menampilkan satu baris per logical question, nomor revision aktif, status pekerjaan yang belum lengkap, dan riwayat revision tanpa menduplikasi logical question. |
+| FR-QB-021 | Must | Autosave internal boleh dipakai untuk upload media dan recovery, tetapi tidak boleh mengaktifkan revision atau menampilkan keberhasilan final sebelum use case Simpan selesai. |
 
 ### 9.5 Tipe soal dan scoring
 
@@ -493,6 +507,10 @@ Aturan produk:
 | FR-EXM-006 | Must | Published exam revision immutable. |
 | FR-EXM-007 | Must | Publish selalu menjalankan validator server terbaru. |
 | FR-EXM-008 | Must | Question picker mendukung search/filter/pagination, selected tray, duplicate prevention, dan keyboard reorder. |
+| FR-EXM-009 | Must | Sebelum attempt pertama, perubahan struktur dibuat sebagai exam revision baru dan jadwal dapat diarahkan ke revision pengganti secara atomik. |
+| FR-EXM-010 | Must | Start attempt pertama mengunci struktur jadwal dalam transaksi yang sama dengan pembuatan session dan manifest. |
+| FR-EXM-011 | Must | Setelah struktur terkunci, tambah, hapus, ganti, ubah bobot, dan susun ulang soal ditolak server dengan error khusus serta alasan yang dapat ditampilkan UI. |
+| FR-EXM-012 | Must | UI menonaktifkan kontrol struktur pada jadwal terkunci, menampilkan waktu/alasan penguncian, dan mengarahkan guru membuat revision kuis atau jadwal baru. |
 
 ### 9.8 Jadwal ujian
 
@@ -509,6 +527,7 @@ Aturan produk:
 | FR-SCHD-009 | Must | Kode akses memakai tepat lima karakter uppercase/digit dari alfabet tanpa `I`, `L`, `O`, `0`, `1`; lowercase dinormalisasi uppercase dan hyphen diabaikan. |
 | FR-SCHD-010 | Must | MAIN tetap mewajibkan login username/password dan eligibility; kode MAIN hanya lapisan tambahan untuk memilih schedule. |
 | FR-SCHD-011 | Must | Guru dapat menerima kode server atau mengusulkan kode sendiri; server menormalisasi, menolak collision, menyimpan digest, dan menyediakan rotasi. |
+| FR-SCHD-012 | Must | Status penguncian struktur berasal dari server dan tidak dapat dibuka kembali setelah session pertama terbentuk, termasuk setelah seluruh attempt selesai atau direset. |
 
 #### Lifecycle jadwal
 
@@ -609,7 +628,7 @@ Eligibility selalu memakai schedule, waktu server, target, dan attempt aktual; l
 - satu grant membuat tepat satu replacement session;
 - lebih dari satu grant belum terpakai untuk peserta/schedule yang sama ditolak.
 
-### 9.13 Results, release, dan export
+### 9.13 Results, Regrade, release, dan export
 
 | ID | Prioritas | Requirement |
 |---|---|---|
@@ -622,6 +641,13 @@ Eligibility selalu memakai schedule, waktu server, target, dan attempt aktual; l
 | FR-RES-007 | Must | UI menjelaskan bahwa informasi yang sudah dilihat tidak dapat ditarik kembali. |
 | FR-RES-008 | Must | Hasil latihan menampilkan skor dan aggregate benar/salah/kosong tanpa answer key. |
 | FR-RES-009 | Must | Retry latihan mengikuti `canRetry` dan `canRetryReason` dari server. |
+| FR-RES-010 | Must | Guru/admin sesuai scope dapat meminta preview Regrade untuk satu atau banyak attempt final sebelum perubahan nilai dilakukan. |
+| FR-RES-011 | Must | Preview Regrade menyatakan revision sumber/target, nilai sebelum/sesudah, jumlah attempt eligible, dan alasan setiap attempt yang ditolak. |
+| FR-RES-012 | Must | Regrade hanya menerima revision `CONTENT_COMPATIBLE`; perubahan struktural ditolak tanpa mengubah hasil apa pun. |
+| FR-RES-013 | Must | Eksekusi Regrade bersifat idempotent, mempertahankan snapshot nilai lama dalam histori, dan mencatat actor, alasan, waktu, serta revision sumber/target. |
+| FR-RES-014 | Must | Regrade tidak mengubah session manifest, jawaban peserta, urutan tampilan, atau konten yang pernah dilihat peserta. |
+| FR-RES-015 | Must | Attempt `ACTIVE` tidak di-Regrade. Attempt tersebut tetap memakai revision awal, lalu dapat di-Regrade setelah final bila revision target kompatibel. |
+| FR-RES-016 | Must | Perubahan nilai yang telah dirilis ditampilkan sebagai nilai hasil Regrade dengan audit yang dapat ditelusuri; UI memberi impact confirmation sebelum eksekusi. |
 | FR-EXP-001 | Must | Export berjalan sebagai job `QUEUED`, `RUNNING`, `READY`, `FAILED`, atau `EXPIRED`. |
 | FR-EXP-002 | Must | Export memakai filter/scope snapshot dan tidak memblokir halaman. |
 | FR-EXP-003 | Must | File hanya dapat diunduh setelah authorization dan download berhasil diaudit. |
@@ -651,7 +677,7 @@ Bagian ini adalah kontrak perilaku produk paling kritis.
 2. Peserta menekan Mulai Ujian.
 3. Client mengirim start idempotency key yang stabil sampai outcome diketahui.
 4. Server memvalidasi user/token, target, schedule, waktu, dan attempt.
-5. Server membuat session serta manifest soal secara atomik.
+5. Server mengunci struktur pada start pertama, menyelesaikan revision kompatibel untuk setiap soal, lalu membuat session serta manifest secara atomik.
 6. Server mengembalikan `sessionId`, waktu mulai, deadline, server time, manifest aman, dan jawaban existing bila resume.
 
 Kriteria penerimaan:
@@ -683,6 +709,15 @@ Session membekukan:
 - bobot setiap soal.
 
 Refresh dan resume wajib menampilkan manifest yang sama.
+
+#### Resolusi revision saat start
+
+- slot pada exam revision mempertahankan logical question dan baseline revision yang disetujui guru;
+- sebelum manifest dibuat, server memilih revision published aktif terbaru hanya bila revision tersebut kompatibel dengan baseline slot;
+- hasil pemilihan disimpan sebagai exact `question_revision_id` pada manifest session;
+- session yang sudah ada tidak pernah mengikuti perpindahan pointer revision aktif;
+- revision struktural tidak otomatis masuk ke jadwal yang sudah terkunci dan memerlukan exam revision atau jadwal baru;
+- resolusi seluruh soal dan insert manifest berada dalam transaksi start yang sama agar satu attempt tidak mencampur state sebelum dan sesudah perubahan.
 
 ### 10.4 Menyimpan jawaban
 
@@ -929,6 +964,9 @@ Save state yang terlihat: Tersimpan, Belum tersimpan, Menyimpan, Offline—tersi
 | NFR-REL-005 | Seluruh race kritis diuji dengan minimal dua database connection nyata. |
 | NFR-REL-006 | Background job idempotent dan tidak menjadi sumber correctness tunggal. |
 | NFR-REL-007 | Hash question revision meliputi sanitized content serta media placement canonical dan berubah pada attach, detach, alt, target, order, resize, atau alignment. |
+| NFR-REL-008 | Publish revision dan perpindahan pointer revision aktif harus commit atau rollback sebagai satu unit. |
+| NFR-REL-009 | Structure lock, pemilihan revision efektif, pembuatan session, dan manifest attempt harus konsisten dalam satu transaction boundary. |
+| NFR-REL-010 | Regrade harus idempotent dan tidak boleh memperbarui result tanpa menulis snapshot histori serta audit yang sesuai. |
 
 ### 13.2 Performance dan capacity
 
@@ -1047,14 +1085,14 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 ### AC-01 — Membuat dan menerbitkan soal
 
 **Given** guru berada dalam subject scope,  
-**When** guru membuat draft salah satu dari tiga tipe dan seluruh aturan valid,  
-**Then** revision dapat dipublish, menjadi immutable, dan dapat dipilih pada exam draft.
+**When** guru mengisi salah satu dari tiga tipe secara valid lalu menekan Simpan,
+**Then** server memvalidasi dan mengaktifkan revision immutable dalam satu use case tanpa langkah Validasi atau Publish terpisah.
 
 ### AC-02 — Menolak soal tidak valid
 
 **Given** draft mempunyai kunci/opsi/pernyataan yang tidak memenuhi aturan,  
-**When** guru menjalankan validation atau publish,  
-**Then** server mengembalikan readiness errors yang tertaut ke field dan publish ditolak.
+**When** guru menekan Simpan,
+**Then** server mempertahankan draft internal, mengembalikan readiness errors yang tertaut ke field, dan tidak mengganti revision published aktif.
 
 ### AC-03 — Satu attempt ujian utama
 
@@ -1161,7 +1199,7 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 ### AC-20 — Gambar pada soal dan opsi
 
 **Given** guru mengunggah gambar valid dan menyisipkannya pada stimulus atau opsi tertentu,
-**When** guru mengisi alt text, mengubah ukuran, menyimpan, mengurutkan opsi, membuka preview, lalu publish,
+**When** guru mengisi alt text, mengubah ukuran, mengurutkan opsi, membuka preview, lalu menekan Simpan,
 **Then** gambar tetap berada pada target dan urutan yang benar, ukuran responsive bertahan setelah reload, participant melihat hasil yang sama, dan published revision tidak dapat diubah.
 
 ### AC-21 — Authorized media delivery
@@ -1182,6 +1220,48 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 **When** guru berpindah antara preview ponsel, tablet, desktop, dan halaman participant staging,
 **Then** urutan konten, formula, ukuran/alignment gambar, wrapping, dan semantic answer controls konsisten.
 
+### AC-24 — Struktur terkunci pada attempt pertama
+
+**Given** jadwal belum mempunyai session dan guru serta peserta mengirim perubahan struktur dan start secara bersamaan,
+**When** kedua request diproses,
+**Then** transaksi menghasilkan tepat satu urutan authoritative: perubahan selesai sebelum start dan masuk manifest, atau start menang lalu perubahan ditolak dengan `QUIZ_STRUCTURE_LOCKED`; manifest tidak pernah setengah berubah.
+
+### AC-25 — Attempt mempertahankan revision lama
+
+**Given** peserta A telah memulai attempt memakai soal revision 1,
+**When** guru memperbaiki soal dan Simpan mengaktifkan revision 2,
+**Then** refresh, resume, submit, dan scoring awal peserta A tetap memakai revision 1.
+
+### AC-26 — Attempt baru memakai perbaikan kompatibel
+
+**Given** revision 2 mengubah teks atau kunci jawaban tanpa menambah, menghapus, atau mengganti identitas opsi/pernyataan,
+**When** peserta B memulai attempt setelah revision 2 aktif,
+**Then** manifest peserta B memakai revision 2 sementara manifest peserta A tetap memakai revision 1.
+
+### AC-27 — Perubahan struktural pada kuis terkunci
+
+**Given** jadwal sudah terkunci dan revision soal baru mengubah tipe atau menambah/menghapus opsi/pernyataan,
+**When** revision tersebut diaktifkan di bank soal,
+**Then** revision tetap tersedia untuk authoring baru tetapi tidak otomatis dipakai attempt baru pada jadwal terkunci; UI menjelaskan bahwa exam revision atau jadwal baru diperlukan.
+
+### AC-28 — Regrade revision kompatibel
+
+**Given** attempt telah final memakai revision 1 dan revision 2 kompatibel memperbaiki kunci,
+**When** guru melihat preview lalu mengonfirmasi Regrade dengan alasan,
+**Then** nilai dihitung ulang secara idempotent, snapshot lama dan audit dipertahankan, serta manifest dan jawaban peserta tidak berubah.
+
+### AC-29 — Regrade perubahan struktural ditolak
+
+**Given** revision target menambah atau menghapus opsi/pernyataan,
+**When** guru meminta preview atau eksekusi Regrade,
+**Then** attempt dinyatakan tidak eligible dengan alasan yang jelas dan tidak ada result yang berubah.
+
+### AC-30 — Daftar dan riwayat versi soal
+
+**Given** satu logical question mempunyai beberapa revision published serta satu draft internal belum lengkap,
+**When** guru membuka bank soal,
+**Then** daftar menampilkan satu baris logical question, revision aktif yang digunakan, status pekerjaan belum lengkap, dan riwayat revision yang dapat dibuka tanpa menduplikasi soal.
+
 ---
 
 ## 17. Testing dan quality gates
@@ -1193,6 +1273,9 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - rich-content sanitizer dan canonical serializer;
 - LaTeX validation, trusted-command rejection, expansion, dan size bounds;
 - media placement target, order, resize, alt/decorative, dan revision hash;
+- revision compatibility classifier dan stable child identity;
+- one-save state transition untuk draft valid dan tidak valid;
+- Regrade eligibility serta deterministic score delta;
 - randomization deterministik;
 - deadline serta attempt policy;
 - role/ownership/scope;
@@ -1203,6 +1286,10 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - foreign key/unique/check constraint;
 - publish immutability;
 - concurrent start/save/submit/timeout;
+- race start pertama melawan perubahan/rebind struktur;
+- pointer revision aktif, stable child identity, dan backfill migration;
+- resolusi revision kompatibel serta manifest freeze lintas attempt;
+- Regrade idempotency, history snapshot, dan all-or-nothing batch;
 - reset grant race;
 - import idempotency;
 - result release/unrelease;
@@ -1222,7 +1309,8 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - import error bebas credential;
 - practice result bebas correctness per soal;
 - agent ordinary read bebas answer key;
-- OpenAPI snapshot berubah hanya melalui review.
+- OpenAPI snapshot berubah hanya melalui review;
+- kontrak one-save, quiz lock, compatibility report, Regrade preview, dan Regrade execute konsisten antara frontend/backend.
 
 ### 17.4 E2E
 
@@ -1235,6 +1323,10 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - stimulus kosong, stimulus teks panjang, serta gambar pada stimulus/opsi/pernyataan;
 - LaTeX inline/block, preview parity, resize responsive, alt/decorative, dan orphan management;
 - payload XSS dari web, CSV, serta agent dan media IDOR lintas session;
+- satu tombol Simpan untuk soal valid/tidak valid serta riwayat version;
+- struktur sebelum start, struktur terkunci, dan pesan penolakan sesudah start;
+- peserta lama dan baru menerima revision yang tepat;
+- preview/execute Regrade kompatibel serta penolakan revision struktural;
 - mobile/tablet/desktop;
 - keyboard dan screen-reader smoke test.
 
@@ -1248,7 +1340,8 @@ Rilis tidak boleh dilanjutkan bila terdapat:
 - restore belum pernah diuji;
 - high-severity issue terbuka;
 - load test critical path belum mencapai baseline yang disetujui;
-- dependency/runtime version belum dipin.
+- dependency/runtime version belum dipin;
+- first-start race, version isolation, atau Regrade history gate belum lulus.
 
 ---
 
@@ -1266,6 +1359,7 @@ Rilis tidak boleh dilanjutkan bila terdapat:
 | 7 | Participant UI | Mobile/offline/resume E2E lulus |
 | 8 | Staff UI, result, export, audit | Workflow web end-to-end lengkap |
 | 8B | Agent bertahap | Credential/grant/idempotency/audit/tool tests lulus |
+| 8C | Question versioning, quiz structure lock, dan Regrade | One-save, first-start race, version isolation, compatible resolution, dan Regrade history lulus |
 | 9 | Security dan operasi | Restore, runbook, headers, redaction lulus |
 | 10 | Performance | Load/soak memenuhi target dengan headroom |
 | 11 | Pilot 30–100 peserta | Temuan tinggi ditutup |
@@ -1294,6 +1388,10 @@ Rilis tidak boleh dilanjutkan bila terdapat:
 | Disk lambat/penuh | Transaction gagal | SSD/NVMe, alert, reject upload/export lebih dahulu |
 | Backup tidak dapat direstore | Kehilangan data | Automated verification dan restore drill |
 | Exact match tidak dipahami | Peserta merasa hasil salah | Instruksi eksplisit dan preview guru |
+| Race perubahan struktur dengan start pertama | Manifest peserta berbeda dari struktur yang dianggap tersimpan guru | Lock baris jadwal dan commit lock/session/manifest secara atomik dengan error khusus |
+| Revision terbaru tidak kompatibel masuk jadwal aktif | Opsi atau response ID tidak dapat dipetakan | Stable child identity, compatibility classifier, baseline slot, dan penolakan promosi struktural |
+| Regrade menimpa histori nilai | Sengketa hasil tidak dapat ditelusuri | Preview dampak, snapshot before/after, idempotency, alasan wajib, dan audit append-only |
+| Tombol Simpan mengaktifkan konten belum lengkap | Peserta baru menerima soal rusak | Readiness server-side dalam transaksi; draft invalid dipertahankan tanpa memindahkan pointer aktif |
 | Practice token dibagikan | Identitas tidak terverifikasi | Rotation, expiry, attempt policy, guest labeling |
 | Agent salah target | Mutasi keliru | Stable ID, ambiguity handling, exact plan, approval |
 | Credential agent bocor | Akses tanpa izin | Vault, expiry, revoke, grant, audit, kill switch |
@@ -1354,6 +1452,7 @@ Sebuah fitur dinyatakan selesai hanya jika:
 | Capability, approval, API, dan lifecycle external agent | `02-bot-automation.md` |
 | Visual, responsive, component behavior, accessibility | `03-ui-ux.md` |
 | Tujuan, scope, prioritas, dan acceptance produk | Dokumen ini |
+| Backlog one-save, version isolation, structure lock, dan Regrade | `05-ISSUES.md` bagian 22 |
 
 Jika ditemukan perbedaan:
 
@@ -1388,6 +1487,11 @@ Jika ditemukan perbedaan:
 | Media placement | Relasi gambar ke revision, target field/child, posisi sisip, alt/decorative, ukuran, dan alignment |
 | Orphan media | Asset READY yang tidak mempunyai media placement aktif |
 | LaTeX source | Notasi formula yang disimpan dan divalidasi sebelum dirender oleh KaTeX |
+| Active question revision | Revision published yang saat ini dipilih untuk authoring dan resolusi attempt baru yang kompatibel |
+| Compatible revision | Revision dengan tipe dan identitas logis opsi/pernyataan yang masih dapat dipetakan terhadap baseline slot |
+| Structural revision | Revision yang mengubah tipe atau menambah/menghapus identitas opsi/pernyataan |
+| Structure lock | Keadaan permanen pada jadwal setelah session pertama dibuat yang melarang perubahan susunan kuis |
+| Regrade | Penghitungan ulang nilai attempt final secara eksplisit dan diaudit tanpa mengubah manifest atau jawaban peserta |
 
 ---
 

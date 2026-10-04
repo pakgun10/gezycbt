@@ -302,6 +302,32 @@ export interface ResultRow {
   readonly releasedAt: string | null;
 }
 
+export interface RegradeTotals {
+  readonly correctCount: number;
+  readonly incorrectCount: number;
+  readonly unansweredCount: number;
+  readonly earnedScore: string;
+  readonly maxScore: string;
+  readonly percentage: string;
+}
+
+export interface RegradePreviewItem {
+  readonly resultId: string;
+  readonly sessionId: string;
+  readonly eligible: boolean;
+  readonly reasonCode: string | null;
+  readonly before: RegradeTotals;
+  readonly after: RegradeTotals | null;
+  readonly sourceQuestionRevisionId: string | null;
+  readonly targetQuestionRevisionId: string | null;
+}
+
+export interface RegradePreview {
+  readonly eligibleCount: number;
+  readonly ineligibleCount: number;
+  readonly items: readonly RegradePreviewItem[];
+}
+
 export interface ExportJob {
   readonly id: string;
   readonly format: "CSV" | "JSON";

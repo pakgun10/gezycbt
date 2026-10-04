@@ -23,6 +23,8 @@ export interface QuestionBankSummary {
 
 export interface QuestionOptionDraft {
   readonly id?: Id;
+  /** Internal lineage key; never trusted from a new client child. */
+  readonly stableKey?: string;
   readonly position: number;
   readonly contentHtml: string;
   readonly isCorrect: boolean;
@@ -30,6 +32,8 @@ export interface QuestionOptionDraft {
 
 export interface TrueFalseStatementDraft {
   readonly id?: Id;
+  /** Internal lineage key; never trusted from a new client child. */
+  readonly stableKey?: string;
   readonly position: number;
   readonly statementHtml: string;
   readonly correctValue: boolean;
@@ -191,6 +195,9 @@ function validateOption(input: QuestionOptionDraft): QuestionOptionDraft {
   }
   return {
     ...(input.id === undefined ? {} : { id: validateId(input.id) }),
+    ...(input.stableKey === undefined
+      ? {}
+      : { stableKey: validateStableKey(input.stableKey) }),
     position: input.position,
     contentHtml: validateHtml(input.contentHtml, "option.contentHtml", 20_000),
     isCorrect: input.isCorrect,
@@ -217,6 +224,9 @@ function validateStatement(
   }
   return {
     ...(input.id === undefined ? {} : { id: validateId(input.id) }),
+    ...(input.stableKey === undefined
+      ? {}
+      : { stableKey: validateStableKey(input.stableKey) }),
     position: input.position,
     statementHtml: validateHtml(
       input.statementHtml,
@@ -257,4 +267,14 @@ function validateId(value: Id): Id {
   if (!/^\d+$/u.test(value))
     throw new QuestionValidationError("Question child ID is invalid");
   return value;
+}
+
+function validateStableKey(value: string): string {
+  if (
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu.test(
+      value,
+    )
+  )
+    throw new QuestionValidationError("Question child stable key is invalid");
+  return value.toLowerCase();
 }

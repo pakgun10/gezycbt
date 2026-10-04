@@ -1,8 +1,8 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia; product delta rich content/LaTeX/media dipecah menjadi ISS-176–ISS-186
-**Versi dokumen:** 0.2
-**Terakhir diperbarui:** 4 Oktober 2026
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia; product delta rich content/LaTeX/media dipecah menjadi ISS-176–ISS-186; product delta question versioning/quiz lock/Regrade dipecah menjadi ISS-187–ISS-196
+**Versi dokumen:** 0.3
+**Terakhir diperbarui:** 5 Oktober 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
 **Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md), [15-question-rich-content-implementation-plan.md](./15-question-rich-content-implementation-plan.md)
 
@@ -193,8 +193,18 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-184` | `PLANNED` | Participant renderer untuk sanitized rich content, LaTeX, serta media target-aware dengan local failure isolation dan responsive/accessibility behavior. Dependency: `ISS-176`, `ISS-179`. |
 | `ISS-185` | `PLANNED` | Migration/security/contract/accessibility/browser E2E gate untuk seluruh product delta, termasuk preview parity, leakage, race, clone, rollback rehearsal, dan representative media load. Dependency: `ISS-177–ISS-184`. |
 | `ISS-186` | `PLANNED` | Operations dan rollout: Nginx multipart envelope, CSP/KaTeX assets, backup/restore, runbook, feature flag order, telemetry, serta pilot sign-off. Dependency: `ISS-185`. |
+| `ISS-187` | `READY` | ADR dan kontrak produk/teknis untuk active question revision, stable child identity, compatibility class, structure lock, dan Regrade. |
+| `ISS-188` | `PLANNED` | Migration menambah pointer revision aktif, stable option/statement identity, metadata lock jadwal, dan histori Regrade beserta backfill serta verification. Dependency: `ISS-187`. |
+| `ISS-189` | `PLANNED` | Backend one-save menjalankan save, readiness, publish, dan pointer activation secara atomik; draft invalid tetap tersimpan tanpa mengganti revision aktif. Dependency: `ISS-188`. |
+| `ISS-190` | `PLANNED` | Editor soal memakai satu tombol Simpan, error bertaut field, satu baris per logical question, dan riwayat version. Dependency: `ISS-189`. |
+| `ISS-191` | `PLANNED` | Structure lock ditetapkan dalam transaksi start pertama dan seluruh mutasi/rebind sesudah lock ditolak dengan error domain khusus. Dependency: `ISS-187`, `ISS-188`. |
+| `ISS-192` | `PLANNED` | UI exam/schedule mendukung replacement exam revision sebelum start serta banner, disabled controls, dan tindakan lanjutan setelah struktur terkunci. Dependency: `ISS-191`. |
+| `ISS-193` | `PLANNED` | Session start memilih active compatible question revision per slot lalu membekukan exact revision pada manifest; revision struktural tidak dipromosikan ke jadwal terkunci. Dependency: `ISS-189`, `ISS-191`. |
+| `ISS-194` | `PLANNED` | Regrade preview/execute untuk attempt final bersifat scoped, idempotent, compatible-only, mempertahankan snapshot lama, dan diaudit. Dependency: `ISS-188`, `ISS-193`. |
+| `ISS-195` | `PLANNED` | Results → Grades menyediakan preview dampak, alasan penolakan, confirmation, progress, dan histori Regrade. Dependency: `ISS-194`. |
+| `ISS-196` | `PLANNED` | Migration, concurrency, contract, E2E, backup/restore, dan rollout gate lintas one-save, quiz lock, revision isolation, serta Regrade. Dependency: `ISS-190–ISS-195`. |
 
-Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
+Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate product delta berikutnya dimulai dari keputusan `ISS-187`; pilot `ISS-161` dan failure/recovery `ISS-162` tetap menjadi gate operasional terpisah.
 
 ---
 
@@ -660,7 +670,45 @@ Rincian desain, file map, dependency install, rollout, serta acceptance matrix t
 
 ---
 
-## 22. Backlog setelah baseline
+## 22. Product delta question versioning, quiz structure lock, dan Regrade
+
+**Outcome:** guru menyimpan soal melalui satu tindakan, setiap perubahan published menjadi version baru, struktur jadwal terkunci pada attempt pertama, attempt lama tidak berubah, attempt baru menerima perbaikan kompatibel, dan nilai attempt final dapat di-Regrade secara aman serta dapat diaudit.
+
+| ID | P | Size | Issue | Dependency | Acceptance ringkas |
+|---|---:|---:|---|---|---|
+| ISS-187 | P0 | S | Tetapkan ADR version activation, compatibility, structure lock, dan Regrade | ISS-040, ISS-047, ISS-060, ISS-105 | ADR menelusuri FR-QB-014–021, FR-EXM-009–012, dan FR-RES-010–016 serta menetapkan state machine, transaction boundary, definisi compatible/structural, lock winner pada race, semantics nilai released, dan strategi rollback tanpa keputusan schema-critical tersisa. |
+| ISS-188 | P0 | M | Migration pointer revision aktif, stable child identity, schedule lock, dan Regrade history | ISS-187 | `current_published_revision_id`, stable option/statement key, lock metadata, Regrade run/item/history beserta FK/index/check tersedia; backfill idempotent, data lama terverifikasi, dan restore rehearsal lulus. |
+| ISS-189 | P0 | M | Implement application service dan API one-save soal | ISS-176–ISS-181, ISS-188 | Satu command mengunci logical question, menyimpan/sanitasi, menjalankan readiness, membuat revision bila perlu, publish, dan memindahkan pointer secara atomik; invalid content menyimpan draft tanpa mengubah pointer; retry/stale version aman. |
+| ISS-190 | P1 | M | Sederhanakan editor dan read model question version | ISS-189 | Tombol Validasi/Simpan draft/Publish diganti satu Simpan; loading/error/success/focus tersedia; daftar satu row per logical question menampilkan active version, incomplete work, dan version history; media autosave internal tidak mengklaim final save. |
+| ISS-191 | P0 | M | Implement transaction lock struktur pada first start | ISS-187, ISS-188, ISS-060–ISS-066 | Start pertama menetapkan lock dan manifest dalam transaction boundary yang sama; add/remove/replace/reorder/weight/rebind sesudah lock mengembalikan `QUIZ_STRUCTURE_LOCKED`; race start-vs-edit menghasilkan satu urutan authoritative. |
+| ISS-192 | P1 | M | Implement pre-start exam replacement dan locked-state staff UI | ISS-191 | Sebelum session, perubahan membuat exam revision pengganti dan rebind jadwal secara atomik; sesudah lock, banner memuat waktu/alasan, controls disabled, dan CTA membuat revision/jadwal baru; direct API tetap ditolak. |
+| ISS-193 | P0 | M | Resolve active compatible question revision saat session start | ISS-189, ISS-191 | Setiap slot memetakan logical question ke active compatible revision, menyimpan exact revision pada manifest, dan tidak mencampur revision dalam satu start; active/resume tetap lama; revision struktural pada locked schedule ditolak dari resolusi dengan reason terukur. |
+| ISS-194 | P0 | M | Implement Regrade preview, execute, history, dan audit | ISS-105, ISS-188, ISS-193 | Hanya final attempt dan compatible target eligible; preview menghasilkan before/after/reason; execute idempotent dan all-or-nothing per run policy; answers/manifest immutable; old result snapshot, actor, reason, source/target revision, metric, dan audit tersimpan. |
+| ISS-195 | P1 | M | Implement Results → Grades → Regrade UI | ISS-194 | Scope/filter/selection, preview impact, incompatible reason, released-result warning, reason wajib, confirmation, progress/retry, partial outcome, dan history drawer dapat digunakan dengan keyboard serta screen reader. |
+| ISS-196 | P0 | L | Jalankan migration, concurrency, security, contract, E2E, dan rollout gate | ISS-190–ISS-195 | Backfill/rollback/restore, first-start race, concurrent save, version isolation, compatible future attempt, structural rejection, Regrade idempotency/history, authorization, audit redaction, browser E2E, metric/alert, dan staging rehearsal lulus. |
+
+### 22.1 Critical path dan aturan eksekusi
+
+1. `ISS-187` wajib diselesaikan sebelum migration karena definisi kompatibilitas dan transaction boundary memengaruhi schema serta histori.
+2. `ISS-188` wajib menjaga seluruh revision, option ID, statement ID, session manifest, answer, dan result lama tetap dapat dibaca setelah backfill.
+3. `ISS-189` harus selesai sebelum UI `ISS-190`; browser tidak boleh mengorkestrasi save, validate, dan publish sebagai tiga request untuk meniru atomicity.
+4. `ISS-191` harus menguji race pada MariaDB asli. Check berbasis UI atau query tanpa row lock tidak diterima sebagai structure lock.
+5. `ISS-193` tidak boleh mengubah manifest session yang sudah ada dan tidak boleh memilih revision DRAFT.
+6. `ISS-194` tidak boleh menggunakan posisi opsi sebagai satu-satunya mapping; stable child identity dari `ISS-188` adalah dependency correctness.
+7. `ISS-196` adalah release gate. Fitur tidak diaktifkan di jadwal production sebelum migration rehearsal, concurrency test, dan reconciliation lulus.
+
+### 22.2 Batas scope
+
+- Tidak ada perubahan konten live pada layar peserta yang sedang mengerjakan.
+- Tidak ada Regrade untuk session `ACTIVE`, perubahan struktural, essay, atau manual grading.
+- Tidak ada penghapusan revision, manifest, answer, result snapshot, atau Regrade history melalui aplikasi normal.
+- Tidak ada unlock struktur setelah session pertama, termasuk ketika session direset atau seluruh jadwal telah selesai.
+- Tidak ada auto-Regrade ketika revision baru dipublish; guru/admin selalu menjalankan preview dan konfirmasi eksplisit.
+- Tidak ada dependency runtime baru yang dibutuhkan; dependency baru hanya boleh ditambahkan bila ADR `ISS-187` membuktikan kebutuhan.
+
+---
+
+## 23. Backlog setelah baseline
 
 Item berikut tidak dibuat sebagai issue implementation sebelum ada kebutuhan dan keputusan produk:
 
@@ -683,7 +731,7 @@ Jika salah satu dipromosikan, buat PRD delta dan ADR/migration analysis sebelum 
 
 ---
 
-## 23. Urutan issue yang sudah dijalankan dan langkah berikutnya
+## 24. Urutan issue yang sudah dijalankan dan langkah berikutnya
 
 Issue sampai `ISS-092` telah dikerjakan berurutan sesuai dependency, termasuk
 runtime backend `ISS-060–ISS-074` dan participant web `ISS-080–ISS-092`. Entry
@@ -707,9 +755,14 @@ Product delta rich content, LaTeX, dan media soal memakai urutan
 ISS-186`. Seluruh P0 dan pilot gate `ISS-186` harus selesai sebelum sekolah
 memakai formula atau gambar pada pilot nyata.
 
+Product delta question versioning, quiz structure lock, dan Regrade memakai urutan
+`ISS-187 → ISS-188 → ISS-189/ISS-191 → ISS-190/ISS-192/ISS-193 → ISS-194 →
+ISS-195 → ISS-196`. Seluruh issue P0 dan gate `ISS-196` wajib selesai sebelum
+perilaku latest-compatible revision atau Regrade diaktifkan pada jadwal nyata.
+
 ---
 
-## 24. Aturan perubahan backlog
+## 25. Aturan perubahan backlog
 
 - ID issue tidak digunakan ulang setelah diterbitkan.
 - Issue baru ditempatkan pada rentang fase terkait.

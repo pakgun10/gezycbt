@@ -21,6 +21,7 @@ import { agentExportsMigration } from "./0019_agent_exports";
 import { agentActionsMigration } from "./0020_agent_actions";
 import { performanceIndexesMigration } from "./0021_performance_indexes";
 import { questionMediaPlacementsMigration } from "./0022_question_media_placements";
+import { questionVersioningQuizLockRegradeMigration } from "./0023_question_versioning_quiz_lock_regrade";
 
 export const migrations: readonly Migration[] = [
   identityMigration,
@@ -45,4 +46,5 @@ export const migrations: readonly Migration[] = [
   agentActionsMigration,
   performanceIndexesMigration,
   questionMediaPlacementsMigration,
+  questionVersioningQuizLockRegradeMigration,
 ];

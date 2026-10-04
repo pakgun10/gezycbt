@@ -14,5 +14,6 @@ ADR accepted untuk baseline GezyCBT:
 - [ADR-010 — Production deployment tanpa container](./ADR-010-production-deployment-without-containers.md)
 - [ADR-011 — Backup, RPO, dan RTO](./ADR-011-backup-rpo-rto.md)
 - [ADR-012 — Product decisions P-01 sampai P-12](./ADR-012-product-decisions-p01-p12.md)
+- [ADR-013 — Aktivasi revision soal, quiz lock, dan Regrade](./ADR-013-question-version-activation-quiz-lock-and-regrade.md)
 
-ADR-013 tentang external agent API akan difinalisasi pada issue integration terkait setelah adapter spike dan contract boundary ditetapkan.
+ADR berikutnya dibuat bila keputusan baru memengaruhi invariant data, batas transaksi, atau kontrak lintas aplikasi.

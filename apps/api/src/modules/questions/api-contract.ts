@@ -146,6 +146,10 @@ const updateQuestionRevisionBodySchema = t.Union([
   ),
 ]);
 
+// The teacher-facing save command validates and activates a ready revision in
+// one request. Internally it can retain an incomplete draft for later work.
+const saveQuestionRevisionBodySchema = updateQuestionRevisionBodySchema;
+
 const publishQuestionRevisionBodySchema = t.Object(
   { expectedUpdatedAt: utcTimestampSchema },
   { additionalProperties: false },
@@ -564,6 +568,7 @@ export const questionApiSchemas = {
   questionDeleteBody: questionDeleteBodySchema,
   createQuestionDraftBody: createQuestionDraftBodySchema,
   updateQuestionRevisionBody: updateQuestionRevisionBodySchema,
+  saveQuestionRevisionBody: saveQuestionRevisionBodySchema,
   publishQuestionRevisionBody: publishQuestionRevisionBodySchema,
   attachMediaBody: attachMediaBodySchema,
   mediaUploadBody: mediaUploadBodySchema,
@@ -841,6 +846,22 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
       params: revisionIdParamsSchema,
       headers: teacherMutationHeaders,
       body: updateQuestionRevisionBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionRevisionResponse",
+      schema: success(questionRevisionResourceSchema),
+    },
+  },
+  {
+    method: "POST",
+    path: "/api/v1/teacher/question-revisions/:id/save",
+    operationId: "saveQuestionRevision",
+    summary: "Simpan dan aktifkan revision soal bila siap",
+    request: {
+      params: revisionIdParamsSchema,
+      headers: teacherMutationHeaders,
+      body: saveQuestionRevisionBodySchema,
     },
     response: {
       status: 200,
