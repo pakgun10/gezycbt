@@ -29,10 +29,24 @@ option_4_correct	SALAH
 Soal3
 type	TRUE_FALSE
 stimulus	Perhatikan pernyataan-pernyataan tentang bilangan bulat berikut.
-explanation	Jumlah dua bilangan negatif bernilai negatif; hasil kali bilangan berbeda tanda bernilai negatif; 0 adalah bilangan bulat.
+explanation	Tentukan benar atau salah.
 statement_1	Jumlah dua bilangan bulat negatif selalu bernilai negatif.
 statement_2	Hasil kali bilangan bulat negatif dengan bilangan bulat positif selalu bernilai positif.
 statement_3	0 termasuk bilangan bulat.
 statement_1_correct	BENAR
 statement_2_correct	SALAH
 statement_3_correct	BENAR
+
+Soal4
+type	SINGLE_CHOICE
+stimulus	Sebuah segitiga siku-siku mempunyai sisi tegak <span data-content-node="inline-math" data-latex="a=6"></span> cm dan sisi alas <span data-content-node="inline-math" data-latex="b=8"></span> cm.
+prompt	Panjang sisi miring segitiga tersebut adalah ...
+explanation	Gunakan teorema Pythagoras.<div data-content-node="block-math" data-latex="c=\sqrt{a^2+b^2}=\sqrt{6^2+8^2}=10"></div>
+option_1	<span data-content-node="inline-math" data-latex="8"></span> cm
+option_2	<span data-content-node="inline-math" data-latex="10"></span> cm
+option_3	<span data-content-node="inline-math" data-latex="12"></span> cm
+option_4	<span data-content-node="inline-math" data-latex="14"></span> cm
+option_1_correct	SALAH
+option_2_correct	BENAR
+option_3_correct	SALAH
+option_4_correct	SALAH

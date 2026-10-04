@@ -262,6 +262,23 @@ describe("QuestionImportService", () => {
         statement_2_correct: "SALAH",
         statement_3_correct: "BENAR",
       },
+      {
+        type: "SINGLE_CHOICE",
+        stimulus:
+          'Sisi segitiga <span data-content-node="inline-math" data-latex="a=6"></span> cm dan <span data-content-node="inline-math" data-latex="b=8"></span> cm.',
+        prompt: "Panjang sisi miring segitiga tersebut adalah ...",
+        explanation:
+          'Gunakan Pythagoras.<div data-content-node="block-math" data-latex="c=\\sqrt{a^2+b^2}=\\sqrt{6^2+8^2}=10"></div>',
+        option_1: "8 cm",
+        option_2:
+          '<span data-content-node="inline-math" data-latex="10"></span> cm',
+        option_3: "12 cm",
+        option_4: "14 cm",
+        option_1_correct: "SALAH",
+        option_2_correct: "BENAR",
+        option_3_correct: "SALAH",
+        option_4_correct: "SALAH",
+      },
     ]);
 
     const preview = await service.preview(ACTOR, {
@@ -269,7 +286,7 @@ describe("QuestionImportService", () => {
       csv: source,
       format: "TXT",
     });
-    expect(preview).toMatchObject({ totalRows: 3, validCount: 3 });
+    expect(preview).toMatchObject({ totalRows: 4, validCount: 4 });
     await expect(
       service.commit(ACTOR, {
         questionBankId: BANK.id,
@@ -277,11 +294,12 @@ describe("QuestionImportService", () => {
         format: "TXT",
         sourceHash: preview.sourceHash,
       }),
-    ).resolves.toEqual({ createdCount: 3 });
+    ).resolves.toEqual({ createdCount: 4 });
     expect(store.batches[0]?.drafts.map((item) => item.content.type)).toEqual([
       "SINGLE_CHOICE",
       "MULTIPLE_RESPONSE",
       "TRUE_FALSE",
+      "SINGLE_CHOICE",
     ]);
   });
 });
