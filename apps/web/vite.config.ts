@@ -1,6 +1,6 @@
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
-import packageJson from "./package.json" with { type: "json" };
+import packageJson from "../../package.json" with { type: "json" };
 
 export default defineConfig({
   plugins: [vue()],
