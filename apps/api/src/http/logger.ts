@@ -6,6 +6,8 @@ export interface LogRecord {
   readonly path: string;
   readonly status: number;
   readonly errorCode: string;
+  readonly errorName?: string;
+  readonly errorMessage?: string;
 }
 
 export interface AppLogger {

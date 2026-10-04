@@ -123,6 +123,9 @@ export function createApp(
                 "Terjadi kesalahan pada server.",
               );
       set.status = mapped.status;
+      const errorName = error instanceof Error ? error.name : typeof error;
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       logger.error({
         level: "error",
         event: "request_failed",
@@ -131,6 +134,8 @@ export function createApp(
         path: new URL(request.url).pathname,
         status: mapped.status,
         errorCode: mapped.code,
+        errorName,
+        errorMessage: errorMessage.slice(0, 500),
       });
       return {
         error: {
