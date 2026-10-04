@@ -153,7 +153,7 @@ export class SqlQuestionDraftRepository
       `SELECT placement_key, question_revision_id, media_asset_id, \`usage\`,
               question_option_id, true_false_statement_id, sort_order,
               alt_text, is_decorative, display_width_percent, alignment,
-              updated_at, ma.status AS media_asset_status
+              p.updated_at AS updated_at, ma.status AS media_asset_status
        FROM question_media_placements p
        JOIN media_assets ma ON ma.id = p.media_asset_id
        WHERE p.question_revision_id = ?
