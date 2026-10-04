@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import { hashCanonicalQuestion } from "./content-hash";
 import {
   assertSafeLatexSource,
   extractRichContentNodes,
@@ -6,7 +7,6 @@ import {
   sanitizeRichContent,
   validateRichContentMath,
 } from "./rich-content";
-import { hashCanonicalQuestion } from "./content-hash";
 
 const choiceContent = {
   type: "SINGLE_CHOICE" as const,
@@ -42,8 +42,9 @@ describe("rich question content", () => {
   });
 
   test("blocks unsafe LaTeX commands and reports invalid formulas", () => {
-    expect(() => assertSafeLatexSource("\\href{https://example.com}{x}"))
-      .toThrow(RichContentValidationError);
+    expect(() =>
+      assertSafeLatexSource("\\href{https://example.com}{x}"),
+    ).toThrow(RichContentValidationError);
     expect(
       validateRichContentMath(
         '<p><span data-content-node="inline-math" data-latex="\\frac{1}{2}"></span></p>',

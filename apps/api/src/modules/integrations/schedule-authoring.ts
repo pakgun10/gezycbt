@@ -1,6 +1,12 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
-import type { ActorContext, UseCaseContext } from "../../application/actor-context";
-import type { ScheduleAccessCodeService, RotatedScheduleAccessCode } from "../schedules/access-code";
+import type {
+  ActorContext,
+  UseCaseContext,
+} from "../../application/actor-context";
+import type {
+  RotatedScheduleAccessCode,
+  ScheduleAccessCodeService,
+} from "../schedules/access-code";
 import type {
   CreateScheduleInput,
   Schedule,
@@ -9,17 +15,17 @@ import type {
 } from "../schedules/domain";
 import type { ScheduleRepository } from "../schedules/repository";
 import type { ScheduleService } from "../schedules/service";
-import {
-  type IntegrationAuthentication,
-  type IntegrationGrant,
-} from "./domain";
+import type { IntegrationAuthentication, IntegrationGrant } from "./domain";
 import type { IntegrationService } from "./service";
 
 export interface AgentScheduleAuthoringOptions {
   readonly integration: IntegrationService;
   readonly schedules: ScheduleService;
   readonly accessCodes: ScheduleAccessCodeService;
-  readonly repository: Pick<ScheduleRepository, "findSchedule" | "findExamRevision">;
+  readonly repository: Pick<
+    ScheduleRepository,
+    "findSchedule" | "findExamRevision"
+  >;
 }
 
 export class AgentScheduleNotFoundError extends Error {
@@ -80,7 +86,12 @@ export class IntegrationScheduleAuthoringService {
       this.context(authentication, requestId, idempotencyKey),
       input,
     );
-    await this.audit(authentication, "INTEGRATION_SCHEDULE_CREATE", schedule, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_SCHEDULE_CREATE",
+      schedule,
+      requestId,
+    );
     return schedule;
   }
 
@@ -109,7 +120,12 @@ export class IntegrationScheduleAuthoringService {
       input,
       expectedUpdatedAt,
     );
-    await this.audit(authentication, "INTEGRATION_SCHEDULE_UPDATE", schedule, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_SCHEDULE_UPDATE",
+      schedule,
+      requestId,
+    );
     return schedule;
   }
 

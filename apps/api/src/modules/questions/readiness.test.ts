@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Id } from "@gezycbt/contracts";
-import type { QuestionDraft, QuestionDraftContent } from "./domain";
 import type { MediaRelation } from "../media/relation-domain";
+import type { QuestionDraft, QuestionDraftContent } from "./domain";
 import {
   QuestionReadinessService,
   validateQuestionReadiness,

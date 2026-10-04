@@ -2,6 +2,7 @@ import type { Id } from "@gezycbt/contracts";
 import { Elysia } from "elysia";
 import type { UseCaseContext } from "../../application/actor-context";
 import type { AppError } from "../../http/app-error";
+import type { ParticipantMediaAccess } from "../media/participant-serving";
 import { normalizeScheduleAccessCode } from "../schedules/access-code";
 import {
   ExamSessionError,
@@ -20,7 +21,6 @@ import type {
   ExamSessionStartService,
   ExamSubmissionService,
 } from "./service";
-import type { ParticipantMediaAccess } from "../media/participant-serving";
 
 export interface ExamSessionRoutesOptions {
   readonly startService: Pick<
@@ -242,49 +242,46 @@ export function createExamSessionRoutes(options: ExamSessionRoutesOptions) {
         }
       },
     )
-    .get(
-      "/api/v1/participant/media/:id",
-      async ({ params, request, set }) => {
-        try {
-          if (!options.participantMedia)
-            throw new ExamSessionError(
-              "SERVICE_BUSY",
-              "Media peserta belum tersedia.",
-              503,
-            );
-          const raw = readPracticeCredential(request.headers.get("cookie"));
-          const practiceCredential = raw
-            ? await digestPracticeCredential(raw)
-            : undefined;
-          const context = await resolveParticipantContext(options, request);
-          const media = await options.participantMedia.authorize(
-            String((params as Record<string, unknown>).id) as Id,
-            {
-              ...(context.actor.userId
-                ? { participantId: context.actor.userId }
-                : {}),
-              ...(practiceCredential ? { practiceCredential } : {}),
-            },
+    .get("/api/v1/participant/media/:id", async ({ params, request, set }) => {
+      try {
+        if (!options.participantMedia)
+          throw new ExamSessionError(
+            "SERVICE_BUSY",
+            "Media peserta belum tersedia.",
+            503,
           );
-          if (!media)
-            throw new ExamSessionError(
-              "AUTHENTICATION_REQUIRED",
-              "Media tidak dapat dibuka.",
-              404,
-            );
-          set.headers["cache-control"] = "private, no-store";
-          set.headers["x-content-type-options"] = "nosniff";
-          set.headers["content-type"] = media.mimeType;
-          if (options.useInternalMediaRedirect || !options.mediaRead) {
-            set.headers["x-accel-redirect"] = media.internalRedirect;
-            return "";
-          }
-          return await options.mediaRead(media.storageKey);
-        } catch (error) {
-          throw mapError(error);
+        const raw = readPracticeCredential(request.headers.get("cookie"));
+        const practiceCredential = raw
+          ? await digestPracticeCredential(raw)
+          : undefined;
+        const context = await resolveParticipantContext(options, request);
+        const media = await options.participantMedia.authorize(
+          String((params as Record<string, unknown>).id) as Id,
+          {
+            ...(context.actor.userId
+              ? { participantId: context.actor.userId }
+              : {}),
+            ...(practiceCredential ? { practiceCredential } : {}),
+          },
+        );
+        if (!media)
+          throw new ExamSessionError(
+            "AUTHENTICATION_REQUIRED",
+            "Media tidak dapat dibuka.",
+            404,
+          );
+        set.headers["cache-control"] = "private, no-store";
+        set.headers["x-content-type-options"] = "nosniff";
+        set.headers["content-type"] = media.mimeType;
+        if (options.useInternalMediaRedirect || !options.mediaRead) {
+          set.headers["x-accel-redirect"] = media.internalRedirect;
+          return "";
         }
-      },
-    )
+        return await options.mediaRead(media.storageKey);
+      } catch (error) {
+        throw mapError(error);
+      }
+    })
     .post(
       "/api/v1/participant/exam-sessions/:id/answers",
       async ({ params, body, request }) => {

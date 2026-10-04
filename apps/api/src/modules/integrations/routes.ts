@@ -121,13 +121,13 @@ import {
   type IntegrationQuestionAuthoringService,
 } from "./question-authoring";
 import {
-  AgentScheduleNotFoundError,
-  type IntegrationScheduleAuthoringService,
-} from "./schedule-authoring";
-import {
   AgentResultNotFoundError,
   type IntegrationResultReadService,
 } from "./result-reads";
+import {
+  AgentScheduleNotFoundError,
+  type IntegrationScheduleAuthoringService,
+} from "./schedule-authoring";
 
 export interface IntegrationRouteOptions {
   readonly database: DatabasePort;
@@ -1669,20 +1669,31 @@ function mapIntegrationError(error: unknown): Error {
     );
   if (error instanceof ExamValidationError)
     return new AppError(422, "VALIDATION_FAILED", "Data ujian tidak valid.");
-  if (error instanceof AgentScheduleNotFoundError || error instanceof ScheduleNotFoundError)
+  if (
+    error instanceof AgentScheduleNotFoundError ||
+    error instanceof ScheduleNotFoundError
+  )
     return new AppError(404, "NOT_FOUND", "Jadwal tidak ditemukan.");
   if (error instanceof ScheduleNotReadyError)
     return new AppError(422, "VALIDATION_FAILED", "Jadwal belum siap dibuka.", {
       reasons: error.reasons,
     });
   if (error instanceof ScheduleWindowError)
-    return new AppError(422, "VALIDATION_FAILED", "Jadwal berada di luar jendela waktu.");
+    return new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Jadwal berada di luar jendela waktu.",
+    );
   if (
     error instanceof ScheduleVersionConflictError ||
     error instanceof ScheduleImmutableError ||
     error instanceof ScheduleAccessCodeConflictError
   )
-    return new AppError(409, "VERSION_CONFLICT", "Jadwal berubah atau tidak dapat diubah pada state saat ini.");
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Jadwal berubah atau tidak dapat diubah pada state saat ini.",
+    );
   if (
     error instanceof ScheduleValidationError ||
     error instanceof ScheduleExamRevisionNotFoundError ||
@@ -1957,7 +1968,10 @@ function scheduleCreatePayload(
       "durationSeconds",
     ),
     maxAttempts: requiredInteger(payload.maxAttempts, "maxAttempts"),
-    hardEnd: payload.hardEnd === undefined ? true : booleanField(payload.hardEnd, "hardEnd"),
+    hardEnd:
+      payload.hardEnd === undefined
+        ? true
+        : booleanField(payload.hardEnd, "hardEnd"),
     allowLateStart: booleanField(payload.allowLateStart, "allowLateStart"),
     resultReleasePolicy,
     ...(Object.hasOwn(payload, "identityFields")
@@ -2030,7 +2044,9 @@ function identityFieldsJson(value: unknown): string | null {
 }
 
 function idArray(value: unknown, field: string): readonly Id[] {
-  return arrayPayload(value, field).map((item) => idValue(item, `${field} item`));
+  return arrayPayload(value, field).map((item) =>
+    idValue(item, `${field} item`),
+  );
 }
 
 function arrayPayload(value: unknown, field: string): readonly unknown[] {

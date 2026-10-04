@@ -145,10 +145,10 @@ export interface ExamSessionApiRouteContract {
   readonly operationId: string;
   readonly security?: readonly Readonly<Record<string, readonly string[]>>[];
   readonly request?: {
-      readonly params?: TSchema;
-      readonly headers?: TSchema;
-      readonly body?: TSchema;
-    };
+    readonly params?: TSchema;
+    readonly headers?: TSchema;
+    readonly body?: TSchema;
+  };
   readonly response?: {
     readonly contentType?: string;
     readonly schema?: TSchema | Readonly<Record<string, unknown>>;

@@ -37,9 +37,10 @@ export function canonicalQuestionValue(
         correctValue: statement.correctValue,
       })),
     media: [...media]
-      .sort((a, b) =>
-        a.placementKey.localeCompare(b.placementKey) ||
-        a.sortOrder - b.sortOrder,
+      .sort(
+        (a, b) =>
+          a.placementKey.localeCompare(b.placementKey) ||
+          a.sortOrder - b.sortOrder,
       )
       .map((item) => ({
         placementKey: item.placementKey,

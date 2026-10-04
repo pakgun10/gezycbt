@@ -1,5 +1,4 @@
-import type { Id } from "@gezycbt/contracts";
-import type { UtcTimestamp } from "@gezycbt/contracts";
+import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import {
   assertActorContext,
   assertMutationContext,
@@ -136,7 +135,8 @@ export class MediaRelationService {
   async getAsset(context: UseCaseContext, mediaAssetId: Id) {
     assertActorContext(context.actor);
     const asset = await this.repository.findAsset(mediaAssetId);
-    if (!asset) throw new MediaRelationNotFoundError("Media asset was not found");
+    if (!asset)
+      throw new MediaRelationNotFoundError("Media asset was not found");
     if (asset.status !== "READY")
       throw new MediaRelationNotFoundError("Media asset was not found");
     await this.authorization.assertTeacherScope(context.actor, {
@@ -145,7 +145,9 @@ export class MediaRelationService {
     return asset;
   }
 
-  async listOrphans(context: UseCaseContext): Promise<readonly import("./domain").MediaAsset[]> {
+  async listOrphans(
+    context: UseCaseContext,
+  ): Promise<readonly import("./domain").MediaAsset[]> {
     assertActorContext(context.actor);
     const createdBy = context.actor.userId;
     if (!createdBy) return [];

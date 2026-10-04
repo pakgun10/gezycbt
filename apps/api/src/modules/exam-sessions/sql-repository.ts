@@ -1351,10 +1351,7 @@ async function readQuestionSource(
     statements: statements.map((item) => ({
       id: dbId(item.id),
       position: Number(item.position),
-      statementHtml: sanitizeRichContent(
-        String(item.statement_html),
-        20_000,
-      ),
+      statementHtml: sanitizeRichContent(String(item.statement_html), 20_000),
       correctValue: databaseBoolean(item.correct_value),
     })),
     media: participantMedia.map((item) => ({
@@ -1364,11 +1361,23 @@ async function readQuestionSource(
       usage: String(item.usage) as ParticipantQuestionMedia["usage"],
       ...(item.question_option_id === undefined
         ? {}
-        : { questionOptionId: item.question_option_id == null ? null : dbId(item.question_option_id) }),
+        : {
+            questionOptionId:
+              item.question_option_id == null
+                ? null
+                : dbId(item.question_option_id),
+          }),
       ...(item.true_false_statement_id === undefined
         ? {}
-        : { trueFalseStatementId: item.true_false_statement_id == null ? null : dbId(item.true_false_statement_id) }),
-      ...(item.sort_order === undefined ? {} : { sortOrder: Number(item.sort_order) }),
+        : {
+            trueFalseStatementId:
+              item.true_false_statement_id == null
+                ? null
+                : dbId(item.true_false_statement_id),
+          }),
+      ...(item.sort_order === undefined
+        ? {}
+        : { sortOrder: Number(item.sort_order) }),
       url: `/api/v1/participant/media/${dbId(item.media_asset_id)}`,
       altText: item.alt_text == null ? null : String(item.alt_text),
       isDecorative: databaseBoolean(item.is_decorative),

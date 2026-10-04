@@ -7,6 +7,7 @@ import {
   type UtcTimestamp,
 } from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
+import type { MediaRelation } from "../media/relation-domain";
 import { MEDIA_ALIGNMENTS, MEDIA_USAGES } from "../media/relation-domain";
 import {
   type CreateQuestionDraftInput,
@@ -20,7 +21,6 @@ import {
   validateQuestionContent,
   validateQuestionType,
 } from "./domain";
-import type { MediaRelation } from "../media/relation-domain";
 import { sanitizeRichContent } from "./rich-content";
 
 export interface QuestionDraftRepository {
@@ -344,7 +344,12 @@ export class SqlQuestionDraftRepository
         throw new Error("Question revision insert did not return an ID");
       const revisionId = formatId(revision.insertId);
       await insertChildren(connection, revisionId, withoutChildIds(content));
-      await copyMediaRelations(connection, sourceRevisionId, revisionId, content);
+      await copyMediaRelations(
+        connection,
+        sourceRevisionId,
+        revisionId,
+        content,
+      );
       const created = await readRevision(connection, revisionId);
       if (!created)
         throw new Error("Question draft revision could not be read");
@@ -483,8 +488,7 @@ function childPositionCase(
     (child): child is { readonly id: Id; readonly position: number } =>
       child.id !== undefined,
   );
-  if (mappings.length === 0)
-    return { sql: positionColumn, parameters: [] };
+  if (mappings.length === 0) return { sql: positionColumn, parameters: [] };
   return {
     sql: `CASE ${column} ${mappings.map(() => "WHEN ? THEN ?").join(" ")} ELSE ${positionColumn} END`,
     parameters: mappings.flatMap((child) => [child.id, child.position]),
@@ -499,7 +503,10 @@ function mapMediaRelation(row: Record<string, unknown>): MediaRelation {
   const usage = String(row.usage);
   if (!MEDIA_USAGES.includes(usage as (typeof MEDIA_USAGES)[number]))
     throw new Error("Database returned invalid media usage");
-  const decorative = row.is_decorative === true || row.is_decorative === 1 || row.is_decorative === 1n;
+  const decorative =
+    row.is_decorative === true ||
+    row.is_decorative === 1 ||
+    row.is_decorative === 1n;
   const alignment = String(row.alignment ?? "CENTER");
   const mediaAssetStatus =
     row.media_asset_status === "READY" || row.media_asset_status === "DELETED"
@@ -518,7 +525,9 @@ function mapMediaRelation(row: Record<string, unknown>): MediaRelation {
     altText: row.alt_text === null ? null : String(row.alt_text),
     isDecorative: decorative,
     displayWidthPercent: Number(row.display_width_percent ?? 100),
-    alignment: MEDIA_ALIGNMENTS.includes(alignment as (typeof MEDIA_ALIGNMENTS)[number])
+    alignment: MEDIA_ALIGNMENTS.includes(
+      alignment as (typeof MEDIA_ALIGNMENTS)[number],
+    )
       ? (alignment as (typeof MEDIA_ALIGNMENTS)[number])
       : "CENTER",
     ...(mediaAssetStatus === undefined ? {} : { mediaAssetStatus }),

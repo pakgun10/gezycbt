@@ -29,7 +29,11 @@ describe("participant media authorization", () => {
     expect(result?.id).toBe("42" as Id);
     expect(parameters?.[0]).toBe("42");
     expect(parameters).toHaveLength(9);
-    expect(sql).toContain("p.`usage` IN ('STIMULUS', 'PROMPT', 'OPTION', 'STATEMENT')");
-    expect(sql).toContain("legacy.`usage` IN ('STIMULUS', 'PROMPT', 'OPTION', 'STATEMENT')");
+    expect(sql).toContain(
+      "p.`usage` IN ('STIMULUS', 'PROMPT', 'OPTION', 'STATEMENT')",
+    );
+    expect(sql).toContain(
+      "legacy.`usage` IN ('STIMULUS', 'PROMPT', 'OPTION', 'STATEMENT')",
+    );
   });
 });

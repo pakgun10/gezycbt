@@ -5,6 +5,8 @@ import {
   type UseCaseContext,
 } from "../../application/actor-context";
 import type { AuthorizationPolicyService } from "../../application/authorization";
+import type { MediaRelation } from "../media/relation-domain";
+import { hashCanonicalQuestion } from "./content-hash";
 import {
   type CreateQuestionDraftInput,
   type QuestionDraft,
@@ -15,8 +17,6 @@ import {
   validateQuestionContent,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
-import { hashCanonicalQuestion } from "./content-hash";
-import type { MediaRelation } from "../media/relation-domain";
 
 export class QuestionDraftService {
   constructor(
@@ -159,7 +159,8 @@ export async function hashQuestionContent(
   return hashCanonicalQuestion(
     content,
     media.map((item) => ({
-      placementKey: item.placementKey ?? `${item.questionRevisionId}-${item.mediaAssetId}`,
+      placementKey:
+        item.placementKey ?? `${item.questionRevisionId}-${item.mediaAssetId}`,
       mediaAssetId: item.mediaAssetId,
       usage: item.usage,
       questionOptionId: item.questionOptionId ?? null,

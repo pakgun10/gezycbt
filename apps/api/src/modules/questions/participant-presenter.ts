@@ -1,8 +1,5 @@
 import type { Id } from "@gezycbt/contracts";
-import type {
-  MediaAlignment,
-  MediaUsage,
-} from "../media/relation-domain";
+import type { MediaAlignment, MediaUsage } from "../media/relation-domain";
 import type { QuestionDraft } from "./domain";
 
 export interface ParticipantQuestionOption {
@@ -111,22 +108,22 @@ export function presentParticipantQuestion(
           item.usage === "STATEMENT",
       )
       .map((item) => ({
-      ...(item.placementKey ? { placementKey: item.placementKey } : {}),
-      usage: item.usage,
-      ...(item.questionOptionId === undefined
-        ? {}
-        : { questionOptionId: item.questionOptionId }),
-      ...(item.trueFalseStatementId === undefined
-        ? {}
-        : { trueFalseStatementId: item.trueFalseStatementId }),
-      ...(item.sortOrder === undefined ? {} : { sortOrder: item.sortOrder }),
-      url: item.url,
-      altText: item.altText,
-      isDecorative: item.isDecorative,
-      ...(item.displayWidthPercent === undefined
-        ? {}
-        : { displayWidthPercent: item.displayWidthPercent }),
-      ...(item.alignment === undefined ? {} : { alignment: item.alignment }),
+        ...(item.placementKey ? { placementKey: item.placementKey } : {}),
+        usage: item.usage,
+        ...(item.questionOptionId === undefined
+          ? {}
+          : { questionOptionId: item.questionOptionId }),
+        ...(item.trueFalseStatementId === undefined
+          ? {}
+          : { trueFalseStatementId: item.trueFalseStatementId }),
+        ...(item.sortOrder === undefined ? {} : { sortOrder: item.sortOrder }),
+        url: item.url,
+        altText: item.altText,
+        isDecorative: item.isDecorative,
+        ...(item.displayWidthPercent === undefined
+          ? {}
+          : { displayWidthPercent: item.displayWidthPercent }),
+        ...(item.alignment === undefined ? {} : { alignment: item.alignment }),
       })),
   };
 }

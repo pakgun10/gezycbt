@@ -6,8 +6,8 @@ import {
 } from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
 import {
-  canonicalQuestionValue,
   type CanonicalMediaHashEntry,
+  canonicalQuestionValue,
 } from "../questions/content-hash";
 import type { QuestionDraftContent } from "../questions/domain";
 import { sanitizeRichContent } from "../questions/rich-content";
@@ -255,17 +255,18 @@ export class SqlMediaRelationRepository
       );
       if (!revision) throw new MediaRelationNotFoundError();
       if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
-      if (
-        expectedUpdatedAt &&
-        revision.updatedAt !== expectedUpdatedAt
-      )
+      if (expectedUpdatedAt && revision.updatedAt !== expectedUpdatedAt)
         throw new MediaRelationConflictError();
       const result = await connection.execute(
         `DELETE FROM question_media_placements
          WHERE question_revision_id = ? AND media_asset_id = ?`,
         [questionRevisionId, mediaAssetId],
       );
-      await removeLegacyMirrorIfUnused(connection, questionRevisionId, mediaAssetId);
+      await removeLegacyMirrorIfUnused(
+        connection,
+        questionRevisionId,
+        mediaAssetId,
+      );
       return result.affectedRows === 1;
     });
   }
@@ -283,10 +284,7 @@ export class SqlMediaRelationRepository
       );
       if (!revision) throw new MediaRelationNotFoundError();
       if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
-      if (
-        expectedUpdatedAt &&
-        revision.updatedAt !== expectedUpdatedAt
-      )
+      if (expectedUpdatedAt && revision.updatedAt !== expectedUpdatedAt)
         throw new MediaRelationConflictError();
       const rows = await connection.query<RelationRow>(
         `SELECT media_asset_id FROM question_media_placements
@@ -301,7 +299,11 @@ export class SqlMediaRelationRepository
       );
       const mediaAssetId = parseDatabaseId(rows[0].media_asset_id);
       if (mediaAssetId)
-        await removeLegacyMirrorIfUnused(connection, questionRevisionId, mediaAssetId);
+        await removeLegacyMirrorIfUnused(
+          connection,
+          questionRevisionId,
+          mediaAssetId,
+        );
       return result.affectedRows === 1;
     });
   }
@@ -345,17 +347,15 @@ export class SqlMediaRelationRepository
       const next = validateMediaAttachment({
         questionRevisionId: input.questionRevisionId,
         mediaAssetId: current.mediaAssetId,
-        ...(current.placementKey
-          ? { placementKey: current.placementKey }
-          : {}),
+        ...(current.placementKey ? { placementKey: current.placementKey } : {}),
         usage: current.usage,
         questionOptionId:
           input.questionOptionId === undefined
-            ? current.questionOptionId ?? null
+            ? (current.questionOptionId ?? null)
             : input.questionOptionId,
         trueFalseStatementId:
           input.trueFalseStatementId === undefined
-            ? current.trueFalseStatementId ?? null
+            ? (current.trueFalseStatementId ?? null)
             : input.trueFalseStatementId,
         sortOrder: input.sortOrder ?? current.sortOrder ?? 0,
         altText: input.altText === undefined ? current.altText : input.altText,
@@ -390,11 +390,13 @@ export class SqlMediaRelationRepository
     });
   }
 
-  async listOrphans(input: {
-    readonly createdBy?: Id;
-    readonly limit?: number;
-    readonly olderThan?: UtcTimestamp;
-  } = {}): Promise<readonly MediaAsset[]> {
+  async listOrphans(
+    input: {
+      readonly createdBy?: Id;
+      readonly limit?: number;
+      readonly olderThan?: UtcTimestamp;
+    } = {},
+  ): Promise<readonly MediaAsset[]> {
     const limit = Math.min(Math.max(input.limit ?? 100, 1), 100);
     const params: unknown[] = [];
     const owner = input.createdBy ? "AND ma.created_by = ?" : "";
@@ -450,7 +452,10 @@ export class SqlMediaRelationRepository
           );
       const content: QuestionDraftContent = {
         type: String(revision.type) as QuestionDraftContent["type"],
-        stimulusHtml: sanitizeRichContent(String(revision.stimulus_html), 100_000),
+        stimulusHtml: sanitizeRichContent(
+          String(revision.stimulus_html),
+          100_000,
+        ),
         promptHtml:
           revision.prompt_html === null
             ? null
@@ -459,7 +464,7 @@ export class SqlMediaRelationRepository
           revision.explanation_html === null
             ? null
             : sanitizeRichContent(String(revision.explanation_html), 100_000),
-          options: optionRows.map((row) => ({
+        options: optionRows.map((row) => ({
           ...(parseDatabaseId(row.id)
             ? { id: parseDatabaseId(row.id) as Id }
             : {}),
@@ -467,12 +472,15 @@ export class SqlMediaRelationRepository
           contentHtml: sanitizeRichContent(String(row.content_html), 20_000),
           isCorrect: toBoolean(row.is_correct) ?? false,
         })),
-          statements: statementRows.map((row) => ({
+        statements: statementRows.map((row) => ({
           ...(parseDatabaseId(row.id)
             ? { id: parseDatabaseId(row.id) as Id }
             : {}),
           position: Number(row.position),
-          statementHtml: sanitizeRichContent(String(row.statement_html), 20_000),
+          statementHtml: sanitizeRichContent(
+            String(row.statement_html),
+            20_000,
+          ),
           correctValue: toBoolean(row.correct_value) ?? false,
         })),
       };
@@ -593,7 +601,10 @@ function mapAsset(row: AssetRow): MediaAsset {
   const id = parseDatabaseId(row.id);
   const createdBy = parseDatabaseId(row.created_by);
   if (!id || !createdBy) throw new Error("Database returned invalid media ID");
-  if (typeof row.storage_key !== "string" || typeof row.original_name !== "string")
+  if (
+    typeof row.storage_key !== "string" ||
+    typeof row.original_name !== "string"
+  )
     throw new Error("Database returned invalid media filename metadata");
   if (
     row.mime_type !== "image/jpeg" &&
@@ -644,7 +655,9 @@ function mapRelation(row: RelationRow): MediaRelation {
       : `legacy-${questionRevisionId}-${mediaAssetId}`;
   const alignment =
     typeof row.alignment === "string" &&
-    MEDIA_ALIGNMENTS.includes(row.alignment as (typeof MEDIA_ALIGNMENTS)[number])
+    MEDIA_ALIGNMENTS.includes(
+      row.alignment as (typeof MEDIA_ALIGNMENTS)[number],
+    )
       ? (row.alignment as (typeof MEDIA_ALIGNMENTS)[number])
       : "CENTER";
   const mediaAssetStatus =
@@ -709,14 +722,16 @@ async function assertChildTarget(
       "SELECT id FROM question_options WHERE id = ? AND question_revision_id = ? LIMIT 1",
       [input.questionOptionId, input.questionRevisionId],
     );
-    if (!rows[0]) throw new MediaRelationNotFoundError("Option target was not found");
+    if (!rows[0])
+      throw new MediaRelationNotFoundError("Option target was not found");
   }
   if (input.usage === "STATEMENT") {
     const rows = await connection.query<Row>(
       "SELECT id FROM true_false_statements WHERE id = ? AND question_revision_id = ? LIMIT 1",
       [input.trueFalseStatementId, input.questionRevisionId],
     );
-    if (!rows[0]) throw new MediaRelationNotFoundError("Statement target was not found");
+    if (!rows[0])
+      throw new MediaRelationNotFoundError("Statement target was not found");
   }
 }
 
@@ -740,7 +755,8 @@ async function removeLegacyMirrorIfUnused(
 function toHashEntry(relation: MediaRelation): CanonicalMediaHashEntry {
   return {
     placementKey:
-      relation.placementKey ?? `${relation.questionRevisionId}-${relation.mediaAssetId}`,
+      relation.placementKey ??
+      `${relation.questionRevisionId}-${relation.mediaAssetId}`,
     mediaAssetId: relation.mediaAssetId,
     usage: relation.usage,
     questionOptionId: relation.questionOptionId ?? null,

@@ -14,25 +14,6 @@ import {
 import { PasswordService } from "../auth/password";
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
 import type { ExamSessionAdministrationService } from "../exam-sessions/service";
-import { internalMediaRedirect } from "../media/protected-serving";
-import {
-  MediaRelationConflictError,
-  MediaRelationImmutableError,
-  MediaRelationNotFoundError,
-  MediaRelationValidationError,
-  MediaAssetReferencedError,
-  MediaPublishedReferenceError,
-  MediaRelationVersionConflictError,
-  type MediaAlignment,
-  type MediaRelation,
-  type MediaUsage,
-  MEDIA_ALIGNMENTS,
-  MEDIA_USAGES,
-} from "../media/relation-domain";
-import type { MediaRelationService } from "../media/relation-service";
-import type { MediaUploadService } from "../media/service";
-import { MediaValidationError } from "../media/domain";
-import type { MediaAsset } from "../media/domain";
 import type { ExamPublishService } from "../exams/publish";
 import type { ExamReadinessService } from "../exams/readiness";
 import type { ExamDraftService } from "../exams/service";
@@ -45,6 +26,25 @@ import {
   ExportValidationError,
   exportJobView,
 } from "../exports";
+import type { MediaAsset } from "../media/domain";
+import { MediaValidationError } from "../media/domain";
+import { internalMediaRedirect } from "../media/protected-serving";
+import {
+  MEDIA_ALIGNMENTS,
+  MEDIA_USAGES,
+  type MediaAlignment,
+  MediaAssetReferencedError,
+  MediaPublishedReferenceError,
+  type MediaRelation,
+  MediaRelationConflictError,
+  MediaRelationImmutableError,
+  MediaRelationNotFoundError,
+  MediaRelationValidationError,
+  MediaRelationVersionConflictError,
+  type MediaUsage,
+} from "../media/relation-domain";
+import type { MediaRelationService } from "../media/relation-service";
+import type { MediaUploadService } from "../media/service";
 import {
   type QuestionImportService,
   QuestionImportValidationError,
@@ -974,22 +974,32 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       if (!options.mediaRelations) throw serviceUnavailable("Media service");
       const status = queryValue(query, "status");
       if (status && status !== "ORPHAN")
-        throw new AppError(422, "VALIDATION_FAILED", "status media tidak valid.");
-      const items = status === "ORPHAN"
-        ? await options.mediaRelations.listOrphans(staffContext)
-        : [];
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "status media tidak valid.",
+        );
+      const items =
+        status === "ORPHAN"
+          ? await options.mediaRelations.listOrphans(staffContext)
+          : [];
       return { items: items.map(mapMediaAsset) };
     }),
   );
 
   app.post("/api/v1/teacher/media", async ({ request, set }) => {
     try {
-      if (!options.mediaUpload) throw serviceUnavailable("Media upload service");
+      if (!options.mediaUpload)
+        throw serviceUnavailable("Media upload service");
       const actor = await requireStaff(request, options, "TEACHER");
       await requireCsrf(request, actor.session, options);
       const key = request.headers.get("idempotency-key");
       if (!key)
-        throw new AppError(422, "VALIDATION_FAILED", "Idempotency-Key wajib diisi.");
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "Idempotency-Key wajib diisi.",
+        );
       const contentLength = request.headers.get("content-length");
       if (contentLength !== null) {
         const bytes = Number(contentLength);
@@ -1004,7 +1014,8 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const candidate = form.get("file");
       if (!candidate || typeof candidate === "string")
         throw new AppError(422, "VALIDATION_FAILED", "File media wajib diisi.");
-      const originalName = optionalString(form.get("originalName")) ?? candidate.name;
+      const originalName =
+        optionalString(form.get("originalName")) ?? candidate.name;
       if (!originalName)
         throw new AppError(422, "VALIDATION_FAILED", "Nama file wajib diisi.");
       const asset = await options.mediaUpload.upload({
@@ -1034,7 +1045,9 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         set.headers["x-content-type-options"] = "nosniff";
         set.headers["content-type"] = asset.mimeType;
         if (options.useInternalMediaRedirect || !options.mediaRead) {
-          set.headers["x-accel-redirect"] = internalMediaRedirect(asset.storageKey);
+          set.headers["x-accel-redirect"] = internalMediaRedirect(
+            asset.storageKey,
+          );
           return "";
         }
         return await options.mediaRead(asset.storageKey);
@@ -1061,7 +1074,11 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         const usage = oneOf(payload.usage, MEDIA_USAGES, "usage") as MediaUsage;
         const isDecorative = payload.isDecorative;
         if (typeof isDecorative !== "boolean")
-          throw new AppError(422, "VALIDATION_FAILED", "isDecorative wajib diisi.");
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "isDecorative wajib diisi.",
+          );
         const altText =
           payload.altText === null
             ? null
@@ -1069,7 +1086,10 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
               ? null
               : stringField(payload.altText, "altText");
         const placementKey = optionalString(payload.placementKey);
-        const questionOptionId = optionalIdValue(payload.questionOptionId, "questionOptionId");
+        const questionOptionId = optionalIdValue(
+          payload.questionOptionId,
+          "questionOptionId",
+        );
         const trueFalseStatementId = optionalIdValue(
           payload.trueFalseStatementId,
           "trueFalseStatementId",
@@ -1080,10 +1100,14 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           usage,
           ...(placementKey ? { placementKey } : {}),
           ...(questionOptionId === undefined ? {} : { questionOptionId }),
-          ...(trueFalseStatementId === undefined ? {} : { trueFalseStatementId }),
+          ...(trueFalseStatementId === undefined
+            ? {}
+            : { trueFalseStatementId }),
           ...(payload.sortOrder === undefined
             ? {}
-            : { sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100) }),
+            : {
+                sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100),
+              }),
           altText,
           isDecorative,
           ...(payload.displayWidthPercent === undefined
@@ -1098,7 +1122,13 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
               }),
           ...(payload.alignment === undefined
             ? {}
-            : { alignment: oneOf(payload.alignment, MEDIA_ALIGNMENTS, "alignment") as MediaAlignment }),
+            : {
+                alignment: oneOf(
+                  payload.alignment,
+                  MEDIA_ALIGNMENTS,
+                  "alignment",
+                ) as MediaAlignment,
+              }),
           expectedUpdatedAt: stringField(
             payload.expectedUpdatedAt,
             "expectedUpdatedAt",
@@ -1114,33 +1144,68 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       wrapMutation(request, options, "TEACHER", async (staffContext) => {
         if (!options.mediaRelations) throw serviceUnavailable("Media service");
         const revisionId = idParam(params);
-        const rawMediaId = String((params as Record<string, unknown>).mediaId ?? "");
-        if (!rawMediaId) throw new AppError(422, "VALIDATION_FAILED", "Media ID tidak valid.");
-        const placements = await options.mediaRelations.list(staffContext, revisionId);
+        const rawMediaId = String(
+          (params as Record<string, unknown>).mediaId ?? "",
+        );
+        if (!rawMediaId)
+          throw new AppError(422, "VALIDATION_FAILED", "Media ID tidak valid.");
+        const placements = await options.mediaRelations.list(
+          staffContext,
+          revisionId,
+        );
         const placementKey = /^\d+$/u.test(rawMediaId)
-          ? placements.find((item) => item.mediaAssetId === rawMediaId)?.placementKey
+          ? placements.find((item) => item.mediaAssetId === rawMediaId)
+              ?.placementKey
           : rawMediaId;
         if (!placementKey)
-          throw new AppError(404, "NOT_FOUND", "Media placement tidak ditemukan.");
+          throw new AppError(
+            404,
+            "NOT_FOUND",
+            "Media placement tidak ditemukan.",
+          );
         const payload = objectPayload(body);
         const input = {
           questionRevisionId: revisionId,
           placementKey,
           ...(payload.altText === undefined
             ? {}
-            : { altText: payload.altText === null ? null : stringField(payload.altText, "altText") }),
+            : {
+                altText:
+                  payload.altText === null
+                    ? null
+                    : stringField(payload.altText, "altText"),
+              }),
           ...(payload.isDecorative === undefined
             ? {}
-            : { isDecorative: booleanField(payload.isDecorative, "isDecorative") }),
+            : {
+                isDecorative: booleanField(
+                  payload.isDecorative,
+                  "isDecorative",
+                ),
+              }),
           ...(payload.questionOptionId === undefined
             ? {}
-            : { questionOptionId: optionalIdValue(payload.questionOptionId, "questionOptionId") ?? null }),
+            : {
+                questionOptionId:
+                  optionalIdValue(
+                    payload.questionOptionId,
+                    "questionOptionId",
+                  ) ?? null,
+              }),
           ...(payload.trueFalseStatementId === undefined
             ? {}
-            : { trueFalseStatementId: optionalIdValue(payload.trueFalseStatementId, "trueFalseStatementId") ?? null }),
+            : {
+                trueFalseStatementId:
+                  optionalIdValue(
+                    payload.trueFalseStatementId,
+                    "trueFalseStatementId",
+                  ) ?? null,
+              }),
           ...(payload.sortOrder === undefined
             ? {}
-            : { sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100) }),
+            : {
+                sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100),
+              }),
           ...(payload.displayWidthPercent === undefined
             ? {}
             : {
@@ -1153,13 +1218,21 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
               }),
           ...(payload.alignment === undefined
             ? {}
-            : { alignment: oneOf(payload.alignment, MEDIA_ALIGNMENTS, "alignment") as MediaAlignment }),
+            : {
+                alignment: oneOf(
+                  payload.alignment,
+                  MEDIA_ALIGNMENTS,
+                  "alignment",
+                ) as MediaAlignment,
+              }),
           expectedUpdatedAt: stringField(
             payload.expectedUpdatedAt,
             "expectedUpdatedAt",
           ) as UtcTimestamp,
         };
-        return mapMediaRelation(await options.mediaRelations.update(staffContext, input));
+        return mapMediaRelation(
+          await options.mediaRelations.update(staffContext, input),
+        );
       }),
   );
 
@@ -1169,7 +1242,9 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       wrapMutation(request, options, "TEACHER", async (staffContext) => {
         if (!options.mediaRelations) throw serviceUnavailable("Media service");
         const revisionId = idParam(params);
-        const rawMediaId = String((params as Record<string, unknown>).mediaId ?? "");
+        const rawMediaId = String(
+          (params as Record<string, unknown>).mediaId ?? "",
+        );
         const payload = objectPayload(body);
         const expectedUpdatedAt = stringField(
           payload.expectedUpdatedAt,
@@ -2764,15 +2839,21 @@ function mapMediaRelation(relation: MediaRelation) {
             ? String(relation.trueFalseStatementId)
             : null,
         }),
-    ...(relation.sortOrder === undefined ? {} : { sortOrder: relation.sortOrder }),
+    ...(relation.sortOrder === undefined
+      ? {}
+      : { sortOrder: relation.sortOrder }),
     url: `/api/v1/teacher/media/${String(relation.mediaAssetId)}/content`,
     altText: relation.altText,
     isDecorative: relation.isDecorative,
     ...(relation.displayWidthPercent === undefined
       ? {}
       : { displayWidthPercent: relation.displayWidthPercent }),
-    ...(relation.alignment === undefined ? {} : { alignment: relation.alignment }),
-    ...(relation.updatedAt === undefined ? {} : { updatedAt: relation.updatedAt }),
+    ...(relation.alignment === undefined
+      ? {}
+      : { alignment: relation.alignment }),
+    ...(relation.updatedAt === undefined
+      ? {}
+      : { updatedAt: relation.updatedAt }),
   };
 }
 

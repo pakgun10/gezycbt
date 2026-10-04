@@ -105,13 +105,13 @@ describe("exam session API contracts", () => {
     expect(
       paths["/api/v1/participant/exam-sessions/{id}"]?.get?.security,
     ).toEqual([{ participantCookie: [] }, { practiceCookie: [] }]);
+    expect(paths["/api/v1/participant/media/{id}"]?.get?.security).toEqual([
+      { participantCookie: [] },
+      { practiceCookie: [] },
+    ]);
     expect(
-      paths["/api/v1/participant/media/{id}"]?.get?.security,
-    ).toEqual([{ participantCookie: [] }, { practiceCookie: [] }]);
-    expect(
-      paths["/api/v1/participant/media/{id}"]?.get?.responses?.["200"]?.content?.[
-        "image/*"
-      ]?.schema,
+      paths["/api/v1/participant/media/{id}"]?.get?.responses?.["200"]
+        ?.content?.["image/*"]?.schema,
     ).toEqual({ type: "string", format: "binary" });
     expect(
       paths["/api/v1/participant/practice/sessions"]?.post?.security,

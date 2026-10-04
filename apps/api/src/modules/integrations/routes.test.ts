@@ -328,27 +328,30 @@ test("agent schedule authoring validates and delegates practice schedule creatio
     scheduleAuthoring,
   );
   const response = await application.handle(
-    new Request("https://cbt.example.test/api/v1/integrations/agent/schedules", {
-      method: "POST",
-      headers: {
-        authorization: "Bearer integration-token",
-        "content-type": "application/json",
-        "idempotency-key": "schedule-create-test-key",
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/schedules",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "content-type": "application/json",
+          "idempotency-key": "schedule-create-test-key",
+        },
+        body: JSON.stringify({
+          examRevisionId: "101",
+          mode: "PRACTICE",
+          startsAt: NOW,
+          endsAt: "2026-10-17T00:00:00.000Z",
+          durationSeconds: 900,
+          maxAttempts: 1,
+          allowLateStart: true,
+          resultReleasePolicy: "IMMEDIATE_SCORE",
+          identityFields: [
+            { key: "name", label: "Nama", type: "TEXT", required: true },
+          ],
+        }),
       },
-      body: JSON.stringify({
-        examRevisionId: "101",
-        mode: "PRACTICE",
-        startsAt: NOW,
-        endsAt: "2026-10-17T00:00:00.000Z",
-        durationSeconds: 900,
-        maxAttempts: 1,
-        allowLateStart: true,
-        resultReleasePolicy: "IMMEDIATE_SCORE",
-        identityFields: [
-          { key: "name", label: "Nama", type: "TEXT", required: true },
-        ],
-      }),
-    }),
+    ),
   );
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ data: { id: "70" } });

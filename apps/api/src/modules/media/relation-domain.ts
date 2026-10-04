@@ -198,7 +198,8 @@ export function validateMediaAttachment(
       "ORDER_INVALID",
       "Urutan media tidak valid",
     );
-  const displayWidthPercent = input.displayWidthPercent ?? DEFAULT_MEDIA_DISPLAY_WIDTH_PERCENT;
+  const displayWidthPercent =
+    input.displayWidthPercent ?? DEFAULT_MEDIA_DISPLAY_WIDTH_PERCENT;
   if (
     !Number.isInteger(displayWidthPercent) ||
     displayWidthPercent < 10 ||

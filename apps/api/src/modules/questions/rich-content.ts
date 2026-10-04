@@ -84,10 +84,12 @@ export function assertSafeLatexSource(value: string): string {
       "LATEX_UNSAFE",
       "Formula LaTeX kosong atau terlalu panjang.",
     );
-  if ([...latex].some((char) => {
-    const code = char.codePointAt(0) ?? 0;
-    return code < 0x20 && code !== 0x09;
-  }))
+  if (
+    [...latex].some((char) => {
+      const code = char.codePointAt(0) ?? 0;
+      return code < 0x20 && code !== 0x09;
+    })
+  )
     throw new RichContentValidationError(
       "LATEX_UNSAFE",
       "Formula LaTeX mengandung control character.",
@@ -110,8 +112,7 @@ export function extractRichContentNodes(
 ): readonly RichContentNode[] {
   assertCanonicalNodes(html);
   const nodes: RichContentNode[] = [];
-  const nodePattern =
-    /<(span|div|figure)\b([^>]*)>([\s\S]*?)<\/\1\s*>/giu;
+  const nodePattern = /<(span|div|figure)\b([^>]*)>([\s\S]*?)<\/\1\s*>/giu;
   for (const match of html.matchAll(nodePattern)) {
     const tag = match[1]?.toLowerCase();
     const attributes = match[2] ?? "";
@@ -119,7 +120,10 @@ export function extractRichContentNodes(
     if (!node) continue;
     const body = (match[3] ?? "").trim();
     if (node === "inline-math" || node === "block-math") {
-      if ((node === "inline-math" && tag !== "span") || (node === "block-math" && tag !== "div"))
+      if (
+        (node === "inline-math" && tag !== "span") ||
+        (node === "block-math" && tag !== "div")
+      )
         throw new RichContentValidationError(
           "CONTENT_INVALID",
           "Node matematika memiliki elemen canonical yang salah.",
@@ -162,7 +166,11 @@ export function extractRichContentNodes(
 export function validateRichContentMath(
   html: string,
   fieldPath: string,
-): readonly { readonly code: string; readonly fieldPath: string; readonly message: string }[] {
+): readonly {
+  readonly code: string;
+  readonly fieldPath: string;
+  readonly message: string;
+}[] {
   const issues: { code: string; fieldPath: string; message: string }[] = [];
   let nodes: readonly RichContentNode[];
   try {
@@ -208,7 +216,11 @@ function assertCanonicalNodes(html: string): void {
   const customAttributes = /data-content-node\s*=\s*["']([^"']*)["']/giu;
   for (const match of html.matchAll(customAttributes)) {
     const node = match[1];
-    if (node !== "inline-math" && node !== "block-math" && node !== "question-media")
+    if (
+      node !== "inline-math" &&
+      node !== "block-math" &&
+      node !== "question-media"
+    )
       throw new RichContentValidationError(
         "CONTENT_INVALID",
         "Jenis content node tidak didukung.",
@@ -230,8 +242,7 @@ function assertCanonicalNodes(html: string): void {
 }
 
 function extractNodeShapeOnly(html: string): void {
-  const nodePattern =
-    /<(span|div|figure)\b([^>]*)>([\s\S]*?)<\/\1\s*>/giu;
+  const nodePattern = /<(span|div|figure)\b([^>]*)>([\s\S]*?)<\/\1\s*>/giu;
   for (const match of html.matchAll(nodePattern)) {
     const attributes = match[2] ?? "";
     const node = readAttribute(attributes, "data-content-node");
@@ -246,10 +257,7 @@ function extractNodeShapeOnly(html: string): void {
       continue;
     }
     const tag = match[1]?.toLowerCase();
-    if (
-      (node === "inline-math" || node === "block-math") &&
-      latex === null
-    )
+    if ((node === "inline-math" || node === "block-math") && latex === null)
       throw new RichContentValidationError(
         "CONTENT_INVALID",
         "Node matematika harus memiliki source LaTeX.",
@@ -265,11 +273,20 @@ function extractNodeShapeOnly(html: string): void {
         "Placement key hanya boleh digunakan pada node media.",
       );
     if (node === "inline-math" && tag !== "span")
-      throw new RichContentValidationError("CONTENT_INVALID", "Inline math node invalid.");
+      throw new RichContentValidationError(
+        "CONTENT_INVALID",
+        "Inline math node invalid.",
+      );
     if (node === "block-math" && tag !== "div")
-      throw new RichContentValidationError("CONTENT_INVALID", "Block math node invalid.");
+      throw new RichContentValidationError(
+        "CONTENT_INVALID",
+        "Block math node invalid.",
+      );
     if (node === "question-media" && tag !== "figure")
-      throw new RichContentValidationError("CONTENT_INVALID", "Media node invalid.");
+      throw new RichContentValidationError(
+        "CONTENT_INVALID",
+        "Media node invalid.",
+      );
   }
 }
 

@@ -1,4 +1,5 @@
 import type { Id } from "@gezycbt/contracts";
+import type { MediaRelation } from "../media/relation-domain";
 import {
   QUESTION_TYPES,
   type QuestionDraftContent,
@@ -6,7 +7,6 @@ import {
   type TrueFalseStatementDraft,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
-import type { MediaRelation } from "../media/relation-domain";
 import {
   extractRichContentNodes,
   validateRichContentMath,
@@ -157,12 +157,15 @@ function validateRichContent(
     })),
   ];
   const placementKeys = new Set(
-    media.map((item) => item.placementKey).filter((key): key is string => Boolean(key)),
+    media
+      .map((item) => item.placementKey)
+      .filter((key): key is string => Boolean(key)),
   );
   const placementByKey = new Map(
     media
-      .filter((item): item is MediaRelation & { readonly placementKey: string } =>
-        Boolean(item.placementKey),
+      .filter(
+        (item): item is MediaRelation & { readonly placementKey: string } =>
+          Boolean(item.placementKey),
       )
       .map((item) => [item.placementKey, item] as const),
   );
@@ -199,7 +202,10 @@ function validateRichContent(
             "Konten menunjuk placement gambar yang tidak tersedia.",
             "Sisipkan ulang gambar dari asset yang tersedia.",
           );
-        } else if (placement && !placementMatchesField(placement, field.path, content)) {
+        } else if (
+          placement &&
+          !placementMatchesField(placement, field.path, content)
+        ) {
           add(
             "ERROR",
             "QUESTION_MEDIA_TARGET_MISMATCH",
@@ -298,7 +304,9 @@ function placementMatchesField(
     const option = content.options[Number(optionMatch[1])];
     return option?.id === placement.questionOptionId;
   }
-  const statementMatch = /^statements\[(\d+)\]\.statementHtml$/u.exec(fieldPath);
+  const statementMatch = /^statements\[(\d+)\]\.statementHtml$/u.exec(
+    fieldPath,
+  );
   if (placement.usage === "STATEMENT" && statementMatch) {
     const statement = content.statements[Number(statementMatch[1])];
     return statement?.id === placement.trueFalseStatementId;
