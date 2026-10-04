@@ -25,19 +25,20 @@ export async function rebuildQuestionHashes(
   }
 }
 
-if (import.meta.main) {
+async function main(): Promise<void> {
   const databaseUrl = Bun.env.GEZYCBT_DATABASE_URL ?? Bun.env.DATABASE_URL;
-  if (!databaseUrl) {
-    console.error("GEZYCBT_DATABASE_URL is required");
+  if (!databaseUrl) throw new Error("GEZYCBT_DATABASE_URL is required");
+  const count = await rebuildQuestionHashes(databaseUrl);
+  console.log(`Rebuilt ${count} question revision hash(es).`);
+}
+
+if (import.meta.main) {
+  try {
+    await main();
+  } catch (error: unknown) {
+    console.error(
+      error instanceof Error ? error.message : "Hash rebuild failed",
+    );
     process.exitCode = 1;
-  } else {
-    rebuildQuestionHashes(databaseUrl)
-      .then((count) => console.log(`Rebuilt ${count} question revision hash(es).`))
-      .catch((error: unknown) => {
-        console.error(
-          error instanceof Error ? error.message : "Hash rebuild failed",
-        );
-        process.exitCode = 1;
-      });
   }
 }
