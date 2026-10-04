@@ -163,11 +163,13 @@ export interface StaffApi {
   previewQuestionImport(
     questionBankId: string,
     csv: string,
+    format?: "CSV" | "TXT",
   ): Promise<QuestionImportPreview>;
   commitQuestionImport(
     questionBankId: string,
     csv: string,
     sourceHash: string,
+    format?: "CSV" | "TXT",
   ): Promise<{ createdCount: number }>;
   updateQuestion(
     id: string,
@@ -642,11 +644,15 @@ export class HttpStaffApi implements StaffApi {
       content,
     );
   }
-  previewQuestionImport(questionBankId: string, csv: string) {
+  previewQuestionImport(
+    questionBankId: string,
+    csv: string,
+    format: "CSV" | "TXT" = "CSV",
+  ) {
     return this.client
       .request<{ data: QuestionImportPreview }>(
         "/api/v1/teacher/question-imports/preview",
-        { method: "POST", body: { questionBankId, csv } },
+        { method: "POST", body: { questionBankId, csv, format } },
       )
       .then((value) => value.data);
   }
@@ -654,11 +660,12 @@ export class HttpStaffApi implements StaffApi {
     questionBankId: string,
     csv: string,
     sourceHash: string,
+    format: "CSV" | "TXT" = "CSV",
   ) {
     return this.mutate<{ createdCount: number }>(
       "/api/v1/teacher/question-imports/commit",
       "POST",
-      { questionBankId, csv, sourceHash },
+      { questionBankId, csv, sourceHash, format },
     );
   }
   updateQuestion(

@@ -1233,6 +1233,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
         return options.questions.imports.preview(staffContext, {
           questionBankId: idValue(payload.questionBankId, "questionBankId"),
           csv: stringField(payload.csv, "csv"),
+          format: questionImportFormat(payload.format),
         });
       }),
   );
@@ -1247,6 +1248,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           questionBankId: idValue(payload.questionBankId, "questionBankId"),
           csv: stringField(payload.csv, "csv"),
           sourceHash: stringField(payload.sourceHash, "sourceHash"),
+          format: questionImportFormat(payload.format),
         });
       }),
   );
@@ -2638,6 +2640,10 @@ function stringField(value: unknown, field: string): string {
 }
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
+}
+function questionImportFormat(value: unknown): "CSV" | "TXT" {
+  if (value === undefined) return "CSV";
+  return oneOf(value, ["CSV", "TXT"] as const, "format");
 }
 function optionalIdValue(value: unknown, field: string): Id | undefined {
   if (value === undefined || value === null || value === "") return undefined;

@@ -22,6 +22,8 @@ import { hashQuestionContent } from "./service";
 
 export const MAX_QUESTION_IMPORT_BYTES = 1024 * 1024;
 export const MAX_QUESTION_IMPORT_ROWS = 300;
+export const QUESTION_IMPORT_FORMATS = ["CSV", "TXT"] as const;
+export type QuestionImportFormat = (typeof QUESTION_IMPORT_FORMATS)[number];
 
 const QUESTION_IMPORT_HEADERS = [
   "type",
@@ -59,6 +61,8 @@ export interface QuestionImportPreview {
 export interface QuestionImportInput {
   readonly questionBankId: Id;
   readonly csv: string;
+  /** TXT is a tab-delimited text file (TSV), not comma-separated CSV. */
+  readonly format?: QuestionImportFormat;
 }
 
 export interface CommitQuestionImportInput extends QuestionImportInput {
@@ -77,9 +81,19 @@ interface ParsedImport {
   readonly drafts: readonly QuestionImportBatchInput["drafts"][number][];
 }
 
+function normalizeImportFormat(
+  format: QuestionImportFormat | undefined,
+): QuestionImportFormat {
+  const value = format ?? "CSV";
+  if (!QUESTION_IMPORT_FORMATS.includes(value)) {
+    throw new QuestionImportValidationError("Format import tidak didukung.");
+  }
+  return value;
+}
+
 /**
  * Imports only validated draft revisions. The preview is deliberately
- * stateless: commit receives the original CSV again, validates it again, and
+ * stateless: commit receives the original source file again, validates it again, and
  * atomically writes the whole batch. This keeps temporary source data out of
  * MariaDB while preventing a stale preview from committing a different file.
  */
@@ -98,7 +112,12 @@ export class QuestionImportService {
   ): Promise<QuestionImportPreview> {
     assertActorContext(context.actor);
     await this.assertWritableBank(context, input.questionBankId);
-    return (await inspectQuestionCsv(input.csv)).preview;
+    return (
+      await inspectQuestionSource(
+        input.csv,
+        normalizeImportFormat(input.format),
+      )
+    ).preview;
   }
 
   async commit(
@@ -107,7 +126,10 @@ export class QuestionImportService {
   ): Promise<{ createdCount: number }> {
     assertMutationContext(context);
     const bank = await this.assertWritableBank(context, input.questionBankId);
-    const parsed = await inspectQuestionCsv(input.csv);
+    const parsed = await inspectQuestionSource(
+      input.csv,
+      normalizeImportFormat(input.format),
+    );
     if (parsed.preview.sourceHash !== input.sourceHash) {
       throw new QuestionImportValidationError(
         "File berubah setelah preview. Buat preview baru sebelum import.",
@@ -148,17 +170,23 @@ export class QuestionImportService {
   }
 }
 
-async function inspectQuestionCsv(source: string): Promise<ParsedImport> {
-  const sourceHash = await sha256Hex(source);
-  const records = parseCsvRecords(source);
+async function inspectQuestionSource(
+  source: string,
+  format: QuestionImportFormat,
+): Promise<ParsedImport> {
+  const sourceHash = await sha256Hex(`${format}\u0000${source}`);
+  const records = parseDelimitedRecords(source, format);
+  const formatName = format === "TXT" ? "TXT" : "CSV";
   if (!records.length)
-    throw new QuestionImportValidationError("File CSV kosong.");
+    throw new QuestionImportValidationError(`File ${formatName} kosong.`);
   const headerRecord = records[0];
   if (!headerRecord)
-    throw new QuestionImportValidationError("File CSV kosong.");
+    throw new QuestionImportValidationError(`File ${formatName} kosong.`);
   const headers = headerRecord.map((value) => value.trim().toLowerCase());
   if (new Set(headers).size !== headers.length) {
-    throw new QuestionImportValidationError("Header CSV tidak boleh duplikat.");
+    throw new QuestionImportValidationError(
+      `Header ${formatName} tidak boleh duplikat.`,
+    );
   }
   for (const required of ["type", "stimulus"]) {
     if (!headers.includes(required)) {
@@ -170,7 +198,7 @@ async function inspectQuestionCsv(source: string): Promise<ParsedImport> {
   for (const header of headers) {
     if (!QUESTION_IMPORT_HEADERS.includes(header as never)) {
       throw new QuestionImportValidationError(
-        `Kolom CSV tidak dikenali: ${header}. Gunakan template resmi.`,
+        `Kolom ${formatName} tidak dikenali: ${header}. Gunakan template resmi.`,
       );
     }
   }
@@ -182,7 +210,7 @@ async function inspectQuestionCsv(source: string): Promise<ParsedImport> {
   }
   if (!recordsToImport.length) {
     throw new QuestionImportValidationError(
-      "File CSV belum memiliki baris soal.",
+      `File ${formatName} belum memiliki baris soal.`,
     );
   }
 
@@ -404,12 +432,17 @@ function booleanValue(
   return null;
 }
 
-function parseCsvRecords(source: string): string[][] {
+function parseDelimitedRecords(
+  source: string,
+  format: QuestionImportFormat,
+): string[][] {
+  const formatName = format === "TXT" ? "TXT" : "CSV";
   if (new TextEncoder().encode(source).byteLength > MAX_QUESTION_IMPORT_BYTES) {
     throw new QuestionImportValidationError(
-      "Ukuran file CSV melebihi batas 1 MiB.",
+      `Ukuran file ${formatName} melebihi batas 1 MiB.`,
     );
   }
+  const delimiter = format === "TXT" ? "\t" : ",";
   const input = source.replace(/^\uFEFF/u, "");
   const records: string[][] = [];
   let row: string[] = [];
@@ -426,7 +459,7 @@ function parseCsvRecords(source: string): string[][] {
       } else field += character;
     } else if (character === '"' && field.length === 0) {
       quoted = true;
-    } else if (character === ",") {
+    } else if (character === delimiter) {
       row.push(field);
       field = "";
     } else if (character === "\n" || character === "\r") {
@@ -439,7 +472,7 @@ function parseCsvRecords(source: string): string[][] {
   }
   if (quoted) {
     throw new QuestionImportValidationError(
-      "CSV memiliki kutip yang belum ditutup.",
+      `${formatName} memiliki kutip yang belum ditutup.`,
     );
   }
   if (field.length || row.length) {

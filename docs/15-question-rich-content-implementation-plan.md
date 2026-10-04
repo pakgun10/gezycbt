@@ -76,7 +76,7 @@ Penempatan gambar disimpan sebagai placeholder tanpa URL atau path storage:
 
 ### 3.2 Sanitasi
 
-Sanitasi server-side berlaku pada create, update, import CSV, integration agent, dan migration/backfill. Konfigurasi allowlist disimpan pada satu modul dan diuji dengan corpus XSS.
+Sanitasi server-side berlaku pada create, update, import CSV/TXT, integration agent, dan migration/backfill. Konfigurasi allowlist disimpan pada satu modul dan diuji dengan corpus XSS.
 
 Baseline allowlist:
 

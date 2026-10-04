@@ -491,6 +491,7 @@ const questionImportPreviewBodySchema = t.Object(
   {
     questionBankId: idSchema,
     csv: t.String({ minLength: 1, maxLength: 1_100_000 }),
+    format: t.Optional(t.Union([t.Literal("CSV"), t.Literal("TXT")])),
   },
   { additionalProperties: false },
 );
@@ -498,6 +499,7 @@ const questionImportCommitBodySchema = t.Object(
   {
     questionBankId: idSchema,
     csv: t.String({ minLength: 1, maxLength: 1_100_000 }),
+    format: t.Optional(t.Union([t.Literal("CSV"), t.Literal("TXT")])),
     sourceHash: t.String({
       pattern: HEX_SHA256_PATTERN,
       minLength: 64,
@@ -766,7 +768,7 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     path: "/api/v1/teacher/question-imports/preview",
     operationId: "previewQuestionImport",
     summary:
-      "Validasi file CSV soal tanpa menyimpan file atau membuat revision",
+      "Validasi file CSV atau TXT (tab-delimited) tanpa menyimpan file atau membuat revision",
     request: { body: questionImportPreviewBodySchema },
     response: {
       status: 200,
@@ -779,7 +781,7 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     path: "/api/v1/teacher/question-imports/commit",
     operationId: "commitQuestionImport",
     summary:
-      "Buat seluruh draft soal dari CSV yang telah dipreview secara atomic",
+      "Buat seluruh draft soal dari CSV atau TXT yang telah dipreview secara atomic",
     request: {
       headers: teacherMutationHeaders,
       body: questionImportCommitBodySchema,

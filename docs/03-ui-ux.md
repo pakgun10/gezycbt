@@ -1026,11 +1026,11 @@ Editor type:
 
 Stimulus selalu diberi label **Stimulus (opsional)**. Stimulus dapat berupa teks panjang, gambar, atau gabungannya; editor tidak meminta guru mengisi teks hanya karena sebuah gambar sudah menjadi konteks soal. Gambar disisipkan pada posisi kursor, sehingga guru dapat membuat urutan seperti “Perhatikan gambar berikut.” → gambar → “Pada gambar tersebut …”. Setiap opsi `SINGLE_CHOICE`/`MULTIPLE_RESPONSE` dan setiap pernyataan `TRUE_FALSE` mempunyai area rich text serta action **Tambah gambar** sendiri. Thumbnail tampil di posisi sisipnya, sehingga guru dapat melihat gambar yang melekat pada opsi/pernyataan tertentu sebelum publish.
 
-#### Import soal CSV
+#### Import soal CSV dan TXT
 
-Di halaman Bank Soal, tombol **Import soal** membuka panel dengan bank tujuan, pemilih file CSV, tombol **Unduh template CSV**, dan action **Preview import**. File tidak langsung menambah soal. Preview menampilkan total, valid, error, serta tabel baris dengan nomor sumber, tipe, ringkasan stimulus atau pertanyaan, status, dan detail error per field.
+Di halaman Bank Soal, tombol **Import soal** membuka panel dengan bank tujuan, pemilih file CSV atau TXT, tombol **Unduh template CSV**, **Unduh template TXT**, dan action **Preview import**. File TXT menggunakan pemisah tab (TSV), sehingga koma dapat dipakai di teks soal. File tidak langsung menambah soal. Preview menampilkan total, valid, error, serta tabel baris dengan nomor sumber, tipe, ringkasan stimulus atau pertanyaan, status, dan detail error per field.
 
-Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyebut jumlah soal dan bank tujuan; hasilnya selalu draft sehingga guru tetap dapat membuka, meninjau, memvalidasi, lalu publish secara terpisah. File maksimum 1 MiB/300 soal. Mengganti file atau bank tujuan membatalkan preview lama; commit menolak file yang berubah setelah preview. Kolom stimulus boleh kosong. Template menjelaskan bahwa kolom opsi dipakai untuk `SINGLE_CHOICE`/`MULTIPLE_RESPONSE`, sedangkan tiga kolom pernyataan dipakai untuk `TRUE_FALSE`. CSV membawa teks saja; gambar ditempelkan melalui editor draft setelah import.
+Tombol **Import N soal** hanya aktif bila seluruh baris valid. Konfirmasi menyebut jumlah soal dan bank tujuan; hasilnya selalu draft sehingga guru tetap dapat membuka, meninjau, memvalidasi, lalu publish secara terpisah. File maksimum 1 MiB/300 soal. Mengganti file atau bank tujuan membatalkan preview lama; commit menolak file yang berubah setelah preview. Kolom stimulus boleh kosong. Template menjelaskan bahwa kolom opsi dipakai untuk `SINGLE_CHOICE`/`MULTIPLE_RESPONSE`, sedangkan tiga kolom pernyataan dipakai untuk `TRUE_FALSE`. CSV dan TXT membawa teks saja; gambar ditempelkan melalui editor draft setelah import.
 
 #### Media upload dan preview
 

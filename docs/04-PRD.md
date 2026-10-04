@@ -463,7 +463,7 @@ Aturan produk:
 | FR-MED-005 | Must | UI menampilkan preview, progress, retry, serta error type/size/dimension/network. |
 | FR-MED-006 | Must | Media tidak disimpan sebagai base64 di payload soal. |
 | FR-MED-007 | Must | Gambar dapat ditempelkan pada stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan tertentu; participant payload mempertahankan target dan urutan sisipnya di antara teks. |
-| FR-MED-008 | Must | Import CSV membawa teks saja. Gambar tidak menerima URL eksternal, placeholder media, atau base64 dan ditempelkan ke draft melalui editor sesudah import. |
+| FR-MED-008 | Must | Import CSV/TXT membawa teks saja. Gambar tidak menerima URL eksternal, placeholder media, atau base64 dan ditempelkan ke draft melalui editor sesudah import. |
 | FR-MED-009 | Must | Guru dapat mengubah ukuran tampil gambar dengan aspect ratio tetap; ukuran disimpan sebagai metadata responsive dan tidak mengubah binary asli. |
 | FR-MED-010 | Must | Guru dapat mengganti atau melepas gambar dari draft, melihat asset orphan miliknya, dan menghapus asset yang tidak mempunyai reference. |
 | FR-MED-011 | Must | Media peserta hanya dapat dilayani setelah server membuktikan bahwa asset direferensikan question revision dalam session yang dapat diakses actor atau practice credential tersebut. |

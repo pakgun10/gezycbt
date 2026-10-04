@@ -130,6 +130,33 @@ describe("question API contracts", () => {
     ).toBe(false);
   });
 
+  test("accepts CSV and tab-delimited TXT question imports", () => {
+    const previewCheck = TypeCompiler.Compile(
+      questionApiSchemas.questionImportPreviewBody,
+    );
+    const commitCheck = TypeCompiler.Compile(
+      questionApiSchemas.questionImportCommitBody,
+    );
+    expect(
+      previewCheck.Check({
+        questionBankId: "20",
+        csv: "type\tstimulus",
+        format: "TXT",
+      }),
+    ).toBe(true);
+    expect(
+      commitCheck.Check({
+        questionBankId: "20",
+        csv: "type,stimulus",
+        format: "CSV",
+        sourceHash: "a".repeat(64),
+      }),
+    ).toBe(true);
+    expect(
+      previewCheck.Check({ questionBankId: "20", csv: "type", format: "XLSX" }),
+    ).toBe(false);
+  });
+
   test("requires CSRF and bounded idempotency headers for mutations", () => {
     const check = TypeCompiler.Compile(questionApiSchemas.mutationHeaders);
     expect(

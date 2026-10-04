@@ -46,6 +46,13 @@ function csv(rows: readonly Record<string, string>[]): string {
   ].join("\n");
 }
 
+function txt(rows: readonly Record<string, string>[]): string {
+  return [
+    HEADERS.join("\t"),
+    ...rows.map((row) => HEADERS.map((header) => row[header] ?? "").join("\t")),
+  ].join("\n");
+}
+
 function repository() {
   const batches: QuestionImportBatchInput[] = [];
   const value: QuestionImportRepository = {
@@ -159,6 +166,45 @@ describe("QuestionImportService", () => {
         questionBankId: BANK.id,
         csv: invalid,
         sourceHash: "0".repeat(64),
+      }),
+    ).rejects.toBeInstanceOf(QuestionImportValidationError);
+  });
+
+  test("previews and commits a tab-delimited TXT import", async () => {
+    const store = repository();
+    const service = new QuestionImportService(store.value, authorization);
+    const source = txt([
+      {
+        type: "SINGLE_CHOICE",
+        stimulus: "Stimulus dengan koma, tetap satu kolom.",
+        prompt: "Pilih jawaban tepat",
+        option_1: "A",
+        option_1_correct: "BENAR",
+        option_2: "B",
+        option_2_correct: "SALAH",
+      },
+    ]);
+
+    const preview = await service.preview(ACTOR, {
+      questionBankId: BANK.id,
+      csv: source,
+      format: "TXT",
+    });
+    expect(preview).toMatchObject({ totalRows: 1, validCount: 1 });
+    await expect(
+      service.commit(ACTOR, {
+        questionBankId: BANK.id,
+        csv: source,
+        format: "TXT",
+        sourceHash: preview.sourceHash,
+      }),
+    ).resolves.toEqual({ createdCount: 1 });
+    await expect(
+      service.commit(ACTOR, {
+        questionBankId: BANK.id,
+        csv: source,
+        format: "CSV",
+        sourceHash: preview.sourceHash,
       }),
     ).rejects.toBeInstanceOf(QuestionImportValidationError);
   });
