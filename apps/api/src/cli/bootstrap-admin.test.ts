@@ -51,6 +51,9 @@ function repository(): UserRepository & { calls: number } {
     async updatePassword() {
       return storedUser;
     },
+    async delete() {
+      return true;
+    },
   };
 }
 

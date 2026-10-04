@@ -45,6 +45,7 @@ export interface CreateUserInput {
 export interface UpdateUserInput {
   readonly displayName?: string;
   readonly role?: UserRole;
+  readonly status?: UserStatus;
   readonly forcePasswordChange?: boolean;
 }
 
@@ -73,6 +74,21 @@ export class UserVersionConflictError extends Error {
   constructor() {
     super("User was changed by another request");
     this.name = "UserVersionConflictError";
+  }
+}
+
+/** A permanent delete must never discard an account that has domain history. */
+export class UserReferencedError extends Error {
+  constructor() {
+    super("Akun sudah memiliki histori. Nonaktifkan akun sebagai gantinya.");
+    this.name = "UserReferencedError";
+  }
+}
+
+export class LastAdminDeletionError extends Error {
+  constructor() {
+    super("Akun admin terakhir tidak dapat dihapus.");
+    this.name = "LastAdminDeletionError";
   }
 }
 

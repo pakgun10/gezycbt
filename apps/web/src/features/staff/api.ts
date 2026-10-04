@@ -96,6 +96,15 @@ export interface StaffApi {
     expectedUpdatedAt?: string,
   ): Promise<StaffUser>;
   disableUser(id: string, expectedUpdatedAt?: string): Promise<StaffUser>;
+  resetUserPassword(
+    id: string,
+    newPassword: string,
+    expectedUpdatedAt: string,
+  ): Promise<{ user: StaffUser; revokedSessionCount: number }>;
+  deleteUser(
+    id: string,
+    expectedUpdatedAt: string,
+  ): Promise<{ userId: string; deleted: boolean }>;
   academicYears(): Promise<CursorPage<AcademicYear>>;
   createAcademicYear(input: Record<string, unknown>): Promise<AcademicYear>;
   activateAcademicYear(id: string): Promise<AcademicYear>;
@@ -469,6 +478,24 @@ export class HttpStaffApi implements StaffApi {
         status: "DISABLED",
         ...(expectedUpdatedAt ? { expectedUpdatedAt } : {}),
       },
+    );
+  }
+  resetUserPassword(
+    id: string,
+    newPassword: string,
+    expectedUpdatedAt: string,
+  ) {
+    return this.mutate<{ user: StaffUser; revokedSessionCount: number }>(
+      `/api/v1/admin/users/${encodeURIComponent(id)}/reset-password`,
+      "POST",
+      { newPassword, expectedUpdatedAt },
+    );
+  }
+  deleteUser(id: string, expectedUpdatedAt: string) {
+    return this.mutate<{ userId: string; deleted: boolean }>(
+      `/api/v1/admin/users/${encodeURIComponent(id)}`,
+      "DELETE",
+      { expectedUpdatedAt },
     );
   }
   academicYears() {

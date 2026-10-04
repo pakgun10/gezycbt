@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { Id } from "@gezycbt/contracts";
+import { UserReferencedError } from "./domain";
 import {
   SqlUserRepository,
   type UserRepositoryConnection,
@@ -21,7 +22,10 @@ const row = {
   updated_at: "2026-09-17 01:00:00.000000",
 };
 
-function database(bootstrap = false): UserRepositoryDatabase & {
+function database(
+  bootstrap = false,
+  rejectUserDelete = false,
+): UserRepositoryDatabase & {
   readonly statements: string[];
 } {
   const statements: string[] = [];
@@ -43,6 +47,9 @@ function database(bootstrap = false): UserRepositoryDatabase & {
     async execute(sql) {
       statements.push(sql);
       if (sql.startsWith("INSERT INTO users")) inserted = true;
+      if (rejectUserDelete && sql.startsWith("DELETE FROM users")) {
+        throw Object.assign(new Error("foreign key"), { errno: 1451 });
+      }
       return { affectedRows: 1 };
     },
   };
@@ -121,6 +128,30 @@ describe("SqlUserRepository", () => {
         (statement) => !statement.includes("DELETE FROM users"),
       ),
     ).toBe(true);
+  });
+
+  test("permanently deletes only an account without domain references", async () => {
+    const db = database();
+    const repository = new SqlUserRepository(db);
+
+    await expect(repository.delete("10" as Id)).resolves.toBe(true);
+    expect(
+      db.statements.some((statement) =>
+        statement.startsWith("DELETE FROM auth_sessions"),
+      ),
+    ).toBe(true);
+    expect(
+      db.statements.some((statement) =>
+        statement.startsWith("DELETE FROM users"),
+      ),
+    ).toBe(true);
+  });
+
+  test("refuses to delete an account with domain history", async () => {
+    const repository = new SqlUserRepository(database(false, true));
+    await expect(repository.delete("10" as Id)).rejects.toBeInstanceOf(
+      UserReferencedError,
+    );
   });
 
   test("serializes first-admin creation on the system lock row", async () => {

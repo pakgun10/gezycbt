@@ -6,12 +6,15 @@ import {
   parseUtcTimestamp,
   type UtcTimestamp,
 } from "@gezycbt/contracts";
+import { normalizeDatabaseError } from "@gezycbt/database";
 import {
   type CreateUserInput,
+  LastAdminDeletionError,
   normalizeUsername,
   type StoredUser,
   type UpdateUserInput,
   UserConflictError,
+  UserReferencedError,
   UserValidationError,
   UserVersionConflictError,
   validateDisplayName,
@@ -53,6 +56,7 @@ export interface UserRepository {
     forcePasswordChange: boolean,
     expectedUpdatedAt?: UtcTimestamp,
   ): Promise<StoredUser | null>;
+  delete(id: Id, expectedUpdatedAt?: UtcTimestamp): Promise<boolean>;
 }
 
 type UserRow = Record<string, unknown> & {
@@ -206,6 +210,7 @@ export class SqlUserRepository implements UserRepository {
     if (
       input.displayName === undefined &&
       input.role === undefined &&
+      input.status === undefined &&
       input.forcePasswordChange === undefined
     ) {
       throw new UserValidationError("At least one user field must be updated");
@@ -215,6 +220,7 @@ export class SqlUserRepository implements UserRepository {
         ? undefined
         : validateDisplayName(input.displayName);
     if (input.role !== undefined) validateUserRole(input.role);
+    if (input.status !== undefined) validateUserStatus(input.status);
     if (
       input.forcePasswordChange !== undefined &&
       typeof input.forcePasswordChange !== "boolean"
@@ -237,6 +243,10 @@ export class SqlUserRepository implements UserRepository {
       if (input.role !== undefined) {
         assignments.push("role = ?");
         parameters.push(input.role);
+      }
+      if (input.status !== undefined) {
+        assignments.push("status = ?");
+        parameters.push(input.status);
       }
       if (input.forcePasswordChange !== undefined) {
         assignments.push("force_password_change = ?");
@@ -294,12 +304,50 @@ export class SqlUserRepository implements UserRepository {
     });
   }
 
+  async delete(id: Id, expectedUpdatedAt?: UtcTimestamp): Promise<boolean> {
+    return this.database.transaction(async (connection) => {
+      const current = await this.findByIdOn(connection, id, true);
+      if (!current) return false;
+      if (expectedUpdatedAt && current.updatedAt !== expectedUpdatedAt) {
+        throw new UserVersionConflictError();
+      }
+      if (current.role === "ADMIN") {
+        const admins = await connection.query<{ total: unknown }>(
+          "SELECT COUNT(*) AS total FROM users WHERE role = 'ADMIN' FOR UPDATE",
+        );
+        if (Number(admins[0]?.total ?? 0) < 2)
+          throw new LastAdminDeletionError();
+      }
+      // Authentication sessions carry no domain history. They must be removed
+      // before the parent row can be deleted; any later FK failure rolls this
+      // transaction back and preserves the sessions.
+      await connection.execute("DELETE FROM auth_sessions WHERE user_id = ?", [
+        id,
+      ]);
+      try {
+        const result = await connection.execute(
+          "DELETE FROM users WHERE id = ?",
+          [id],
+        );
+        return (result as { affectedRows?: number }).affectedRows === 1;
+      } catch (error) {
+        const normalized = normalizeDatabaseError(error);
+        if (normalized.kind === "FOREIGN_KEY") throw new UserReferencedError();
+        throw error;
+      }
+    });
+  }
+
   private findByIdOn(
     connection: UserRepositoryConnection,
     id: Id,
+    forUpdate = false,
   ): Promise<StoredUser | null> {
     return connection
-      .query<UserRow>(`${SELECT_COLUMNS} WHERE id = ? LIMIT 1`, [id])
+      .query<UserRow>(
+        `${SELECT_COLUMNS} WHERE id = ? LIMIT 1${forUpdate ? " FOR UPDATE" : ""}`,
+        [id],
+      )
       .then((rows) => (rows[0] ? mapUserRow(rows[0]) : null));
   }
 

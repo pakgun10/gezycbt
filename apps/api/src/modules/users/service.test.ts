@@ -101,6 +101,12 @@ function repository(): UserRepository & {
       });
       return state.current;
     },
+    async delete() {
+      state.calls.push("delete");
+      if (!state.current) return false;
+      state.current = null;
+      return true;
+    },
   };
 }
 

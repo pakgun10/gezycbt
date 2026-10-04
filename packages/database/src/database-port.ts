@@ -57,6 +57,7 @@ export function normalizeDatabaseError(
       : code === "ER_NO_REFERENCED_ROW_2" ||
           code === "1452" ||
           code === "ER_ROW_IS_REFERENCED_2" ||
+          code === "1451" ||
           code === "1217"
         ? "FOREIGN_KEY"
         : code === "ER_CHECK_CONSTRAINT_VIOLATED" || code === "4025"

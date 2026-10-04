@@ -18,6 +18,9 @@ describe("database port", () => {
         .kind,
     ).toBe("LOCK_TIMEOUT");
     expect(
+      normalizeDatabaseError({ errno: 1451, message: "foreign key" }).kind,
+    ).toBe("FOREIGN_KEY");
+    expect(
       normalizeDatabaseError({ message: "socket connection closed" }).kind,
     ).toBe("CONNECTION");
   });

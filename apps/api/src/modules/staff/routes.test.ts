@@ -86,6 +86,12 @@ function appFor(
       async disable() {
         return { ...current, status: "DISABLED" as const };
       },
+      async updatePassword() {
+        return { ...current, forcePasswordChange: true };
+      },
+      async delete() {
+        return true;
+      },
     },
     sessionService: {
       async resolve(token: string) {
@@ -95,6 +101,9 @@ function appFor(
       },
       async verifyCsrfSecret() {
         return true;
+      },
+      async revokeUserSessions() {
+        return 0;
       },
     },
     academics: {
@@ -154,7 +163,9 @@ test("refuses to delete a question bank that still contains questions", async ()
   );
 
   expect(response.status).toBe(409);
-  expect(await response.text()).toContain("Bank soal masih memiliki 12 butir soal");
+  expect(await response.text()).toContain(
+    "Bank soal masih memiliki 12 butir soal",
+  );
 });
 
 test("refuses to permanently delete a question with published history", async () => {
@@ -279,6 +290,12 @@ test("schedule archive route delegates a CLOSED schedule to the archive service"
           async disable() {
             return { ...current, status: "DISABLED" as const };
           },
+          async updatePassword() {
+            return { ...current, forcePasswordChange: true };
+          },
+          async delete() {
+            return true;
+          },
         },
         sessionService: {
           async resolve(token: string) {
@@ -288,6 +305,9 @@ test("schedule archive route delegates a CLOSED schedule to the archive service"
           },
           async verifyCsrfSecret() {
             return true;
+          },
+          async revokeUserSessions() {
+            return 0;
           },
         },
         academics: {
@@ -423,6 +443,57 @@ test("admin credential import download streams the one-time CSV after re-auth", 
   );
   expect(await response.text()).toContain("temporary_password");
   expect(calls).toEqual([["1", "70"]]);
+});
+
+test("admin can reset another active account only after reauthentication", async () => {
+  const { app } = appFor("ADMIN");
+  markStaffReauthenticated("1" as Id);
+  const response = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/admin/users/2/reset-password",
+      {
+        method: "POST",
+        headers: {
+          cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+          origin: "https://cbt.example.test",
+          "content-type": "application/json",
+          "x-csrf-token": "test-token",
+        },
+        body: JSON.stringify({
+          newPassword: "temporary-password",
+          expectedUpdatedAt: NOW,
+        }),
+      },
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  expect((await response.json()).data).toMatchObject({
+    revokedSessionCount: 0,
+    user: { forcePasswordChange: true },
+  });
+});
+
+test("admin can permanently delete another account only after reauthentication", async () => {
+  const { app } = appFor("ADMIN");
+  markStaffReauthenticated("1" as Id);
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/admin/users/2", {
+      method: "DELETE",
+      headers: {
+        cookie: `__Host-gezycbt-auth=${"a".repeat(43)}`,
+        origin: "https://cbt.example.test",
+        "content-type": "application/json",
+        "x-csrf-token": "test-token",
+      },
+      body: JSON.stringify({ expectedUpdatedAt: NOW }),
+    }),
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({
+    data: { userId: "2", deleted: true },
+  });
 });
 
 test("teacher list queries include the authenticated owner scope", async () => {

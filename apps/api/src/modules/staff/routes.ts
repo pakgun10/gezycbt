@@ -11,7 +11,7 @@ import {
   CSRF_HEADER_NAME,
   CsrfProtectionError,
 } from "../auth/csrf";
-import { PasswordService } from "../auth/password";
+import { PasswordBusyError, PasswordService } from "../auth/password";
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
 import type { ExamSessionAdministrationService } from "../exam-sessions/service";
 import type { ExamPublishService } from "../exams/publish";
@@ -65,7 +65,13 @@ import {
   CredentialArtifactNotFoundError,
 } from "../user-imports/domain";
 import type { UserImportPreviewService } from "../user-imports/service";
-import type { StoredUser, UserRole } from "../users";
+import {
+  LastAdminDeletionError,
+  type StoredUser,
+  UserReferencedError,
+  type UserRole,
+  UserValidationError,
+} from "../users";
 
 const REAUTH_TTL_MS = 10 * 60 * 1000;
 const recentReauthentication = new Map<Id, number>();
@@ -95,6 +101,7 @@ export interface StaffRouteOptions {
       input: {
         displayName?: string;
         role?: UserRole;
+        status?: "ACTIVE" | "DISABLED";
         forcePasswordChange?: boolean;
       },
       expectedUpdatedAt?: UtcTimestamp,
@@ -103,10 +110,20 @@ export interface StaffRouteOptions {
       id: Id,
       expectedUpdatedAt?: UtcTimestamp,
     ) => Promise<StoredUser | null>;
+    readonly updatePassword: (
+      id: Id,
+      passwordHash: string,
+      forcePasswordChange: boolean,
+      expectedUpdatedAt?: UtcTimestamp,
+    ) => Promise<StoredUser | null>;
+    readonly delete: (
+      id: Id,
+      expectedUpdatedAt?: UtcTimestamp,
+    ) => Promise<boolean>;
   };
   readonly sessionService: Pick<
     AuthSessionService,
-    "resolve" | "verifyCsrfSecret"
+    "resolve" | "verifyCsrfSecret" | "revokeUserSessions"
   >;
   readonly academics: AcademicMasterService;
   /** Read-only scope lookup used by teacher monitoring/result predicates. */
@@ -283,31 +300,128 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
       const status = optionalString(payload.status);
       const displayName = optionalString(payload.displayName);
       const requestedRole = optionalString(payload.role);
+      if (status !== undefined && status !== "ACTIVE" && status !== "DISABLED")
+        throw new AppError(422, "VALIDATION_FAILED", "status tidak valid.");
+      if (
+        id === actor.user.id &&
+        (status === "DISABLED" ||
+          (requestedRole !== undefined && requestedRole !== actor.user.role))
+      )
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "Akun sendiri hanya dapat mengubah nama tampilan.",
+        );
+      const updateInput = {
+        ...(displayName ? { displayName } : {}),
+        ...(requestedRole
+          ? {
+              role: oneOf(
+                requestedRole,
+                ["ADMIN", "TEACHER", "PARTICIPANT"] as const,
+                "role",
+              ),
+            }
+          : {}),
+        ...(typeof payload.forcePasswordChange === "boolean"
+          ? { forcePasswordChange: payload.forcePasswordChange }
+          : {}),
+        ...(status === "ACTIVE" || status === "DISABLED"
+          ? { status: status as "ACTIVE" | "DISABLED" }
+          : {}),
+      };
       const user =
-        status === "DISABLED"
+        status === "DISABLED" && Object.keys(updateInput).length === 1
           ? await options.users.disable(id, expected)
-          : await options.users.update(
-              id,
-              {
-                ...(displayName ? { displayName } : {}),
-                ...(requestedRole
-                  ? {
-                      role: oneOf(
-                        requestedRole,
-                        ["ADMIN", "TEACHER", "PARTICIPANT"] as const,
-                        "role",
-                      ),
-                    }
-                  : {}),
-                ...(typeof payload.forcePasswordChange === "boolean"
-                  ? { forcePasswordChange: payload.forcePasswordChange }
-                  : {}),
-              },
-              expected,
-            );
+          : await options.users.update(id, updateInput, expected);
       if (!user)
         throw new AppError(404, "NOT_FOUND", "Pengguna tidak ditemukan.");
+      if (status === "DISABLED")
+        await options.sessionService.revokeUserSessions(id, "USER_DISABLED");
       return { data: mapUser(user) };
+    } catch (error) {
+      throw mapStaffError(error);
+    }
+  });
+  app.post(
+    "/api/v1/admin/users/:id/reset-password",
+    async ({ request, params, body }) => {
+      try {
+        const actor = await requireStaff(request, options, "ADMIN");
+        await requireCsrf(request, actor.session, options);
+        const id = idParam(params);
+        if (id === actor.user.id)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Gunakan penggantian password akun sendiri.",
+          );
+        if (!isStaffReauthenticated(actor.user.id as Id))
+          throw new AppError(
+            401,
+            "REAUTH_REQUIRED",
+            "Masuk ulang diperlukan sebelum reset password.",
+          );
+        const payload = objectPayload(body);
+        const target = await options.users.findById(id);
+        if (!target)
+          throw new AppError(404, "NOT_FOUND", "Pengguna tidak ditemukan.");
+        if (target.status !== "ACTIVE")
+          throw new AppError(
+            409,
+            "USER_DISABLED",
+            "Aktifkan akun sebelum mereset password.",
+          );
+        const passwordHash = await new PasswordService().hash(
+          stringField(payload.newPassword, "newPassword"),
+          target.role,
+          target.usernameNormalized,
+        );
+        const expected = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        const user = await options.users.updatePassword(
+          id,
+          passwordHash,
+          true,
+          expected,
+        );
+        if (!user)
+          throw new AppError(404, "NOT_FOUND", "Pengguna tidak ditemukan.");
+        const revokedSessionCount =
+          await options.sessionService.revokeUserSessions(id, "PASSWORD_RESET");
+        return { data: { user: mapUser(user), revokedSessionCount } };
+      } catch (error) {
+        throw mapStaffError(error);
+      }
+    },
+  );
+  app.delete("/api/v1/admin/users/:id", async ({ request, params, body }) => {
+    try {
+      const actor = await requireStaff(request, options, "ADMIN");
+      await requireCsrf(request, actor.session, options);
+      const id = idParam(params);
+      if (id === actor.user.id)
+        throw new AppError(
+          422,
+          "VALIDATION_FAILED",
+          "Akun yang sedang digunakan tidak dapat dihapus.",
+        );
+      if (!isStaffReauthenticated(actor.user.id as Id))
+        throw new AppError(
+          401,
+          "REAUTH_REQUIRED",
+          "Masuk ulang diperlukan sebelum menghapus akun.",
+        );
+      const expected = stringField(
+        objectPayload(body).expectedUpdatedAt,
+        "expectedUpdatedAt",
+      ) as UtcTimestamp;
+      const deleted = await options.users.delete(id, expected);
+      if (!deleted)
+        throw new AppError(404, "NOT_FOUND", "Pengguna tidak ditemukan.");
+      return { data: { userId: id, deleted: true } };
     } catch (error) {
       throw mapStaffError(error);
     }
@@ -3323,6 +3437,23 @@ function mapUser(user: StoredUser | Record<string, unknown>): {
 }
 function mapStaffError(error: unknown): Error {
   if (error instanceof AppError) return error;
+  if (error instanceof UserReferencedError)
+    return new AppError(409, "USER_REFERENCED", error.message);
+  if (error instanceof LastAdminDeletionError)
+    return new AppError(409, "LAST_ADMIN", error.message);
+  if (error instanceof UserValidationError)
+    return new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "Data akun atau password tidak memenuhi ketentuan.",
+    );
+  if (error instanceof PasswordBusyError)
+    return new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Layanan password sedang sibuk. Coba lagi.",
+      { retryAfterSeconds: error.retryAfterSeconds },
+    );
   if (error && typeof error === "object") {
     const candidate = error as {
       readonly status?: unknown;

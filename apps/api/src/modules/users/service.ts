@@ -14,6 +14,7 @@ import {
   validateDisplayName,
   validatePasswordHash,
   validateUserRole,
+  validateUserStatus,
 } from "./domain";
 import type { UserRepository } from "./repository";
 
@@ -57,11 +58,13 @@ export class UserApplicationService {
         ? {}
         : { displayName: validateDisplayName(input.displayName) }),
       ...(input.role === undefined ? {} : { role: input.role }),
+      ...(input.status === undefined ? {} : { status: input.status }),
       ...(input.forcePasswordChange === undefined
         ? {}
         : { forcePasswordChange: input.forcePasswordChange }),
     };
     if (update.role !== undefined) validateUserRole(update.role);
+    if (update.status !== undefined) validateUserStatus(update.status);
     const user = await this.repository.update(id, update, expectedUpdatedAt);
     if (!user) throw new UserNotFoundError();
     return toUserView(user);
