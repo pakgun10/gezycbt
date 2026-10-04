@@ -39,7 +39,13 @@ export class ApiClient {
 
   async request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
     const headers = new Headers(options.headers);
-    if (options.body !== undefined && !headers.has("content-type"))
+    const isRawBody =
+      options.body instanceof FormData || options.body instanceof Blob;
+    if (
+      options.body !== undefined &&
+      !isRawBody &&
+      !headers.has("content-type")
+    )
       headers.set("content-type", "application/json");
     const { body, ...requestInit } = options;
     const requestBody =
@@ -79,7 +85,13 @@ export class ApiClient {
     options: ApiRequestOptions = {},
   ): Promise<Response> {
     const headers = new Headers(options.headers);
-    if (options.body !== undefined && !headers.has("content-type"))
+    const isRawBody =
+      options.body instanceof FormData || options.body instanceof Blob;
+    if (
+      options.body !== undefined &&
+      !isRawBody &&
+      !headers.has("content-type")
+    )
       headers.set("content-type", "application/json");
     const { body, ...requestInit } = options;
     const requestBody =

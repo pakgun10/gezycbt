@@ -31,6 +31,40 @@ describe("ApiClient", () => {
     }
   });
 
+  test("lets fetch set the multipart boundary for FormData uploads", async () => {
+    const original = globalThis.fetch;
+    let request: Request | undefined;
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ) => {
+      request = new Request(input, init);
+      return new Response(JSON.stringify({ data: { ok: true } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }) as unknown as typeof fetch;
+    try {
+      const form = new FormData();
+      form.set(
+        "file",
+        new Blob(["image"], { type: "image/png" }),
+        "diagram.png",
+      );
+      await expect(
+        new ApiClient("https://cbt.example").request("/api/upload", {
+          method: "POST",
+          body: form,
+        }),
+      ).resolves.toEqual({ data: { ok: true } });
+      expect(request?.headers.get("content-type")).toMatch(
+        /^multipart\/form-data; boundary=/,
+      );
+    } finally {
+      globalThis.fetch = original;
+    }
+  });
+
   test("turns the safe API error envelope into a typed error", async () => {
     const original = globalThis.fetch;
     globalThis.fetch = (async () =>
