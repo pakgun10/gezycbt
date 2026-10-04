@@ -71,6 +71,25 @@ const selectedMediaItem = computed(() =>
     (item) => item.placementKey === selectedMediaPlacementKey.value,
   ),
 );
+const mediaEditAlt = ref("");
+const mediaEditDecorative = ref(false);
+const mediaEditWidth = ref(100);
+const mediaEditAlignment = ref<MediaAlignment>("CENTER");
+const mediaEditError = ref("");
+const mediaEditDirty = computed(() => {
+  const item = selectedMediaItem.value;
+  if (!item) return false;
+  const nextAlt = mediaEditDecorative.value
+    ? null
+    : mediaEditAlt.value.trim();
+  const currentAlt = item.isDecorative ? null : item.altText ?? "";
+  return (
+    nextAlt !== currentAlt ||
+    mediaEditDecorative.value !== item.isDecorative ||
+    Number(mediaEditWidth.value) !== (item.displayWidthPercent ?? 100) ||
+    mediaEditAlignment.value !== (item.alignment ?? "CENTER")
+  );
+});
 
 const QuestionMediaPlaceholder = Node.create({
   name: "questionMediaPlaceholder",
@@ -223,6 +242,17 @@ watch(
   () => props.disabled,
   (disabled) => editor.value?.setEditable(!disabled),
 );
+watch(
+  selectedMediaItem,
+  (item) => {
+    mediaEditAlt.value = item?.altText ?? "";
+    mediaEditDecorative.value = item?.isDecorative ?? false;
+    mediaEditWidth.value = item?.displayWidthPercent ?? 100;
+    mediaEditAlignment.value = item?.alignment ?? "CENTER";
+    mediaEditError.value = "";
+  },
+  { immediate: true },
+);
 onBeforeUnmount(() => editor.value?.destroy());
 
 function toggleMark(mark: "bold" | "italic" | "underline" | "strike"): void {
@@ -295,34 +325,25 @@ function submitMedia(): void {
   mediaDialog.value = false;
 }
 
-function updateMedia(
-  media: QuestionMedia,
-  input: Record<string, unknown>,
-): void {
-  emit("update-media", media, input);
-}
-
-function updateMediaAlt(media: QuestionMedia, event: Event): void {
-  updateMedia(media, { altText: (event.target as HTMLInputElement).value });
-}
-
-function updateMediaWidth(media: QuestionMedia, event: Event): void {
-  updateMedia(media, {
-    displayWidthPercent: Number((event.target as HTMLInputElement).value),
-  });
-}
-
-function updateMediaAlignment(media: QuestionMedia, event: Event): void {
-  updateMedia(media, {
-    alignment: (event.target as HTMLSelectElement).value,
-  });
-}
-
-function updateMediaDecorative(media: QuestionMedia, event: Event): void {
-  const isDecorative = (event.target as HTMLInputElement).checked;
-  updateMedia(media, {
-    isDecorative,
-    altText: isDecorative ? null : media.altText ?? "",
+function saveMediaDetails(): void {
+  const item = selectedMediaItem.value;
+  if (!item || props.mediaBusy || props.mediaDisabled) return;
+  const width = Number(mediaEditWidth.value);
+  if (!Number.isFinite(width) || width < 10 || width > 100) {
+    mediaEditError.value = "Lebar gambar harus antara 10% dan 100%.";
+    return;
+  }
+  const altText = mediaEditAlt.value.trim();
+  if (!mediaEditDecorative.value && !altText) {
+    mediaEditError.value = "Alt text wajib diisi untuk gambar informatif.";
+    return;
+  }
+  mediaEditError.value = "";
+  emit("update-media", item, {
+    altText: mediaEditDecorative.value ? null : altText,
+    isDecorative: mediaEditDecorative.value,
+    displayWidthPercent: Math.round(width),
+    alignment: mediaEditAlignment.value,
   });
 }
 
@@ -523,13 +544,17 @@ function mediaNodePosition(
         <img :src="selectedMediaItem.url" :alt="selectedMediaItem.isDecorative ? '' : selectedMediaItem.altText ?? ''" />
         <div class="rich-media-details">
           <strong>Gambar terpasang</strong>
-          <label>Alt text<input :value="selectedMediaItem.altText ?? ''" :disabled="mediaBusy || mediaDisabled || selectedMediaItem.isDecorative" maxlength="500" @change="updateMediaAlt(selectedMediaItem, $event)" /></label>
+          <label>Alt text<input v-model="mediaEditAlt" :disabled="mediaBusy || mediaDisabled || mediaEditDecorative" maxlength="500" placeholder="Deskripsi gambar" /></label>
           <div class="media-dialog-grid">
-            <label>Lebar (%)<input :value="selectedMediaItem.displayWidthPercent ?? 100" type="number" min="10" max="100" step="1" :disabled="mediaBusy || mediaDisabled" @change="updateMediaWidth(selectedMediaItem, $event)" /></label>
-            <label>Alignment<select :value="selectedMediaItem.alignment ?? 'CENTER'" :disabled="mediaBusy || mediaDisabled" @change="updateMediaAlignment(selectedMediaItem, $event)"><option value="LEFT">Kiri</option><option value="CENTER">Tengah</option><option value="RIGHT">Kanan</option></select></label>
+            <label>Lebar (%)<input v-model.number="mediaEditWidth" type="number" min="10" max="100" step="1" :disabled="mediaBusy || mediaDisabled" /></label>
+            <label>Alignment<select v-model="mediaEditAlignment" :disabled="mediaBusy || mediaDisabled"><option value="LEFT">Kiri</option><option value="CENTER">Tengah</option><option value="RIGHT">Kanan</option></select></label>
           </div>
-          <label class="checkbox-label"><input :checked="selectedMediaItem.isDecorative" type="checkbox" :disabled="mediaBusy || mediaDisabled" @change="updateMediaDecorative(selectedMediaItem, $event)" /> Gambar dekoratif</label>
-          <button type="button" class="btn-quiet danger-action" :disabled="mediaBusy || mediaDisabled" @click="emit('remove-media', selectedMediaItem)">Hapus gambar</button>
+          <label class="checkbox-label"><input v-model="mediaEditDecorative" type="checkbox" :disabled="mediaBusy || mediaDisabled" /> Gambar dekoratif</label>
+          <p v-if="mediaEditError" class="form-error" role="alert">{{ mediaEditError }}</p>
+          <div class="media-edit-actions">
+            <button type="button" class="btn-primary" :disabled="mediaBusy || mediaDisabled || !mediaEditDirty" @click="saveMediaDetails">{{ mediaBusy ? "Menyimpan…" : "Simpan perubahan gambar" }}</button>
+            <button type="button" class="btn-quiet danger-action" :disabled="mediaBusy || mediaDisabled" @click="emit('remove-media', selectedMediaItem)">Hapus gambar</button>
+          </div>
         </div>
       </article>
     </div>
@@ -542,5 +567,6 @@ function mediaNodePosition(
 .rich-editor :deep(figure[data-content-node="question-media"]) { display: block; box-sizing: border-box; max-width: 100%; min-height: 48px; margin-top: 10px; margin-bottom: 10px; padding: 6px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; background: var(--canvas); }
 .rich-editor :deep(figure[data-content-node="question-media"] img) { display: block; width: 100%; height: auto; max-height: 420px; margin: 0; border-radius: 6px; object-fit: contain; }
 .rich-editor :deep(figure[data-content-node="question-media"].ProseMirror-selectednode) { border-color: var(--primary); outline: 2px solid var(--primary-soft); }
+.media-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) { .rich-media-item { grid-template-columns: 1fr; }.media-dialog-grid { grid-template-columns: 1fr; } }
 </style>
