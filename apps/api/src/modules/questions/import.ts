@@ -36,6 +36,8 @@ const QUESTION_IMPORT_HEADERS = [
   ...Array.from({ length: 3 }, (_, index) => `statement_${index + 1}_correct`),
 ] as const;
 
+const QUESTION_BLOCK_MARKER = /^soal\s*\d+\s*$/iu;
+
 export interface QuestionImportFieldError {
   readonly field: string;
   readonly code: string;
@@ -442,8 +444,11 @@ function parseDelimitedRecords(
       `Ukuran file ${formatName} melebihi batas 1 MiB.`,
     );
   }
-  const delimiter = format === "TXT" ? "\t" : ",";
   const input = source.replace(/^\uFEFF/u, "");
+  if (format === "TXT" && isQuestionBlockTxt(input)) {
+    return parseQuestionBlockTxt(input);
+  }
+  const delimiter = format === "TXT" ? "\t" : ",";
   const records: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -480,6 +485,63 @@ function parseDelimitedRecords(
     if (row.some((item) => item.length > 0)) records.push(row);
   }
   return records;
+}
+
+function isQuestionBlockTxt(input: string): boolean {
+  const firstContentLine = input
+    .split(/\r\n|\r|\n/u)
+    .find((line) => line.trim().length > 0);
+  return Boolean(
+    firstContentLine && QUESTION_BLOCK_MARKER.test(firstContentLine),
+  );
+}
+
+function parseQuestionBlockTxt(input: string): string[][] {
+  const questions: Map<string, string>[] = [];
+  let question: Map<string, string> | null = null;
+  const lines = input.split(/\r\n|\r|\n/u);
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!line.trim()) continue;
+    if (QUESTION_BLOCK_MARKER.test(line)) {
+      if (question) questions.push(question);
+      question = new Map();
+      continue;
+    }
+    if (!question) {
+      throw new QuestionImportValidationError(
+        `Baris ${index + 1}: TXT harus dimulai dengan label Soal1.`,
+      );
+    }
+    const separator = line.indexOf("\t");
+    if (separator < 1) {
+      throw new QuestionImportValidationError(
+        `Baris ${index + 1}: gunakan tab di antara nama field dan nilainya.`,
+      );
+    }
+    const field = line.slice(0, separator).trim().toLowerCase();
+    if (!QUESTION_IMPORT_HEADERS.includes(field as never)) {
+      throw new QuestionImportValidationError(
+        `Baris ${index + 1}: field TXT tidak dikenali: ${field}. Gunakan template resmi.`,
+      );
+    }
+    if (question.has(field)) {
+      throw new QuestionImportValidationError(
+        `Baris ${index + 1}: field TXT ${field} tidak boleh duplikat dalam satu soal.`,
+      );
+    }
+    question.set(field, line.slice(separator + 1));
+  }
+  if (question) questions.push(question);
+  if (!questions.length) {
+    throw new QuestionImportValidationError("File TXT belum memiliki soal.");
+  }
+  return [
+    [...QUESTION_IMPORT_HEADERS],
+    ...questions.map((item) =>
+      QUESTION_IMPORT_HEADERS.map((field) => item.get(field) ?? ""),
+    ),
+  ];
 }
 
 async function sha256Hex(value: string): Promise<string> {

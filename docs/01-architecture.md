@@ -682,7 +682,7 @@ Validator draft/publish mengembalikan readiness report terstruktur, bukan hanya 
 
 #### Import soal CSV dan TXT
 
-Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format resmi adalah CSV dan TXT berbasis template, dengan `type`, `stimulus` opsional, `prompt`, `explanation`, kolom `option_1`–`option_10` beserta `*_correct`, dan kolom `statement_1`–`statement_3` beserta `*_correct`. File TXT adalah TSV: kolom dipisahkan karakter tab, bukan koma. Nilai kunci menerima `BENAR`/`SALAH`, `TRUE`/`FALSE`, atau `1`/`0`.
+Guru dapat mengimpor soal ke satu bank yang dipilih dari UI bank soal. Format resmi adalah CSV dan TXT berbasis template, dengan `type`, `stimulus` opsional, `prompt`, `explanation`, kolom `option_1`–`option_10` beserta `*_correct`, dan kolom `statement_1`–`statement_3` beserta `*_correct`. Template TXT memakai blok yang diawali `Soal1`, lalu setiap field memakai format `nama_field`, tab, dan nilai; format TXT tabel (TSV) yang lebih lama tetap diterima. Nilai kunci menerima `BENAR`/`SALAH`, `TRUE`/`FALSE`, atau `1`/`0`.
 
 Server membatasi file menjadi 1 MiB dan 300 soal. Preview memvalidasi tipe, struktur opsi/pernyataan, kunci, duplicate content dalam file, dan readiness error yang juga memblokir publish. Commit menerima ulang file serta `sourceHash`, memvalidasi ulang seluruh baris, lalu membuat semua revision sebagai `DRAFT` dalam satu transaction. Satu error memblokir seluruh commit; import tidak menerbitkan soal otomatis, tidak menyalin media, dan tidak menyimpan file atau preview ke MariaDB.
 
