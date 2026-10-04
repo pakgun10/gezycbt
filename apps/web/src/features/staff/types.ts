@@ -80,6 +80,39 @@ export interface TeacherScope {
 }
 
 export type QuestionType = "SINGLE_CHOICE" | "MULTIPLE_RESPONSE" | "TRUE_FALSE";
+export type MediaUsage =
+  | "STIMULUS"
+  | "PROMPT"
+  | "EXPLANATION"
+  | "OPTION"
+  | "STATEMENT";
+export type MediaAlignment = "LEFT" | "CENTER" | "RIGHT";
+
+export interface MediaAsset {
+  readonly id: string;
+  readonly originalName: string;
+  readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+  readonly byteSize: number;
+  readonly width: number;
+  readonly height: number;
+  readonly status: "READY" | "DELETED";
+  readonly url: string;
+}
+
+export interface QuestionMedia {
+  readonly placementKey?: string;
+  readonly mediaAssetId: string;
+  readonly usage: MediaUsage;
+  readonly questionOptionId?: string | null;
+  readonly trueFalseStatementId?: string | null;
+  readonly sortOrder?: number;
+  readonly url: string;
+  readonly altText: string | null;
+  readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignment;
+  readonly updatedAt?: string;
+}
 
 export interface QuestionSummary {
   readonly id: string;
@@ -137,15 +170,18 @@ export interface QuestionDraft {
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
   readonly options: readonly {
+    readonly id?: string;
     readonly position: number;
     readonly contentHtml: string;
     readonly isCorrect: boolean;
   }[];
   readonly statements: readonly {
+    readonly id?: string;
     readonly position: number;
     readonly statementHtml: string;
     readonly correctValue: boolean;
   }[];
+  readonly media: readonly QuestionMedia[];
   readonly updatedAt: string;
 }
 

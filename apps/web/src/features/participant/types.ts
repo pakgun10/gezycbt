@@ -69,10 +69,21 @@ export interface ParticipantStatement {
 }
 
 export interface ParticipantQuestionMedia {
-  readonly usage: string;
+  readonly placementKey?: string;
+  readonly usage:
+    | "STIMULUS"
+    | "PROMPT"
+    | "EXPLANATION"
+    | "OPTION"
+    | "STATEMENT";
+  readonly questionOptionId?: string | null;
+  readonly trueFalseStatementId?: string | null;
+  readonly sortOrder?: number;
   readonly url: string;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: "LEFT" | "CENTER" | "RIGHT";
 }
 
 export type ParticipantQuestionType =

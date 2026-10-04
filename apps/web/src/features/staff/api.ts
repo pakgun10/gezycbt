@@ -12,12 +12,14 @@ import type {
   IntegrationAction,
   IntegrationClient,
   IntegrationClientDetail,
+  MediaAsset,
   MonitorPage,
   NumberedPage,
   ParticipantOption,
   QuestionBankSummary,
   QuestionDraft,
   QuestionImportPreview,
+  QuestionMedia,
   QuestionSummary,
   ResultRow,
   ScheduleDetail,
@@ -154,6 +156,23 @@ export interface StaffApi {
     id: string,
     expectedUpdatedAt: string,
   ): Promise<QuestionDraft>;
+  uploadMedia(file: File): Promise<MediaAsset>;
+  listOrphanMedia(): Promise<readonly MediaAsset[]>;
+  attachQuestionMedia(
+    revisionId: string,
+    input: Record<string, unknown>,
+  ): Promise<QuestionMedia>;
+  updateQuestionMedia(
+    revisionId: string,
+    mediaId: string,
+    input: Record<string, unknown>,
+  ): Promise<QuestionMedia>;
+  detachQuestionMedia(
+    revisionId: string,
+    mediaId: string,
+    expectedUpdatedAt: string,
+  ): Promise<void>;
+  deleteMedia(mediaId: string): Promise<void>;
   exams(query?: string): Promise<CursorPage<ExamSummary>>;
   examRevision(id: string): Promise<ExamRevision>;
   createExam(input: Record<string, unknown>): Promise<ExamRevision>;
@@ -600,6 +619,63 @@ export class HttpStaffApi implements StaffApi {
       `/api/v1/teacher/question-revisions/${encodeURIComponent(id)}/publish`,
       "POST",
       { expectedUpdatedAt },
+    );
+  }
+  uploadMedia(file: File) {
+    const form = new FormData();
+    form.set("file", file);
+    return this.client
+      .request<{ data: MediaAsset }>("/api/v1/teacher/media", {
+        method: "POST",
+        headers: mutationHeaders(
+          crypto.randomUUID(),
+          useStaffAuth().csrfToken.value,
+        ),
+        body: form,
+      })
+      .then((value) => value.data);
+  }
+  listOrphanMedia() {
+    return this.client
+      .request<{ data: { items: readonly MediaAsset[] } }>(
+        "/api/v1/teacher/media?status=ORPHAN",
+      )
+      .then((value) => value.data.items);
+  }
+  attachQuestionMedia(revisionId: string, input: Record<string, unknown>) {
+    return this.mutate<QuestionMedia>(
+      `/api/v1/teacher/question-revisions/${encodeURIComponent(revisionId)}/media`,
+      "POST",
+      input,
+    );
+  }
+  updateQuestionMedia(
+    revisionId: string,
+    mediaId: string,
+    input: Record<string, unknown>,
+  ) {
+    return this.mutate<QuestionMedia>(
+      `/api/v1/teacher/question-revisions/${encodeURIComponent(revisionId)}/media/${encodeURIComponent(mediaId)}`,
+      "PATCH",
+      input,
+    );
+  }
+  async detachQuestionMedia(
+    revisionId: string,
+    mediaId: string,
+    expectedUpdatedAt: string,
+  ): Promise<void> {
+    await this.mutate<{ deleted: boolean }>(
+      `/api/v1/teacher/question-revisions/${encodeURIComponent(revisionId)}/media/${encodeURIComponent(mediaId)}`,
+      "DELETE",
+      { expectedUpdatedAt },
+    );
+  }
+  async deleteMedia(mediaId: string): Promise<void> {
+    await this.mutate<{ deleted: boolean }>(
+      `/api/v1/teacher/media/${encodeURIComponent(mediaId)}`,
+      "DELETE",
+      {},
     );
   }
   exams(query = "") {

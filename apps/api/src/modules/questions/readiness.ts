@@ -6,6 +6,11 @@ import {
   type TrueFalseStatementDraft,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
+import type { MediaRelation } from "../media/relation-domain";
+import {
+  extractRichContentNodes,
+  validateRichContentMath,
+} from "./rich-content";
 
 export type QuestionReadinessSeverity = "ERROR" | "WARNING";
 
@@ -30,14 +35,21 @@ export interface QuestionReadinessReport {
 /** Application boundary used by validate/publish use cases. */
 export class QuestionReadinessService {
   constructor(
-    private readonly repository: Pick<QuestionDraftRepository, "findRevision">,
+    private readonly repository: Pick<
+      QuestionDraftRepository,
+      "findRevision" | "listMedia"
+    >,
   ) {}
 
   async validateRevision(
     revisionId: Id,
   ): Promise<QuestionReadinessReport | null> {
     const revision = await this.repository.findRevision(revisionId);
-    return revision ? validateQuestionReadiness(revision.id, revision) : null;
+    if (!revision) return null;
+    const media = this.repository.listMedia
+      ? await this.repository.listMedia(revisionId)
+      : [];
+    return validateQuestionReadiness(revision.id, revision, media);
   }
 }
 
@@ -50,6 +62,7 @@ export class QuestionReadinessService {
 export function validateQuestionReadiness(
   revisionId: Id,
   content: QuestionDraftContent,
+  media: readonly MediaRelation[] = [],
 ): QuestionReadinessReport {
   const issues: QuestionReadinessIssue[] = [];
   const add = (
@@ -89,6 +102,8 @@ export function validateQuestionReadiness(
     validateChoice(content, add, revisionId);
   }
 
+  validateRichContent(content, media, add, revisionId);
+
   if (!hasText(content.explanationHtml)) {
     add(
       "WARNING",
@@ -111,6 +126,184 @@ export function validateQuestionReadiness(
     warningCount,
     issues,
   };
+}
+
+function validateRichContent(
+  content: QuestionDraftContent,
+  media: readonly MediaRelation[],
+  add: AddIssue,
+  revisionId: Id,
+): void {
+  if (media.length > 3) {
+    add(
+      "ERROR",
+      "QUESTION_MEDIA_COUNT_INVALID",
+      "media",
+      "Satu revision maksimal memiliki tiga placement gambar.",
+      "Lepas gambar yang tidak diperlukan sebelum publish.",
+    );
+  }
+  const fields: Array<{ path: string; value: string | null }> = [
+    { path: "stimulusHtml", value: content.stimulusHtml },
+    { path: "promptHtml", value: content.promptHtml },
+    { path: "explanationHtml", value: content.explanationHtml },
+    ...content.options.map((option, index) => ({
+      path: `options[${index}].contentHtml`,
+      value: option.contentHtml,
+    })),
+    ...content.statements.map((statement, index) => ({
+      path: `statements[${index}].statementHtml`,
+      value: statement.statementHtml,
+    })),
+  ];
+  const placementKeys = new Set(
+    media.map((item) => item.placementKey).filter((key): key is string => Boolean(key)),
+  );
+  const placementByKey = new Map(
+    media
+      .filter((item): item is MediaRelation & { readonly placementKey: string } =>
+        Boolean(item.placementKey),
+      )
+      .map((item) => [item.placementKey, item] as const),
+  );
+  const usedKeys = new Set<string>();
+  for (const field of fields) {
+    if (!field.value) continue;
+    for (const issue of validateRichContentMath(field.value, field.path)) {
+      add(
+        "ERROR",
+        issue.code,
+        issue.fieldPath,
+        issue.message,
+        "Perbaiki formula atau hapus node yang rusak.",
+      );
+    }
+    try {
+      for (const node of extractRichContentNodes(field.value)) {
+        if (node.kind !== "question-media") continue;
+        if (usedKeys.has(node.placementKey))
+          add(
+            "ERROR",
+            "QUESTION_MEDIA_PLACEMENT_DUPLICATE",
+            field.path,
+            "Placement gambar yang sama tidak boleh dipakai lebih dari sekali.",
+            "Buat placement baru atau hapus placeholder yang berulang.",
+          );
+        usedKeys.add(node.placementKey);
+        const placement = placementByKey.get(node.placementKey);
+        if (!placementKeys.has(node.placementKey)) {
+          add(
+            "ERROR",
+            "QUESTION_MEDIA_PLACEMENT_NOT_FOUND",
+            field.path,
+            "Konten menunjuk placement gambar yang tidak tersedia.",
+            "Sisipkan ulang gambar dari asset yang tersedia.",
+          );
+        } else if (placement && !placementMatchesField(placement, field.path, content)) {
+          add(
+            "ERROR",
+            "QUESTION_MEDIA_TARGET_MISMATCH",
+            field.path,
+            "Gambar ditempatkan pada target yang berbeda dari konten ini.",
+            "Pilih target yang sesuai atau sisipkan ulang gambar pada field yang benar.",
+          );
+        }
+      }
+    } catch {
+      // validateRichContentMath already reports malformed nodes; keep the
+      // readiness report field-addressable without throwing from validation.
+    }
+  }
+  for (const item of media) {
+    if (item.mediaAssetStatus && item.mediaAssetStatus !== "READY")
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_ASSET_NOT_READY",
+        "media",
+        "Asset gambar tidak lagi berstatus siap digunakan.",
+        "Unggah ulang gambar atau pulihkan asset sebelum publish.",
+      );
+    if (!item.placementKey)
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_PLACEMENT_KEY_MISSING",
+        "media",
+        "Setiap media draft harus memiliki placement key canonical.",
+        "Jalankan migration placement atau pasang ulang gambar pada draft.",
+      );
+    if (item.placementKey && !usedKeys.has(item.placementKey))
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_PLACEMENT_UNUSED",
+        "media",
+        "Ada gambar yang terpasang tetapi tidak disisipkan ke konten.",
+        "Sisipkan gambar atau lepas placement tersebut.",
+        revisionId,
+      );
+    if (item.usage === "OPTION" && !item.questionOptionId)
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_OPTION_TARGET_REQUIRED",
+        "media",
+        "Media opsi harus terikat pada opsi tertentu.",
+        "Pilih target opsi sebelum publish.",
+      );
+    if (
+      item.usage === "OPTION" &&
+      item.questionOptionId &&
+      !content.options.some((option) => option.id === item.questionOptionId)
+    )
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_OPTION_TARGET_INVALID",
+        "media",
+        "Target media opsi tidak berasal dari opsi revision ini.",
+        "Pilih ulang target opsi pada revision yang sedang diedit.",
+      );
+    if (item.usage === "STATEMENT" && !item.trueFalseStatementId)
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_STATEMENT_TARGET_REQUIRED",
+        "media",
+        "Media pernyataan harus terikat pada pernyataan tertentu.",
+        "Pilih target pernyataan sebelum publish.",
+      );
+    if (
+      item.usage === "STATEMENT" &&
+      item.trueFalseStatementId &&
+      !content.statements.some(
+        (statement) => statement.id === item.trueFalseStatementId,
+      )
+    )
+      add(
+        "ERROR",
+        "QUESTION_MEDIA_STATEMENT_TARGET_INVALID",
+        "media",
+        "Target media pernyataan tidak berasal dari pernyataan revision ini.",
+        "Pilih ulang target pernyataan pada revision yang sedang diedit.",
+      );
+  }
+}
+
+function placementMatchesField(
+  placement: MediaRelation,
+  fieldPath: string,
+  content: QuestionDraftContent,
+): boolean {
+  if (placement.usage === "STIMULUS") return fieldPath === "stimulusHtml";
+  if (placement.usage === "PROMPT") return fieldPath === "promptHtml";
+  if (placement.usage === "EXPLANATION") return fieldPath === "explanationHtml";
+  const optionMatch = /^options\[(\d+)\]\.contentHtml$/u.exec(fieldPath);
+  if (placement.usage === "OPTION" && optionMatch) {
+    const option = content.options[Number(optionMatch[1])];
+    return option?.id === placement.questionOptionId;
+  }
+  const statementMatch = /^statements\[(\d+)\]\.statementHtml$/u.exec(fieldPath);
+  if (placement.usage === "STATEMENT" && statementMatch) {
+    const statement = content.statements[Number(statementMatch[1])];
+    return statement?.id === placement.trueFalseStatementId;
+  }
+  return false;
 }
 
 function validateChoice(

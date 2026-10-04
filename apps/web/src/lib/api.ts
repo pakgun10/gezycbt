@@ -42,11 +42,17 @@ export class ApiClient {
     if (options.body !== undefined && !headers.has("content-type"))
       headers.set("content-type", "application/json");
     const { body, ...requestInit } = options;
+    const requestBody =
+      body instanceof FormData || body instanceof Blob
+        ? body
+        : body === undefined
+          ? undefined
+          : JSON.stringify(body);
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...requestInit,
       headers,
       credentials: "include",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(requestBody === undefined ? {} : { body: requestBody }),
     });
     const payload = await readPayload(response);
     if (!response.ok) {
@@ -76,11 +82,17 @@ export class ApiClient {
     if (options.body !== undefined && !headers.has("content-type"))
       headers.set("content-type", "application/json");
     const { body, ...requestInit } = options;
+    const requestBody =
+      body instanceof FormData || body instanceof Blob
+        ? body
+        : body === undefined
+          ? undefined
+          : JSON.stringify(body);
     const response = await fetch(`${this.baseUrl}${path}`, {
       ...requestInit,
       headers,
       credentials: "include",
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      ...(requestBody === undefined ? {} : { body: requestBody }),
     });
     if (!response.ok) {
       const payload = await readPayload(response);

@@ -46,6 +46,11 @@ export class FileSystemMediaStorage implements MediaStorage {
     }
   }
 
+  async read(storageKey: string): Promise<Uint8Array> {
+    const file = await Bun.file(this.safePath(storageKey)).arrayBuffer();
+    return new Uint8Array(file);
+  }
+
   private safePath(storageKey: string): string {
     if (!/^media\/[A-Za-z0-9_-]{20,64}$/u.test(storageKey))
       throw new Error("Invalid media storage key");

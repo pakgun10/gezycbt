@@ -88,7 +88,16 @@ describe("exam session API contracts", () => {
   test("publishes all runtime paths with OR security for main/practice access", () => {
     const paths = examSessionApiOpenApi.paths as Record<
       string,
-      Record<string, { security?: unknown }>
+      {
+        get?: {
+          security?: unknown;
+          responses?: Record<
+            string,
+            { content?: Record<string, { schema?: unknown }> }
+          >;
+        };
+        post?: { security?: unknown };
+      }
     >;
     expect(new Set(examSessionApiRoutes.map((route) => route.path)).size).toBe(
       examSessionApiRoutes.length,
@@ -96,6 +105,14 @@ describe("exam session API contracts", () => {
     expect(
       paths["/api/v1/participant/exam-sessions/{id}"]?.get?.security,
     ).toEqual([{ participantCookie: [] }, { practiceCookie: [] }]);
+    expect(
+      paths["/api/v1/participant/media/{id}"]?.get?.security,
+    ).toEqual([{ participantCookie: [] }, { practiceCookie: [] }]);
+    expect(
+      paths["/api/v1/participant/media/{id}"]?.get?.responses?.["200"]?.content?.[
+        "image/*"
+      ]?.schema,
+    ).toEqual({ type: "string", format: "binary" });
     expect(
       paths["/api/v1/participant/practice/sessions"]?.post?.security,
     ).toEqual([]);

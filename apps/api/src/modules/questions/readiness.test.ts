@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { Id } from "@gezycbt/contracts";
 import type { QuestionDraft, QuestionDraftContent } from "./domain";
+import type { MediaRelation } from "../media/relation-domain";
 import {
   QuestionReadinessService,
   validateQuestionReadiness,
@@ -141,6 +142,47 @@ describe("validateQuestionReadiness", () => {
       errorCount: 0,
       warningCount: 0,
     });
+  });
+
+  test("rejects duplicate placeholders and target-field mismatches", () => {
+    const placement: MediaRelation = {
+      placementKey: "placement-12345678",
+      questionRevisionId: REVISION_ID,
+      mediaAssetId: "501" as Id,
+      usage: "OPTION",
+      questionOptionId: "201" as Id,
+      altText: "Diagram",
+      isDecorative: false,
+    };
+    const report = validateQuestionReadiness(
+      REVISION_ID,
+      {
+        type: "SINGLE_CHOICE",
+        stimulusHtml:
+          '<figure data-content-node="question-media" data-media-placement="placement-12345678"></figure>',
+        promptHtml: "Pilih",
+        explanationHtml: "Pembahasan",
+        options: [
+          {
+            id: "201" as Id,
+            position: 1,
+            contentHtml:
+              '<p>A</p><figure data-content-node="question-media" data-media-placement="placement-12345678"></figure>',
+            isCorrect: true,
+          },
+          { id: "202" as Id, position: 2, contentHtml: "B", isCorrect: false },
+        ],
+        statements: [],
+      },
+      [placement],
+    );
+
+    expect(report.issues.map((issue) => issue.code)).toEqual(
+      expect.arrayContaining([
+        "QUESTION_MEDIA_PLACEMENT_DUPLICATE",
+        "QUESTION_MEDIA_TARGET_MISMATCH",
+      ]),
+    );
   });
 });
 

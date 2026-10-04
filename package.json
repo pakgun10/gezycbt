@@ -10,6 +10,7 @@
     "dev:web": "bun --filter '@gezycbt/web' dev",
     "start:api": "bun --cwd apps/api src/index.ts",
     "db:migrate": "bun --cwd apps/api src/cli/migrate.ts",
+    "db:rebuild-question-hashes": "bun --cwd apps/api src/cli/rebuild-question-hashes.ts",
     "bootstrap:admin": "bun --cwd apps/api src/cli/bootstrap-admin.ts",
     "job:export": "bun --cwd apps/api src/cli/jobs.ts export",
     "job:finalize": "bun --cwd apps/api src/cli/jobs.ts finalize",

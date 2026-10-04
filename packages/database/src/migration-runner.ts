@@ -1,6 +1,8 @@
 export interface Migration {
   readonly id: string;
   readonly statements: readonly string[];
+  /** Optional data preflight executed while the migration lock is held. */
+  readonly before?: (database: MigrationDatabase) => Promise<void>;
 }
 
 export interface MigrationDatabase {
@@ -48,6 +50,7 @@ export async function runMigrations(
       if (previous === checksum) continue;
       if (previous)
         throw new Error(`Applied migration checksum changed: ${migration.id}`);
+      await migration.before?.(database);
       const started = performance.now();
       for (const statement of migration.statements)
         await database.execute(statement);

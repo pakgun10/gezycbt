@@ -154,13 +154,13 @@ class FakeMediaDatabase implements DatabasePort {
       return [assetRow()] as unknown as readonly T[];
     if (sql.includes("FROM question_revisions qr"))
       return [revisionRow(this.revisionStatus)] as unknown as readonly T[];
+    if (sql.includes("SELECT qrm.question_revision_id, qrm.media_asset_id"))
+      return this.relationRows as readonly T[];
     if (sql.includes("FROM question_revision_media qrm"))
       return this.references.map((reference) => ({
         question_revision_id: 40n,
         revision_status: reference.status,
       })) as unknown as readonly T[];
-    if (sql.includes("FROM question_revision_media"))
-      return this.relationRows as readonly T[];
     return [] as readonly T[];
   }
 

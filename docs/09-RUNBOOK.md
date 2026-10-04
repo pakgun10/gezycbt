@@ -53,9 +53,26 @@ set +a
 bun run db:migrate
 ```
 
+Untuk release yang memasang rich content/media placement, jalankan rebuild hash
+sekali setelah migration `0022_question_media_placements` selesai. Command ini
+repeatable, membaca ulang seluruh revision, dan memasukkan placement hasil
+backfill ke `content_hash` tanpa mengubah status published:
+
+```bash
+bun run db:rebuild-question-hashes
+```
+
+API baru boleh menerima writer rich content setelah migration dan rebuild hash
+berhasil pada database target. Simpan output jumlah revision yang diproses di
+evidence deployment.
+
 Migration memakai advisory lock MariaDB dan checksum. Jika checksum migration
 yang sudah diterapkan berubah, command gagal dan file migration harus dipulihkan
 atau dibuat migration baru.
+
+Migration `0022` juga menghentikan deployment bila tabel legacy memiliki relasi
+media `OPTION` atau `STATEMENT` tanpa target child. Petakan data tersebut melalui
+prosedur data migration yang direview sebelum mengulang migration.
 
 Hentikan database tanpa menghapus volume:
 

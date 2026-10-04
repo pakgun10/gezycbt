@@ -47,13 +47,18 @@ export class QuestionPublishService {
       revision.questionBank,
     );
     if (revision.status !== "DRAFT") throw new QuestionImmutableError();
-    const report = validateQuestionReadiness(revision.id, revision);
+    const media = this.repository.listMedia
+      ? await this.repository.listMedia(revision.id)
+      : [];
+    const report = validateQuestionReadiness(revision.id, revision, media);
     if (!report.isReady) throw new QuestionPublishBlockedError(report);
     const published = await this.repository.publishRevision(
       revisionId,
       expectedUpdatedAt,
     );
     if (!published) throw new QuestionNotFoundError();
-    return published;
+    return this.repository.listMedia
+      ? { ...published, media: await this.repository.listMedia(published.id) }
+      : published;
   }
 }

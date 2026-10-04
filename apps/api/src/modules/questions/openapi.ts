@@ -44,6 +44,10 @@ const schemaRefs: Readonly<Record<string, string>> = {
   questionRevisionResponse: "QuestionRevisionResponse",
   readinessResponse: "QuestionReadinessResponse",
   mediaAssetResponse: "MediaAssetResponse",
+  mediaAssetListResponse: "MediaAssetListResponse",
+  mediaContentResponse: "MediaContentResponse",
+  mediaDeleteResponse: "MediaDeleteResponse",
+  mediaDetachResponse: "MediaDetachResponse",
   questionMediaResponse: "QuestionMediaResponse",
   questionImportPreviewResponse: "QuestionImportPreviewResponse",
   questionImportCommitResponse: "QuestionImportCommitResponse",
@@ -56,6 +60,10 @@ const responseDefinitions = {
   QuestionRevisionResponse: successSchema("QuestionRevision"),
   QuestionReadinessResponse: successSchema("QuestionReadinessReport"),
   MediaAssetResponse: successSchema("MediaAsset"),
+  MediaAssetListResponse: successSchema("MediaAssetList"),
+  MediaContentResponse: { type: "string", format: "binary" },
+  MediaDeleteResponse: successSchema("MediaDeleteResponse"),
+  MediaDetachResponse: successSchema("MediaDetachResponse"),
   QuestionMediaResponse: successSchema("QuestionMedia"),
   QuestionImportPreviewResponse: successSchema("QuestionImportPreview"),
   QuestionImportCommitResponse: successSchema("QuestionImportCommitResult"),
@@ -146,7 +154,7 @@ function buildResponses(
     : undefined;
   if (schemaName) {
     success.content = {
-      "application/json": {
+      [route.response?.contentType ?? "application/json"]: {
         schema: { $ref: `#/components/schemas/${schemaName}` },
       },
     };

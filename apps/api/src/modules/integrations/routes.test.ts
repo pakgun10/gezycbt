@@ -91,6 +91,7 @@ function app(
   resultReads?: unknown,
   exportService?: unknown,
   actionService?: unknown,
+  scheduleAuthoring?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -151,6 +152,9 @@ function app(
         ...(resultReads ? { resultReads: resultReads as never } : {}),
         ...(exportService ? { exports: exportService as never } : {}),
         ...(actionService ? { actions: actionService as never } : {}),
+        ...(scheduleAuthoring
+          ? { scheduleAuthoring: scheduleAuthoring as never }
+          : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -293,6 +297,69 @@ test("agent exam authoring exposes safe reads and mutation idempotency", async (
     }),
   );
   expect(mutation.status).toBe(422);
+});
+
+test("agent schedule authoring validates and delegates practice schedule creation", async () => {
+  let received: Record<string, unknown> | undefined;
+  const scheduleAuthoring = {
+    async createSchedule(
+      _authentication: unknown,
+      input: Record<string, unknown>,
+      _requestId: string,
+      _idempotencyKey: string,
+    ) {
+      received = input;
+      return {
+        id: "70",
+        mode: "PRACTICE",
+        status: "DRAFT",
+        updatedAt: NOW,
+      };
+    },
+  };
+  const application = app(
+    true,
+    ["schedules.create"],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    scheduleAuthoring,
+  );
+  const response = await application.handle(
+    new Request("https://cbt.example.test/api/v1/integrations/agent/schedules", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer integration-token",
+        "content-type": "application/json",
+        "idempotency-key": "schedule-create-test-key",
+      },
+      body: JSON.stringify({
+        examRevisionId: "101",
+        mode: "PRACTICE",
+        startsAt: NOW,
+        endsAt: "2026-10-17T00:00:00.000Z",
+        durationSeconds: 900,
+        maxAttempts: 1,
+        allowLateStart: true,
+        resultReleasePolicy: "IMMEDIATE_SCORE",
+        identityFields: [
+          { key: "name", label: "Nama", type: "TEXT", required: true },
+        ],
+      }),
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: { id: "70" } });
+  expect(received).toMatchObject({
+    examRevisionId: "101",
+    mode: "PRACTICE",
+    durationSeconds: 900,
+    identityFieldsJson: JSON.stringify([
+      { key: "name", label: "Nama", type: "TEXT", required: true },
+    ]),
+  });
 });
 
 test("agent result routes expose summary and paginated schedule reads", async () => {

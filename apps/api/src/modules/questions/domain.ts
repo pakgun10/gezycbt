@@ -1,4 +1,6 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
+import type { MediaRelation } from "../media/relation-domain";
+import { sanitizeRichContent } from "./rich-content";
 
 export const QUESTION_TYPES = [
   "SINGLE_CHOICE",
@@ -53,6 +55,8 @@ export interface QuestionDraft extends QuestionDraftContent {
   readonly publishedAt: UtcTimestamp | null;
   readonly createdAt: UtcTimestamp;
   readonly updatedAt: UtcTimestamp;
+  /** Media placements are loaded for authoring responses when supported. */
+  readonly media?: readonly MediaRelation[];
 }
 
 export interface CreateQuestionDraftInput extends QuestionDraftContent {
@@ -224,14 +228,13 @@ function validateStatement(
 }
 
 function validateHtml(value: string, field: string, maxLength: number): string {
-  if (typeof value !== "string") {
-    throw new QuestionValidationError(`${field} is invalid`);
+  try {
+    return sanitizeRichContent(value, maxLength);
+  } catch (error) {
+    throw new QuestionValidationError(
+      `${field} is invalid: ${error instanceof Error ? error.message : "content tidak aman"}`,
+    );
   }
-  const normalized = value.trim();
-  if (normalized.length > maxLength) {
-    throw new QuestionValidationError(`${field} is too long`);
-  }
-  return normalized;
 }
 
 function validateUniqueChildIds(ids: readonly (Id | undefined)[]): void {

@@ -57,6 +57,23 @@ import {
   QuestionVersionConflictError,
 } from "../questions/domain";
 import { QuestionPublishBlockedError } from "../questions/publish";
+import {
+  ScheduleAccessCodeConflictError,
+  ScheduleAccessCodeGenerationError,
+  ScheduleAccessCodeModeError,
+} from "../schedules/access-code";
+import {
+  type CreateScheduleInput,
+  ScheduleExamRevisionNotFoundError,
+  ScheduleExamRevisionNotPublishedError,
+  ScheduleImmutableError,
+  ScheduleNotFoundError,
+  ScheduleNotReadyError,
+  ScheduleValidationError,
+  ScheduleVersionConflictError,
+  ScheduleWindowError,
+  type UpdateScheduleInput,
+} from "../schedules/domain";
 import type { StoredUser } from "../users";
 import {
   AGENT_ACTION_OPERATIONS,
@@ -104,6 +121,10 @@ import {
   type IntegrationQuestionAuthoringService,
 } from "./question-authoring";
 import {
+  AgentScheduleNotFoundError,
+  type IntegrationScheduleAuthoringService,
+} from "./schedule-authoring";
+import {
   AgentResultNotFoundError,
   type IntegrationResultReadService,
 } from "./result-reads";
@@ -123,6 +144,7 @@ export interface IntegrationRouteOptions {
   readonly resultReads?: IntegrationResultReadService;
   readonly exports?: IntegrationExportService;
   readonly actions?: IntegrationActionService;
+  readonly scheduleAuthoring?: IntegrationScheduleAuthoringService;
 }
 
 export function createIntegrationRoutes(
@@ -676,6 +698,113 @@ export function createIntegrationRoutes(
   );
 
   app.get(
+    "/api/v1/integrations/agent/schedules/:id",
+    async ({ request, params }) => {
+      try {
+        const authoring = requireScheduleAuthoring(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await authoring.getSchedule(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post("/api/v1/integrations/agent/schedules", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const authoring = requireScheduleAuthoring(options);
+      return authoring.createSchedule(
+        authentication,
+        scheduleCreatePayload(objectPayload(body)),
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/schedules/:id",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireScheduleAuthoring(options);
+          const payload = objectPayload(body);
+          const expectedUpdatedAt = requiredTimestamp(
+            payload.expectedUpdatedAt,
+            "expectedUpdatedAt",
+          );
+          const { expectedUpdatedAt: _expected, ...input } = payload;
+          return authoring.updateSchedule(
+            authentication,
+            idParam(params),
+            scheduleUpdatePayload(input),
+            expectedUpdatedAt,
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/schedules/:id/rotate-token",
+    async ({ request, params, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const authoring = requireScheduleAuthoring(options);
+          const payload = objectPayload(body);
+          return authoring.rotatePracticeToken(
+            authentication,
+            idParam(params),
+            requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+            optionalString(payload.proposedCode),
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  for (const [path, status] of [
+    ["ready", "READY"],
+    ["open", "OPEN"],
+  ] as const) {
+    app.post(
+      `/api/v1/integrations/agent/schedules/:id/${path}`,
+      async ({ request, params, body }) =>
+        agentMutation(
+          request,
+          options,
+          async (authentication, requestId, key) => {
+            const authoring = requireScheduleAuthoring(options);
+            return authoring.transitionSchedule(
+              authentication,
+              idParam(params),
+              status,
+              requiredTimestamp(
+                objectPayload(body).expectedUpdatedAt,
+                "expectedUpdatedAt",
+              ),
+              requestId,
+              key,
+            );
+          },
+        ),
+    );
+  }
+
+  app.get(
     "/api/v1/integrations/agent/schedules/:id/summary",
     async ({ request, params }) => {
       try {
@@ -1218,6 +1347,18 @@ function requireExamAuthoring(
   return options.examAuthoring;
 }
 
+function requireScheduleAuthoring(
+  options: IntegrationRouteOptions,
+): IntegrationScheduleAuthoringService {
+  if (!options.scheduleAuthoring)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Schedule integration belum tersedia.",
+    );
+  return options.scheduleAuthoring;
+}
+
 function requireResultReads(
   options: IntegrationRouteOptions,
 ): IntegrationResultReadService {
@@ -1528,6 +1669,28 @@ function mapIntegrationError(error: unknown): Error {
     );
   if (error instanceof ExamValidationError)
     return new AppError(422, "VALIDATION_FAILED", "Data ujian tidak valid.");
+  if (error instanceof AgentScheduleNotFoundError || error instanceof ScheduleNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Jadwal tidak ditemukan.");
+  if (error instanceof ScheduleNotReadyError)
+    return new AppError(422, "VALIDATION_FAILED", "Jadwal belum siap dibuka.", {
+      reasons: error.reasons,
+    });
+  if (error instanceof ScheduleWindowError)
+    return new AppError(422, "VALIDATION_FAILED", "Jadwal berada di luar jendela waktu.");
+  if (
+    error instanceof ScheduleVersionConflictError ||
+    error instanceof ScheduleImmutableError ||
+    error instanceof ScheduleAccessCodeConflictError
+  )
+    return new AppError(409, "VERSION_CONFLICT", "Jadwal berubah atau tidak dapat diubah pada state saat ini.");
+  if (
+    error instanceof ScheduleValidationError ||
+    error instanceof ScheduleExamRevisionNotFoundError ||
+    error instanceof ScheduleExamRevisionNotPublishedError ||
+    error instanceof ScheduleAccessCodeGenerationError ||
+    error instanceof ScheduleAccessCodeModeError
+  )
+    return new AppError(422, "VALIDATION_FAILED", "Data jadwal tidak valid.");
   if (error instanceof AgentResultNotFoundError)
     return new AppError(
       404,
@@ -1763,6 +1926,111 @@ function examMetadataPatchPayload(payload: Record<string, unknown>): {
       "shuffleOptions",
     );
   return result;
+}
+
+function scheduleCreatePayload(
+  payload: Record<string, unknown>,
+): CreateScheduleInput {
+  const mode = stringField(payload.mode, "mode");
+  if (mode !== "MAIN" && mode !== "PRACTICE")
+    throw new AppError(422, "VALIDATION_FAILED", "mode tidak valid.");
+  const resultReleasePolicy = stringField(
+    payload.resultReleasePolicy,
+    "resultReleasePolicy",
+  );
+  if (
+    resultReleasePolicy !== "MANUAL" &&
+    resultReleasePolicy !== "IMMEDIATE_SCORE"
+  )
+    throw new AppError(
+      422,
+      "VALIDATION_FAILED",
+      "resultReleasePolicy tidak valid.",
+    );
+  return {
+    examRevisionId: idValue(payload.examRevisionId, "examRevisionId"),
+    mode,
+    startsAt: requiredTimestamp(payload.startsAt, "startsAt"),
+    endsAt: requiredTimestamp(payload.endsAt, "endsAt"),
+    durationSeconds: requiredInteger(
+      payload.durationSeconds,
+      "durationSeconds",
+    ),
+    maxAttempts: requiredInteger(payload.maxAttempts, "maxAttempts"),
+    hardEnd: payload.hardEnd === undefined ? true : booleanField(payload.hardEnd, "hardEnd"),
+    allowLateStart: booleanField(payload.allowLateStart, "allowLateStart"),
+    resultReleasePolicy,
+    ...(Object.hasOwn(payload, "identityFields")
+      ? { identityFieldsJson: identityFieldsJson(payload.identityFields) }
+      : {}),
+    ...(Object.hasOwn(payload, "targetClassIds")
+      ? { targetClassIds: idArray(payload.targetClassIds, "targetClassIds") }
+      : {}),
+    ...(Object.hasOwn(payload, "targetParticipantIds")
+      ? {
+          targetParticipantIds: idArray(
+            payload.targetParticipantIds,
+            "targetParticipantIds",
+          ),
+        }
+      : {}),
+  };
+}
+
+function scheduleUpdatePayload(
+  payload: Record<string, unknown>,
+): UpdateScheduleInput {
+  const result: Record<string, unknown> = {};
+  if (Object.hasOwn(payload, "startsAt"))
+    result.startsAt = requiredTimestamp(payload.startsAt, "startsAt");
+  if (Object.hasOwn(payload, "endsAt"))
+    result.endsAt = requiredTimestamp(payload.endsAt, "endsAt");
+  if (Object.hasOwn(payload, "durationSeconds"))
+    result.durationSeconds = requiredInteger(
+      payload.durationSeconds,
+      "durationSeconds",
+    );
+  if (Object.hasOwn(payload, "maxAttempts"))
+    result.maxAttempts = requiredInteger(payload.maxAttempts, "maxAttempts");
+  if (Object.hasOwn(payload, "hardEnd"))
+    result.hardEnd = booleanField(payload.hardEnd, "hardEnd");
+  if (Object.hasOwn(payload, "allowLateStart"))
+    result.allowLateStart = booleanField(
+      payload.allowLateStart,
+      "allowLateStart",
+    );
+  if (Object.hasOwn(payload, "resultReleasePolicy")) {
+    const policy = stringField(
+      payload.resultReleasePolicy,
+      "resultReleasePolicy",
+    );
+    if (policy !== "MANUAL" && policy !== "IMMEDIATE_SCORE")
+      throw new AppError(
+        422,
+        "VALIDATION_FAILED",
+        "resultReleasePolicy tidak valid.",
+      );
+    result.resultReleasePolicy = policy;
+  }
+  if (Object.hasOwn(payload, "identityFields"))
+    result.identityFieldsJson = identityFieldsJson(payload.identityFields);
+  if (Object.hasOwn(payload, "targetClassIds"))
+    result.targetClassIds = idArray(payload.targetClassIds, "targetClassIds");
+  if (Object.hasOwn(payload, "targetParticipantIds"))
+    result.targetParticipantIds = idArray(
+      payload.targetParticipantIds,
+      "targetParticipantIds",
+    );
+  return result as UpdateScheduleInput;
+}
+
+function identityFieldsJson(value: unknown): string | null {
+  if (value === null) return null;
+  return JSON.stringify(arrayPayload(value, "identityFields"));
+}
+
+function idArray(value: unknown, field: string): readonly Id[] {
+  return arrayPayload(value, field).map((item) => idValue(item, `${field} item`));
 }
 
 function arrayPayload(value: unknown, field: string): readonly unknown[] {

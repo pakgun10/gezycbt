@@ -29,6 +29,9 @@ export const MEDIA_USAGE_VALUES = [
 ] as const;
 export type MediaUsageContract = (typeof MEDIA_USAGE_VALUES)[number];
 
+export const MEDIA_ALIGNMENT_VALUES = ["LEFT", "CENTER", "RIGHT"] as const;
+export type MediaAlignmentContract = (typeof MEDIA_ALIGNMENT_VALUES)[number];
+
 export interface QuestionBankResource {
   readonly id: Id;
   readonly subjectId: Id;
@@ -53,11 +56,18 @@ export interface TrueFalseStatementResource {
 
 /** Teacher/editor media fields. Storage key and content hash stay private. */
 export interface QuestionMediaResource {
+  readonly placementKey?: string;
   readonly mediaAssetId: Id;
   readonly usage: MediaUsageContract;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
   readonly url: string;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignmentContract;
+  readonly updatedAt?: UtcTimestamp;
 }
 
 export interface QuestionRevisionSummaryResource {
@@ -109,6 +119,7 @@ export interface MediaAssetResource {
   readonly width: number;
   readonly height: number;
   readonly status: "READY" | "DELETED";
+  readonly url: string;
 }
 
 export interface ParticipantQuestionOptionResource {
@@ -134,7 +145,16 @@ export interface ParticipantQuestionResource {
   readonly statements: readonly ParticipantTrueFalseStatementResource[];
   readonly media: readonly Pick<
     QuestionMediaResource,
-    "usage" | "url" | "altText" | "isDecorative"
+    | "placementKey"
+    | "usage"
+    | "questionOptionId"
+    | "trueFalseStatementId"
+    | "sortOrder"
+    | "url"
+    | "altText"
+    | "isDecorative"
+    | "displayWidthPercent"
+    | "alignment"
   >[];
 }
 
@@ -203,6 +223,28 @@ export interface PublishQuestionRevisionRequest {
 export interface AttachQuestionMediaRequest {
   readonly mediaAssetId: Id;
   readonly usage: MediaUsageContract;
+  readonly placementKey?: string;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignmentContract;
+  readonly expectedUpdatedAt: UtcTimestamp;
+}
+
+export interface UpdateQuestionMediaRequest {
+  readonly altText?: string | null;
+  readonly isDecorative?: boolean;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignmentContract;
+  readonly expectedUpdatedAt: UtcTimestamp;
+}
+
+export interface DetachQuestionMediaRequest {
+  readonly expectedUpdatedAt: UtcTimestamp;
 }

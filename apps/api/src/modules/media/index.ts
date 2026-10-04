@@ -2,6 +2,7 @@ export * from "./domain";
 export * from "./filesystem";
 export * from "./inspect";
 export * from "./protected-serving";
+export * from "./participant-serving";
 export * from "./relation-domain";
 export * from "./relation-repository";
 export * from "./relation-service";

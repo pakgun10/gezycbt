@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AnswerResponse, ParticipantQuestion } from "../../features/participant/types";
+import SafeQuestionContent from "../question/SafeQuestionContent.vue";
 
 const props = defineProps<{
   readonly question: ParticipantQuestion;
@@ -24,12 +25,21 @@ function setStatement(statementId: string, value: boolean): void {
   emit("update", { statements: [...current].map(([id, answer]) => ({ statementId: id, value: answer })) });
 }
 function letter(position: number): string { return String.fromCharCode(64 + position); }
+function mediaFor(usage: string, targetId?: string) {
+  return props.question.media.filter((item) =>
+    item.usage === usage &&
+    (usage === "OPTION"
+      ? item.questionOptionId === targetId
+      : usage === "STATEMENT"
+        ? item.trueFalseStatementId === targetId
+        : true),
+  );
+}
 </script>
 
 <template>
   <article class="question" :aria-label="question.type === 'TRUE_FALSE' ? 'Soal benar atau salah' : undefined" :aria-labelledby="question.type === 'TRUE_FALSE' ? undefined : `question-${question.questionId}`">
-    <div v-if="question.media.length" class="media-list" aria-label="Media soal"><figure v-for="media in question.media" :key="media.url"><img :src="media.url" :alt="media.isDecorative ? '' : media.altText ?? ''" loading="lazy" /><figcaption v-if="media.altText && !media.isDecorative">{{ media.altText }}</figcaption></figure></div>
-    <div class="stimulus" v-html="question.stimulusHtml" />
+    <SafeQuestionContent class="stimulus" :html="question.stimulusHtml" :media="mediaFor('STIMULUS')" />
     <template v-if="question.type === 'TRUE_FALSE'">
       <fieldset class="true-false-answer-table">
         <legend class="sr-only">Pilih Benar atau Salah untuk setiap pernyataan</legend>
@@ -46,7 +56,7 @@ function letter(position: number): string { return String.fromCharCode(64 + posi
             <tbody>
               <tr v-for="statement in question.statements" :key="statement.id">
                 <th scope="row">{{ statement.position }}</th>
-                <td v-html="statement.statementHtml" />
+                <td><SafeQuestionContent :html="statement.statementHtml" :media="mediaFor('STATEMENT', statement.id)" /></td>
                 <td class="truth-cell">
                   <label class="truth-option" :aria-label="`Pernyataan ${statement.position}: Benar`">
                     <input type="radio" :name="`statement-${question.questionId}-${statement.id}`" :checked="statements.get(statement.id) === true" @change="setStatement(statement.id, true)" />
@@ -67,10 +77,10 @@ function letter(position: number): string { return String.fromCharCode(64 + posi
     </template>
     <template v-else>
       <h2 :id="`question-${question.questionId}`" tabindex="-1">Pertanyaan</h2>
-      <div v-if="question.promptHtml" class="prompt" v-html="question.promptHtml" />
+      <SafeQuestionContent v-if="question.promptHtml" class="prompt" :html="question.promptHtml" :media="mediaFor('PROMPT')" />
       <p v-if="question.type === 'MULTIPLE_RESPONSE'" class="instruction">Pilih satu atau lebih jawaban. Nilai diberikan jika seluruh pilihan tepat.</p>
-      <fieldset v-if="question.type === 'SINGLE_CHOICE'" class="options"><legend class="sr-only">Pilihan jawaban</legend><label v-for="option in question.options" :key="option.id" class="option-card" :class="{ selected: selectedOption === option.id }"><input type="radio" name="single-option" :checked="selectedOption === option.id" :value="option.id" @change="selectSingle(option.id)" /><span class="option-letter">{{ letter(option.position) }}</span><span v-html="option.contentHtml" /></label></fieldset>
-      <fieldset v-else class="options"><legend class="sr-only">Pilihan jawaban, dapat memilih lebih dari satu</legend><label v-for="option in question.options" :key="option.id" class="option-card" :class="{ selected: selectedOptions.includes(option.id) }"><input type="checkbox" :checked="selectedOptions.includes(option.id)" :value="option.id" @change="toggleOption(option.id)" /><span class="option-letter">{{ letter(option.position) }}</span><span v-html="option.contentHtml" /></label></fieldset>
+      <fieldset v-if="question.type === 'SINGLE_CHOICE'" class="options"><legend class="sr-only">Pilihan jawaban</legend><label v-for="option in question.options" :key="option.id" class="option-card" :class="{ selected: selectedOption === option.id }"><input type="radio" name="single-option" :checked="selectedOption === option.id" :value="option.id" @change="selectSingle(option.id)" /><span class="option-letter">{{ letter(option.position) }}</span><SafeQuestionContent :html="option.contentHtml" :media="mediaFor('OPTION', option.id)" /></label></fieldset>
+      <fieldset v-else class="options"><legend class="sr-only">Pilihan jawaban, dapat memilih lebih dari satu</legend><label v-for="option in question.options" :key="option.id" class="option-card" :class="{ selected: selectedOptions.includes(option.id) }"><input type="checkbox" :checked="selectedOptions.includes(option.id)" :value="option.id" @change="toggleOption(option.id)" /><span class="option-letter">{{ letter(option.position) }}</span><SafeQuestionContent :html="option.contentHtml" :media="mediaFor('OPTION', option.id)" /></label></fieldset>
     </template>
   </article>
 </template>

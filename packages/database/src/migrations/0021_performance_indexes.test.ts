@@ -12,6 +12,6 @@ describe("performance indexes migration", () => {
     expect(performanceIndexesMigration.statements[1]).toContain(
       "idx_exam_results_schedule_id",
     );
-    expect(migrations.at(-1)).toBe(performanceIndexesMigration);
+    expect(migrations.at(-2)).toBe(performanceIndexesMigration);
   });
 });

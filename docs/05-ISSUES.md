@@ -1,10 +1,10 @@
 # Development Issues — GezyCBT
 
-**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia; ISS-176 siap sebagai product delta media soal
-**Versi dokumen:** 0.1  
-**Terakhir diperbarui:** 20 September 2026
+**Status:** ISS-001–ISS-074, ISS-080–ISS-092, entry gate ISS-093–ISS-094, Fase 8 ISS-100–ISS-110, ISS-120–ISS-132, Fase 9 ISS-140–ISS-149, ISS-152–ISS-154, dan ISS-160 selesai; rehearsal ISS-161 dan ISS-162 lulus secara teknis namun menunggu gate operasional; ISS-150–ISS-151 tooling tersedia; product delta rich content/LaTeX/media dipecah menjadi ISS-176–ISS-186
+**Versi dokumen:** 0.2
+**Terakhir diperbarui:** 4 Oktober 2026
 **Sumber requirement:** [04-PRD.md](./04-PRD.md)
-**Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md)
+**Sumber teknis:** [01-architecture.md](./01-architecture.md), [02-bot-automation.md](./02-bot-automation.md), [03-ui-ux.md](./03-ui-ux.md), [15-question-rich-content-implementation-plan.md](./15-question-rich-content-implementation-plan.md)
 
 Dokumen ini menerjemahkan PRD dan arsitektur menjadi backlog pekerjaan yang dapat diambil satu per satu. Ia adalah **source backlog awal**, bukan pengganti issue tracker. Ketika repository Git dan issue tracker sudah aktif, setiap item `ISS-*` dapat dibuat sebagai GitHub/GitLab issue dengan ID yang sama agar traceability tetap terjaga.
 
@@ -182,7 +182,17 @@ Ukuran hanya alat perencanaan. Ukuran tidak digunakan untuk mengurangi test atau
 | `ISS-160` | `DONE` | Staging production-like dry run lulus untuk staff login, lifecycle jadwal MAIN/PRACTICE, kode/token, start, save, refresh/resume, submit, release hasil, dan cleanup. Evidence ada di [`staging-20260919-iss160-dry-run`](../reports/pilot/staging-20260919-iss160-dry-run/). |
 | `ISS-161` | `IN_REVIEW` | Synthetic rehearsal 30 peserta lulus 30/30 untuk login, start, autosave, resume, submit, result, dan reconciliation tanpa active session. Evidence ada di [`staging-20260919-iss161-synthetic-rehearsal`](../reports/pilot/staging-20260919-iss161-synthetic-rehearsal/). Pilot nyata dengan variasi perangkat/browser/jaringan dan catatan support masih wajib. |
 | `ISS-162` | `IN_REVIEW` | Recovery rehearsal lulus untuk restart API saat session aktif dan timeout deadline; jawaban committed tetap dapat di-resume, service readiness pulih, dan session timeout difinalisasi sebagai `DEADLINE`. Evidence ada di [`staging-20260919-iss162-recovery-rehearsal`](../reports/pilot/staging-20260919-iss162-recovery-rehearsal/). Isolated restore drill dan simulasi jaringan sekolah masih wajib. |
-| `ISS-176` | `READY` | Product delta: stimulus opsional; teks panjang dan gambar tersisip untuk stimulus, setiap opsi, serta setiap pernyataan TRUE_FALSE. Perlu migration relasi media target-aware, placeholder aman berurutan, API/presenter participant, editor guru, renderer responsif, import CSV text-only, serta test immutability/leakage/target binding. |
+| `ISS-176` | `READY` | Sanitasi server-side dan kontrak canonical rich content/LaTeX adalah security blocker pertama. Scope mencakup web, CSV, integration agent, hash input, readiness formula, dependency pinning, serta XSS/KaTeX security corpus. |
+| `ISS-177` | `PLANNED` | Migration media placement target-aware, stable placement key, responsive size/alignment, optimistic revision version, canonical hash, clone mapping, dan backfill verification. Dependency: `ISS-176`. |
+| `ISS-178` | `PLANNED` | Staff media route runtime untuk upload, preview content, orphan list, attach/update/detach/delete serta audit; route aktual wajib sama dengan OpenAPI. Dependency: `ISS-177`. |
+| `ISS-179` | `PLANNED` | Participant media endpoint dan presenter memeriksa reference dalam manifest/session actor sebelum internal redirect; cross-session IDOR dan storage leakage ditolak. Dependency: `ISS-177`, `ISS-178`. |
+| `ISS-180` | `PLANNED` | Rich text serta LaTeX editor guru dengan toolbar terbatas, math dialog, paste cleaning, dirty/version state, dan published read-only behavior. Dependency: `ISS-176`. |
+| `ISS-181` | `PLANNED` | Upload gambar pada cursor, progress/retry/cancel, alt/decorative, resize, alignment, replace/detach, dan stable placement setelah reload/reorder. Dependency: `ISS-177`, `ISS-178`, `ISS-180`. |
+| `ISS-182` | `PLANNED` | Preview soal memakai renderer canonical yang sama dengan peserta dan menyediakan viewport ponsel/tablet/desktop serta answer-key overlay guru. Dependency: `ISS-181`, `ISS-184`. |
+| `ISS-183` | `PLANNED` | Orphan inventory dan bounded seven-day housekeeping dengan retry, disk metrics, concurrency protection, dan published-reference safety. Dependency: `ISS-177`, `ISS-178`. |
+| `ISS-184` | `PLANNED` | Participant renderer untuk sanitized rich content, LaTeX, serta media target-aware dengan local failure isolation dan responsive/accessibility behavior. Dependency: `ISS-176`, `ISS-179`. |
+| `ISS-185` | `PLANNED` | Migration/security/contract/accessibility/browser E2E gate untuk seluruh product delta, termasuk preview parity, leakage, race, clone, rollback rehearsal, dan representative media load. Dependency: `ISS-177–ISS-184`. |
+| `ISS-186` | `PLANNED` | Operations dan rollout: Nginx multipart envelope, CSP/KaTeX assets, backup/restore, runbook, feature flag order, telemetry, serta pilot sign-off. Dependency: `ISS-185`. |
 
 Gate Fase 7 sampai `ISS-092`, entry gate `ISS-093–ISS-094`, Fase 8 `ISS-100–ISS-110`, agent `ISS-120–ISS-132`, Fase 9 `ISS-140–ISS-149`, Fase 10 `ISS-152–ISS-154`, dan dry run staging `ISS-160` telah selesai. Gate berikutnya adalah pilot `ISS-161` dan failure/recovery `ISS-162`.
 
@@ -615,9 +625,38 @@ Agent A–E dapat dirilis terpisah. `ISS-130` tidak memblokir penggunaan agent u
 
 | ID | P | Size | Issue | Dependency | Acceptance ringkas |
 |---|---:|---:|---|---|---|
-| ISS-176 | P1 | L | Implement stimulus opsional dan media target-aware pada konten soal | ISS-046–ISS-049, ISS-084, ISS-102 | Draft/publish mengizinkan stimulus kosong; teks panjang dan gambar dapat melekat tepat pada stimulus/opsi/pernyataan serta posisi sisipnya; media selalu muncul di urutan benar pada manifest peserta; CSV tetap text-only; published revision tetap immutable; mobile, accessibility, leakage, dan migration tests lulus. |
+| ISS-176 | P0 | M | Implement sanitasi dan kontrak canonical rich content/LaTeX | ISS-042, ISS-049, ISS-125 | Semua write path memakai allowlist server-side sebelum persistence/hash; source LaTeX canonical, invalid formula readiness error, dangerous markup/commands ditolak; dependency dipin dan corpus security lulus. |
+| ISS-177 | P0 | M | Migration media placement target-aware dan revision hash | ISS-047, ISS-176 | Stable placement key, target child revision-safe, order, width/alignment, max tiga, expected version, hash media, clone mapping, backfill/verification lulus. |
+| ISS-178 | P0 | M | Implement staff media routes dan protected preview | ISS-141, ISS-177 | Upload/list orphan/preview/attach/update/detach/delete route runtime sama dengan OpenAPI; scope, CSRF, idempotency, audit, version conflict, dan error contract lulus. |
+| ISS-179 | P0 | M | Implement participant authorized media delivery | ISS-066, ISS-141, ISS-177, ISS-178 | Media hanya dilayani jika direferensikan manifest session actor/practice credential; internal redirect aman; direct/cross-session/cross-scope access dan storage leakage ditolak. |
+| ISS-180 | P1 | L | Implement rich text dan LaTeX editor guru | ISS-102, ISS-176 | Toolbar terbatas, inline/block math dialog, paste cleaning, undo/redo, dirty/version state, field-addressable errors, dan published read-only tersedia tanpa memasukkan editor ke participant bundle. |
+| ISS-181 | P1 | L | Implement upload, sisip, alt, resize, dan media management dalam editor | ISS-177, ISS-178, ISS-180 | Upload pada cursor dengan progress/retry/cancel; alt/decorative, resize keyboard/drag, alignment, replace/detach; placement bertahan setelah reload dan option reorder. |
+| ISS-182 | P1 | M | Implement preview parity guru dan peserta | ISS-181, ISS-184 | Preview memakai renderer canonical yang sama, mempunyai viewport 360/768/desktop dan answer-key overlay terpisah; urutan/formula/media/wrapping sama dengan participant staging. |
+| ISS-183 | P1 | M | Implement orphan inventory dan bounded media housekeeping | ISS-142, ISS-177, ISS-178 | Guru dapat menghapus orphan miliknya; worker memproses maksimal 100 asset >7 hari per run, retry-safe, race-safe, metric bounded, dan tidak menyentuh referenced media. |
+| ISS-184 | P0 | L | Implement participant rich content, LaTeX, dan target-aware media renderer | ISS-084, ISS-176, ISS-179 | Sanitized fragments, math nodes, serta media placement dirender semantic/responsive; local render/image error tidak menjatuhkan timer/navigation/outbox; alt/decorative behavior lulus. |
+| ISS-185 | P0 | L | Jalankan migration, security, contract, accessibility, dan E2E gate | ISS-177–ISS-184 | XSS/KaTeX corpus, MariaDB race/clone/backfill, OpenAPI route inventory, IDOR/leakage, mobile/browser/a11y, preview parity, offline failure, dan media load test lulus. |
+| ISS-186 | P0 | M | Finalisasi operations, rollout, dan pilot gate rich content | ISS-145, ISS-146, ISS-185 | Multipart proxy envelope, CSP/local KaTeX assets, feature flag order, backup/restore, cleanup runbook, metric/alert, rollback decision, dan staging sign-off terdokumentasi. |
 
-`ISS-176` wajib dipecah menjadi empat work package sebelum coding: (1) migration relasi media child dan kontrak placeholder aman; (2) service/API serta presenter yang meresolve hanya asset terpasang ke URL terlindungi; (3) editor rich text, upload, alt text, dan sisip/hapus/pengganti gambar pada cursor; (4) renderer peserta, migration, accessibility, immutability, leakage, dan mobile test. Ia harus selesai sebelum pilot nyata jika sekolah akan memakai gambar pada soal.
+Rincian desain, file map, dependency install, rollout, serta acceptance matrix tersedia di [`15-question-rich-content-implementation-plan.md`](./15-question-rich-content-implementation-plan.md).
+
+### 21.1 Critical path dan aturan eksekusi
+
+1. `ISS-176` harus selesai lebih dahulu karena rich content saat ini masuk ke sink HTML dan sanitasi merupakan security boundary.
+2. `ISS-177–ISS-179` menutup persistence dan delivery media sebelum UI upload diaktifkan.
+3. `ISS-180` dapat berjalan paralel dengan `ISS-177–ISS-179` setelah kontrak canonical `ISS-176` stabil.
+4. `ISS-181` baru dimulai setelah staff media API dan placement schema stabil.
+5. `ISS-184` harus selesai sebelum `ISS-182` agar preview benar-benar memakai renderer peserta yang sama.
+6. `ISS-185` adalah release gate; test parsial pada issue sebelumnya tidak menggantikannya.
+7. `ISS-186` wajib selesai sebelum pilot nyata memakai gambar atau LaTeX.
+
+### 21.2 Out of scope product delta
+
+- arbitrary HTML/CSS, iframe, video, audio, SVG upload, dan external image URL;
+- user-defined LaTeX macro atau trusted KaTeX command;
+- crop, rotate, filter, drawing canvas, atau geometry authoring tool;
+- DOCX equation/image import dan image embedding melalui CSV;
+- CDN/public permanent media URL;
+- equation editor visual tingkat lanjut selain source LaTeX plus preview.
 
 ---
 
@@ -662,6 +701,11 @@ Tabel status pada bagian 1.5 adalah source of truth untuk evidence.
 Fase 9 `ISS-140–ISS-149` selesai sebagai baseline security dan operations.
 Browser trace production-like, external Hivekeep/Hermes adapter evidence, load
 test, dan hardening host nyata tetap harus lulus sebelum pilot/production.
+
+Product delta rich content, LaTeX, dan media soal memakai urutan
+`ISS-176 → ISS-177–ISS-180 → ISS-181/ISS-183/ISS-184 → ISS-182 → ISS-185 →
+ISS-186`. Seluruh P0 dan pilot gate `ISS-186` harus selesai sebelum sekolah
+memakai formula atau gambar pada pilot nyata.
 
 ---
 

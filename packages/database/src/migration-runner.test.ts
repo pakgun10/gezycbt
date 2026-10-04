@@ -77,4 +77,26 @@ describe("migration runner", () => {
       ),
     ).rejects.toThrow("checksum changed");
   });
+
+  test("runs a new migration preflight before applying its statements", async () => {
+    const database = fakeDatabase();
+    let preflightCalled = false;
+    await runMigrations(
+      database,
+      [
+        {
+          id: "0002_preflight",
+          before: async () => {
+            preflightCalled = true;
+          },
+          statements: ["CREATE TABLE preflight_example (id INT)"],
+        },
+      ],
+      { lockName: "gezycbt:migrate", lockTimeoutSeconds: 1, release: "test" },
+    );
+    expect(preflightCalled).toBe(true);
+    expect(database.executed).toContain(
+      "CREATE TABLE preflight_example (id INT)",
+    );
+  });
 });

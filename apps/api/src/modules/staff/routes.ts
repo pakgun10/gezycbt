@@ -14,6 +14,25 @@ import {
 import { PasswordService } from "../auth/password";
 import { type AuthSessionService, readAuthCookie } from "../auth/session";
 import type { ExamSessionAdministrationService } from "../exam-sessions/service";
+import { internalMediaRedirect } from "../media/protected-serving";
+import {
+  MediaRelationConflictError,
+  MediaRelationImmutableError,
+  MediaRelationNotFoundError,
+  MediaRelationValidationError,
+  MediaAssetReferencedError,
+  MediaPublishedReferenceError,
+  MediaRelationVersionConflictError,
+  type MediaAlignment,
+  type MediaRelation,
+  type MediaUsage,
+  MEDIA_ALIGNMENTS,
+  MEDIA_USAGES,
+} from "../media/relation-domain";
+import type { MediaRelationService } from "../media/relation-service";
+import type { MediaUploadService } from "../media/service";
+import { MediaValidationError } from "../media/domain";
+import type { MediaAsset } from "../media/domain";
 import type { ExamPublishService } from "../exams/publish";
 import type { ExamReadinessService } from "../exams/readiness";
 import type { ExamDraftService } from "../exams/service";
@@ -105,6 +124,10 @@ export interface StaffRouteOptions {
     readonly publish: QuestionPublishService;
     readonly readiness: QuestionReadinessService;
   };
+  readonly mediaUpload?: MediaUploadService;
+  readonly mediaRelations?: MediaRelationService;
+  readonly mediaRead?: (storageKey: string) => Promise<Uint8Array>;
+  readonly useInternalMediaRedirect?: boolean;
   readonly exams?: {
     readonly drafts: ExamDraftService;
     readonly publish: ExamPublishService;
@@ -943,6 +966,230 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           ) as UtcTimestamp,
         );
         return mapQuestionDraft(draft);
+      }),
+  );
+
+  app.get("/api/v1/teacher/media", async ({ request, query }) =>
+    wrapRead(request, options, "TEACHER", async (staffContext) => {
+      if (!options.mediaRelations) throw serviceUnavailable("Media service");
+      const status = queryValue(query, "status");
+      if (status && status !== "ORPHAN")
+        throw new AppError(422, "VALIDATION_FAILED", "status media tidak valid.");
+      const items = status === "ORPHAN"
+        ? await options.mediaRelations.listOrphans(staffContext)
+        : [];
+      return { items: items.map(mapMediaAsset) };
+    }),
+  );
+
+  app.post("/api/v1/teacher/media", async ({ request, set }) => {
+    try {
+      if (!options.mediaUpload) throw serviceUnavailable("Media upload service");
+      const actor = await requireStaff(request, options, "TEACHER");
+      await requireCsrf(request, actor.session, options);
+      const key = request.headers.get("idempotency-key");
+      if (!key)
+        throw new AppError(422, "VALIDATION_FAILED", "Idempotency-Key wajib diisi.");
+      const contentLength = request.headers.get("content-length");
+      if (contentLength !== null) {
+        const bytes = Number(contentLength);
+        if (!Number.isSafeInteger(bytes) || bytes > 3 * 1024 * 1024)
+          throw new AppError(
+            422,
+            "VALIDATION_FAILED",
+            "Upload media melebihi batas request.",
+          );
+      }
+      const form = await request.formData();
+      const candidate = form.get("file");
+      if (!candidate || typeof candidate === "string")
+        throw new AppError(422, "VALIDATION_FAILED", "File media wajib diisi.");
+      const originalName = optionalString(form.get("originalName")) ?? candidate.name;
+      if (!originalName)
+        throw new AppError(422, "VALIDATION_FAILED", "Nama file wajib diisi.");
+      const asset = await options.mediaUpload.upload({
+        bytes: new Uint8Array(await candidate.arrayBuffer()),
+        originalName,
+        claimedMimeType: candidate.type || undefined,
+        createdBy: actor.user.id as Id,
+      });
+      set.status = 201;
+      return { data: mapMediaAsset(asset) };
+    } catch (error) {
+      throw mapStaffError(error);
+    }
+  });
+
+  app.get(
+    "/api/v1/teacher/media/:id/content",
+    async ({ request, params, set }) => {
+      try {
+        if (!options.mediaRelations) throw serviceUnavailable("Media service");
+        const actor = await requireStaff(request, options, "TEACHER");
+        const asset = await options.mediaRelations.getAsset(
+          actorContext(request, actor),
+          idParam(params),
+        );
+        set.headers["cache-control"] = "private, no-store";
+        set.headers["x-content-type-options"] = "nosniff";
+        set.headers["content-type"] = asset.mimeType;
+        if (options.useInternalMediaRedirect || !options.mediaRead) {
+          set.headers["x-accel-redirect"] = internalMediaRedirect(asset.storageKey);
+          return "";
+        }
+        return await options.mediaRead(asset.storageKey);
+      } catch (error) {
+        throw mapStaffError(error);
+      }
+    },
+  );
+
+  app.delete("/api/v1/teacher/media/:id", async ({ request, params }) =>
+    wrapMutation(request, options, "TEACHER", async (staffContext) => {
+      if (!options.mediaRelations) throw serviceUnavailable("Media service");
+      await options.mediaRelations.deleteAsset(staffContext, idParam(params));
+      return { mediaAssetId: String(idParam(params)), deleted: true };
+    }),
+  );
+
+  app.post(
+    "/api/v1/teacher/question-revisions/:id/media",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.mediaRelations) throw serviceUnavailable("Media service");
+        const payload = objectPayload(body);
+        const usage = oneOf(payload.usage, MEDIA_USAGES, "usage") as MediaUsage;
+        const isDecorative = payload.isDecorative;
+        if (typeof isDecorative !== "boolean")
+          throw new AppError(422, "VALIDATION_FAILED", "isDecorative wajib diisi.");
+        const altText =
+          payload.altText === null
+            ? null
+            : payload.altText === undefined
+              ? null
+              : stringField(payload.altText, "altText");
+        const placementKey = optionalString(payload.placementKey);
+        const questionOptionId = optionalIdValue(payload.questionOptionId, "questionOptionId");
+        const trueFalseStatementId = optionalIdValue(
+          payload.trueFalseStatementId,
+          "trueFalseStatementId",
+        );
+        const relation = await options.mediaRelations.attach(staffContext, {
+          questionRevisionId: idParam(params),
+          mediaAssetId: idValue(payload.mediaAssetId, "mediaAssetId"),
+          usage,
+          ...(placementKey ? { placementKey } : {}),
+          ...(questionOptionId === undefined ? {} : { questionOptionId }),
+          ...(trueFalseStatementId === undefined ? {} : { trueFalseStatementId }),
+          ...(payload.sortOrder === undefined
+            ? {}
+            : { sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100) }),
+          altText,
+          isDecorative,
+          ...(payload.displayWidthPercent === undefined
+            ? {}
+            : {
+                displayWidthPercent: integerRange(
+                  payload.displayWidthPercent,
+                  "displayWidthPercent",
+                  10,
+                  100,
+                ),
+              }),
+          ...(payload.alignment === undefined
+            ? {}
+            : { alignment: oneOf(payload.alignment, MEDIA_ALIGNMENTS, "alignment") as MediaAlignment }),
+          expectedUpdatedAt: stringField(
+            payload.expectedUpdatedAt,
+            "expectedUpdatedAt",
+          ) as UtcTimestamp,
+        });
+        return mapMediaRelation(relation);
+      }),
+  );
+
+  app.patch(
+    "/api/v1/teacher/question-revisions/:id/media/:mediaId",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.mediaRelations) throw serviceUnavailable("Media service");
+        const revisionId = idParam(params);
+        const rawMediaId = String((params as Record<string, unknown>).mediaId ?? "");
+        if (!rawMediaId) throw new AppError(422, "VALIDATION_FAILED", "Media ID tidak valid.");
+        const placements = await options.mediaRelations.list(staffContext, revisionId);
+        const placementKey = /^\d+$/u.test(rawMediaId)
+          ? placements.find((item) => item.mediaAssetId === rawMediaId)?.placementKey
+          : rawMediaId;
+        if (!placementKey)
+          throw new AppError(404, "NOT_FOUND", "Media placement tidak ditemukan.");
+        const payload = objectPayload(body);
+        const input = {
+          questionRevisionId: revisionId,
+          placementKey,
+          ...(payload.altText === undefined
+            ? {}
+            : { altText: payload.altText === null ? null : stringField(payload.altText, "altText") }),
+          ...(payload.isDecorative === undefined
+            ? {}
+            : { isDecorative: booleanField(payload.isDecorative, "isDecorative") }),
+          ...(payload.questionOptionId === undefined
+            ? {}
+            : { questionOptionId: optionalIdValue(payload.questionOptionId, "questionOptionId") ?? null }),
+          ...(payload.trueFalseStatementId === undefined
+            ? {}
+            : { trueFalseStatementId: optionalIdValue(payload.trueFalseStatementId, "trueFalseStatementId") ?? null }),
+          ...(payload.sortOrder === undefined
+            ? {}
+            : { sortOrder: integerRange(payload.sortOrder, "sortOrder", 0, 100) }),
+          ...(payload.displayWidthPercent === undefined
+            ? {}
+            : {
+                displayWidthPercent: integerRange(
+                  payload.displayWidthPercent,
+                  "displayWidthPercent",
+                  10,
+                  100,
+                ),
+              }),
+          ...(payload.alignment === undefined
+            ? {}
+            : { alignment: oneOf(payload.alignment, MEDIA_ALIGNMENTS, "alignment") as MediaAlignment }),
+          expectedUpdatedAt: stringField(
+            payload.expectedUpdatedAt,
+            "expectedUpdatedAt",
+          ) as UtcTimestamp,
+        };
+        return mapMediaRelation(await options.mediaRelations.update(staffContext, input));
+      }),
+  );
+
+  app.delete(
+    "/api/v1/teacher/question-revisions/:id/media/:mediaId",
+    async ({ request, params, body }) =>
+      wrapMutation(request, options, "TEACHER", async (staffContext) => {
+        if (!options.mediaRelations) throw serviceUnavailable("Media service");
+        const revisionId = idParam(params);
+        const rawMediaId = String((params as Record<string, unknown>).mediaId ?? "");
+        const payload = objectPayload(body);
+        const expectedUpdatedAt = stringField(
+          payload.expectedUpdatedAt,
+          "expectedUpdatedAt",
+        ) as UtcTimestamp;
+        if (/^\d+$/u.test(rawMediaId))
+          await options.mediaRelations.detach(
+            staffContext,
+            revisionId,
+            rawMediaId as Id,
+            expectedUpdatedAt,
+          );
+        else
+          await options.mediaRelations.detachByPlacement(
+            staffContext,
+            revisionId,
+            rawMediaId,
+            expectedUpdatedAt,
+          );
+        return { mediaId: rawMediaId, deleted: true };
       }),
   );
 
@@ -1936,6 +2183,26 @@ function stringField(value: unknown, field: string): string {
 function optionalString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined;
 }
+function optionalIdValue(value: unknown, field: string): Id | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  return idValue(value, field);
+}
+function booleanField(value: unknown, field: string): boolean {
+  if (typeof value !== "boolean")
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+  return value;
+}
+function integerRange(
+  value: unknown,
+  field: string,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isSafeInteger(parsed) || parsed < minimum || parsed > maximum)
+    throw new AppError(422, "VALIDATION_FAILED", `${field} tidak valid.`);
+  return parsed;
+}
 function optionalId(value: string | undefined): Id | undefined {
   return value && /^\d+$/u.test(value) ? (value as Id) : undefined;
 }
@@ -2426,6 +2693,7 @@ function mapQuestionDraft(draft: {
   readonly publishedAt: unknown;
   readonly createdAt: unknown;
   readonly updatedAt: unknown;
+  readonly media?: readonly MediaRelation[];
 }) {
   return {
     id: String(draft.id),
@@ -2456,10 +2724,55 @@ function mapQuestionDraft(draft: {
       statementHtml: statement.statementHtml,
       correctValue: statement.correctValue,
     })),
+    media: (draft.media ?? []).map(mapMediaRelation),
     contentHash: Buffer.from(draft.contentHash).toString("hex"),
     publishedAt: draft.publishedAt,
     createdAt: draft.createdAt,
     updatedAt: draft.updatedAt,
+  };
+}
+
+function mapMediaAsset(asset: MediaAsset) {
+  return {
+    id: String(asset.id),
+    originalName: asset.originalName,
+    mimeType: asset.mimeType,
+    byteSize: asset.byteSize,
+    width: asset.width,
+    height: asset.height,
+    status: asset.status,
+    url: `/api/v1/teacher/media/${String(asset.id)}/content`,
+  };
+}
+
+function mapMediaRelation(relation: MediaRelation) {
+  return {
+    placementKey: relation.placementKey,
+    mediaAssetId: String(relation.mediaAssetId),
+    usage: relation.usage,
+    ...(relation.questionOptionId === undefined
+      ? {}
+      : {
+          questionOptionId: relation.questionOptionId
+            ? String(relation.questionOptionId)
+            : null,
+        }),
+    ...(relation.trueFalseStatementId === undefined
+      ? {}
+      : {
+          trueFalseStatementId: relation.trueFalseStatementId
+            ? String(relation.trueFalseStatementId)
+            : null,
+        }),
+    ...(relation.sortOrder === undefined ? {} : { sortOrder: relation.sortOrder }),
+    url: `/api/v1/teacher/media/${String(relation.mediaAssetId)}/content`,
+    altText: relation.altText,
+    isDecorative: relation.isDecorative,
+    ...(relation.displayWidthPercent === undefined
+      ? {}
+      : { displayWidthPercent: relation.displayWidthPercent }),
+    ...(relation.alignment === undefined ? {} : { alignment: relation.alignment }),
+    ...(relation.updatedAt === undefined ? {} : { updatedAt: relation.updatedAt }),
   };
 }
 
@@ -2683,6 +2996,23 @@ function mapStaffError(error: unknown): Error {
       "REAUTH_REQUIRED",
       "Masuk ulang diperlukan untuk operasi ini.",
     );
+  if (error instanceof MediaValidationError)
+    return new AppError(422, error.code, error.message);
+  if (error instanceof MediaRelationValidationError)
+    return new AppError(422, error.code, error.message);
+  if (error instanceof MediaRelationImmutableError)
+    return new AppError(422, "MEDIA_IMMUTABLE", error.message);
+  if (error instanceof MediaRelationNotFoundError)
+    return new AppError(404, "NOT_FOUND", error.message);
+  if (
+    error instanceof MediaRelationConflictError ||
+    error instanceof MediaRelationVersionConflictError
+  )
+    return new AppError(409, "VERSION_CONFLICT", error.message);
+  if (error instanceof MediaAssetReferencedError)
+    return new AppError(409, "MEDIA_REFERENCED", error.message);
+  if (error instanceof MediaPublishedReferenceError)
+    return new AppError(409, "MEDIA_PUBLISHED_REFERENCE", error.message);
   if (error instanceof ExportNotFoundError)
     return new AppError(404, "NOT_FOUND", "Export tidak ditemukan.");
   if (error instanceof ExportActiveError)

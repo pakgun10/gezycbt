@@ -12,6 +12,7 @@ import {
   normalizeDatabaseError,
 } from "@gezycbt/database";
 import type { ParticipantQuestionMedia } from "../questions/participant-presenter";
+import { sanitizeRichContent } from "../questions/rich-content";
 import type { ScheduleIdentityField } from "../schedules/domain";
 import { normalizeIdentitySnapshot } from "../schedules/identity";
 import { type ScoringQuestionSnapshot, ScoringService } from "../scoring";
@@ -1314,33 +1315,71 @@ async function readQuestionSource(
     "SELECT id, position, statement_html, correct_value FROM true_false_statements WHERE question_revision_id = ? ORDER BY position",
     [revisionId],
   );
-  const media = await connection.query<Row>(
-    "SELECT qrm.media_asset_id, qrm.`usage`, qrm.alt_text, qrm.is_decorative FROM question_revision_media qrm JOIN media_assets ma ON ma.id = qrm.media_asset_id WHERE qrm.question_revision_id = ? AND ma.status = 'READY' ORDER BY qrm.media_asset_id",
+  const placements = await connection.query<Row>(
+    "SELECT p.placement_key, p.media_asset_id, p.`usage`, p.question_option_id, p.true_false_statement_id, p.sort_order, p.alt_text, p.is_decorative, p.display_width_percent, p.alignment FROM question_media_placements p JOIN media_assets ma ON ma.id = p.media_asset_id WHERE p.question_revision_id = ? AND ma.status = 'READY' ORDER BY p.`usage`, p.sort_order, p.id",
     [revisionId],
+  );
+  const media =
+    placements.length > 0
+      ? placements
+      : await connection.query<Row>(
+          "SELECT qrm.media_asset_id, qrm.`usage`, qrm.alt_text, qrm.is_decorative FROM question_revision_media qrm JOIN media_assets ma ON ma.id = qrm.media_asset_id WHERE qrm.question_revision_id = ? AND ma.status = 'READY' ORDER BY qrm.media_asset_id",
+          [revisionId],
+        );
+  const participantMedia = media.filter(
+    (item) =>
+      item.usage === "STIMULUS" ||
+      item.usage === "PROMPT" ||
+      item.usage === "OPTION" ||
+      item.usage === "STATEMENT",
   );
   return {
     questionId: dbId(row.question_id),
     questionRevisionId: dbId(row.id),
     type: String(row.type) as RuntimeQuestionSource["type"],
-    stimulusHtml: String(row.stimulus_html),
-    promptHtml: row.prompt_html === null ? null : String(row.prompt_html),
+    stimulusHtml: sanitizeRichContent(String(row.stimulus_html), 100_000),
+    promptHtml:
+      row.prompt_html === null
+        ? null
+        : sanitizeRichContent(String(row.prompt_html), 100_000),
     options: options.map((item) => ({
       id: dbId(item.id),
       position: Number(item.position),
-      contentHtml: String(item.content_html),
+      contentHtml: sanitizeRichContent(String(item.content_html), 20_000),
       isCorrect: databaseBoolean(item.is_correct),
     })),
     statements: statements.map((item) => ({
       id: dbId(item.id),
       position: Number(item.position),
-      statementHtml: String(item.statement_html),
+      statementHtml: sanitizeRichContent(
+        String(item.statement_html),
+        20_000,
+      ),
       correctValue: databaseBoolean(item.correct_value),
     })),
-    media: media.map((item) => ({
+    media: participantMedia.map((item) => ({
+      ...(item.placement_key === undefined
+        ? {}
+        : { placementKey: String(item.placement_key) }),
       usage: String(item.usage) as ParticipantQuestionMedia["usage"],
+      ...(item.question_option_id === undefined
+        ? {}
+        : { questionOptionId: item.question_option_id == null ? null : dbId(item.question_option_id) }),
+      ...(item.true_false_statement_id === undefined
+        ? {}
+        : { trueFalseStatementId: item.true_false_statement_id == null ? null : dbId(item.true_false_statement_id) }),
+      ...(item.sort_order === undefined ? {} : { sortOrder: Number(item.sort_order) }),
       url: `/api/v1/participant/media/${dbId(item.media_asset_id)}`,
       altText: item.alt_text == null ? null : String(item.alt_text),
       isDecorative: databaseBoolean(item.is_decorative),
+      ...(item.display_width_percent === undefined
+        ? {}
+        : { displayWidthPercent: Number(item.display_width_percent) }),
+      ...(item.alignment === "LEFT" ||
+      item.alignment === "CENTER" ||
+      item.alignment === "RIGHT"
+        ? { alignment: item.alignment }
+        : {}),
     })),
   };
 }

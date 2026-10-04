@@ -1,5 +1,8 @@
 import type { Id } from "@gezycbt/contracts";
-import type { MediaUsage } from "../media/relation-domain";
+import type {
+  MediaAlignment,
+  MediaUsage,
+} from "../media/relation-domain";
 import type { QuestionDraft } from "./domain";
 
 export interface ParticipantQuestionOption {
@@ -16,10 +19,16 @@ export interface ParticipantTrueFalseStatement {
 
 /** Safe media fields; storage keys, hashes, and original filenames stay server-side. */
 export interface ParticipantQuestionMedia {
+  readonly placementKey?: string;
   readonly usage: MediaUsage;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
   readonly url: string;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignment;
 }
 
 /** Participant contract intentionally has no answer key or authoring metadata. */
@@ -93,12 +102,32 @@ export function presentParticipantQuestion(
       position: statement.position,
       statementHtml: statement.statementHtml,
     })),
-    media: media.map((item) => ({
+    media: media
+      .filter(
+        (item) =>
+          item.usage === "STIMULUS" ||
+          item.usage === "PROMPT" ||
+          item.usage === "OPTION" ||
+          item.usage === "STATEMENT",
+      )
+      .map((item) => ({
+      ...(item.placementKey ? { placementKey: item.placementKey } : {}),
       usage: item.usage,
+      ...(item.questionOptionId === undefined
+        ? {}
+        : { questionOptionId: item.questionOptionId }),
+      ...(item.trueFalseStatementId === undefined
+        ? {}
+        : { trueFalseStatementId: item.trueFalseStatementId }),
+      ...(item.sortOrder === undefined ? {} : { sortOrder: item.sortOrder }),
       url: item.url,
       altText: item.altText,
       isDecorative: item.isDecorative,
-    })),
+      ...(item.displayWidthPercent === undefined
+        ? {}
+        : { displayWidthPercent: item.displayWidthPercent }),
+      ...(item.alignment === undefined ? {} : { alignment: item.alignment }),
+      })),
   };
 }
 

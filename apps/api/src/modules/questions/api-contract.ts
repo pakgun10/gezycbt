@@ -11,6 +11,11 @@ const UTC_TIMESTAMP_PATTERN =
 const HEX_SHA256_PATTERN = "^[0-9a-f]{64}$";
 
 const idSchema = t.String({ pattern: ID_PATTERN, minLength: 1, maxLength: 20 });
+const placementKeySchema = t.String({
+  pattern: "^[A-Za-z0-9_-]{8,128}$",
+  minLength: 8,
+  maxLength: 128,
+});
 const utcTimestampSchema = t.String({
   pattern: UTC_TIMESTAMP_PATTERN,
   minLength: 24,
@@ -44,6 +49,11 @@ const mediaUsageSchema = t.Union([
   t.Literal("EXPLANATION"),
   t.Literal("OPTION"),
   t.Literal("STATEMENT"),
+]);
+const mediaAlignmentSchema = t.Union([
+  t.Literal("LEFT"),
+  t.Literal("CENTER"),
+  t.Literal("RIGHT"),
 ]);
 
 const questionBankSummarySchema = t.Object(
@@ -199,7 +209,11 @@ const revisionIdParamsSchema = t.Object(
   { additionalProperties: false },
 );
 const revisionMediaParamsSchema = t.Object(
-  { id: idSchema, mediaId: idSchema },
+  { id: idSchema, mediaId: t.Union([idSchema, placementKeySchema]) },
+  { additionalProperties: false },
+);
+const mediaAssetParamsSchema = t.Object(
+  { id: idSchema },
   { additionalProperties: false },
 );
 
@@ -239,11 +253,18 @@ const trueFalseStatementResourceSchema = t.Object(
 );
 const questionMediaResourceSchema = t.Object(
   {
+    placementKey: t.Optional(t.String({ minLength: 8, maxLength: 128 })),
     mediaAssetId: idSchema,
     usage: mediaUsageSchema,
-    url: t.String({ format: "uri", maxLength: 2_048 }),
+    questionOptionId: t.Optional(t.Union([t.Null(), idSchema])),
+    trueFalseStatementId: t.Optional(t.Union([t.Null(), idSchema])),
+    sortOrder: t.Optional(t.Integer({ minimum: 0, maximum: 100 })),
+    url: t.String({ format: "uri-reference", maxLength: 2_048 }),
     altText: t.Union([t.Null(), t.String({ maxLength: 500 })]),
     isDecorative: t.Boolean(),
+    displayWidthPercent: t.Optional(t.Integer({ minimum: 10, maximum: 100 })),
+    alignment: t.Optional(mediaAlignmentSchema),
+    updatedAt: t.Optional(utcTimestampSchema),
   },
   { additionalProperties: false, $id: "QuestionMedia" },
 );
@@ -313,6 +334,7 @@ const mediaAssetResourceSchema = t.Object(
     width: t.Integer({ minimum: 1, maximum: 2_500 }),
     height: t.Integer({ minimum: 1, maximum: 2_500 }),
     status: t.Union([t.Literal("READY"), t.Literal("DELETED")]),
+    url: t.String({ format: "uri-reference", maxLength: 2_048 }),
   },
   { additionalProperties: false, $id: "MediaAsset" },
 );
@@ -335,10 +357,16 @@ const participantStatementSchema = t.Object(
 );
 const participantMediaSchema = t.Object(
   {
+    placementKey: t.Optional(t.String({ minLength: 8, maxLength: 128 })),
     usage: mediaUsageSchema,
-    url: t.String({ format: "uri", maxLength: 2_048 }),
+    questionOptionId: t.Optional(t.Union([t.Null(), idSchema])),
+    trueFalseStatementId: t.Optional(t.Union([t.Null(), idSchema])),
+    sortOrder: t.Optional(t.Integer({ minimum: 0, maximum: 100 })),
+    url: t.String({ format: "uri-reference", maxLength: 2_048 }),
     altText: t.Union([t.Null(), t.String({ maxLength: 500 })]),
     isDecorative: t.Boolean(),
+    displayWidthPercent: t.Optional(t.Integer({ minimum: 10, maximum: 100 })),
+    alignment: t.Optional(mediaAlignmentSchema),
   },
   { additionalProperties: false },
 );
@@ -375,8 +403,15 @@ const attachMediaBodySchema = t.Object(
   {
     mediaAssetId: idSchema,
     usage: mediaUsageSchema,
+    placementKey: t.Optional(t.String({ minLength: 8, maxLength: 128 })),
+    questionOptionId: t.Optional(t.Union([t.Null(), idSchema])),
+    trueFalseStatementId: t.Optional(t.Union([t.Null(), idSchema])),
+    sortOrder: t.Optional(t.Integer({ minimum: 0, maximum: 100 })),
     altText: t.Union([t.Null(), t.String({ maxLength: 500 })]),
     isDecorative: t.Boolean(),
+    displayWidthPercent: t.Optional(t.Integer({ minimum: 10, maximum: 100 })),
+    alignment: t.Optional(mediaAlignmentSchema),
+    expectedUpdatedAt: utcTimestampSchema,
   },
   { additionalProperties: false },
 );
@@ -387,6 +422,35 @@ const mediaUploadBodySchema = t.Object(
       type: ["image/jpeg", "image/png", "image/webp"],
     }),
     originalName: t.Optional(t.String({ minLength: 1, maxLength: 255 })),
+  },
+  { additionalProperties: false },
+);
+const mediaListQuerySchema = t.Object(
+  { status: t.Optional(t.Literal("ORPHAN")) },
+  { additionalProperties: false },
+);
+const mediaAssetListSchema = t.Object(
+  { items: t.Array(mediaAssetResourceSchema, { maxItems: 100 }) },
+  { additionalProperties: false, $id: "MediaAssetList" },
+);
+const mediaDeleteResponseSchema = t.Object(
+  { mediaAssetId: idSchema, deleted: t.Boolean() },
+  { additionalProperties: false, $id: "MediaDeleteResponse" },
+);
+const mediaDetachResponseSchema = t.Object(
+  { mediaId: t.String({ minLength: 1, maxLength: 128 }), deleted: t.Boolean() },
+  { additionalProperties: false, $id: "MediaDetachResponse" },
+);
+const updateMediaBodySchema = t.Object(
+  {
+    altText: t.Optional(t.Union([t.Null(), t.String({ maxLength: 500 })])),
+    isDecorative: t.Optional(t.Boolean()),
+    questionOptionId: t.Optional(t.Union([t.Null(), idSchema])),
+    trueFalseStatementId: t.Optional(t.Union([t.Null(), idSchema])),
+    sortOrder: t.Optional(t.Integer({ minimum: 0, maximum: 100 })),
+    displayWidthPercent: t.Optional(t.Integer({ minimum: 10, maximum: 100 })),
+    alignment: t.Optional(mediaAlignmentSchema),
+    expectedUpdatedAt: utcTimestampSchema,
   },
   { additionalProperties: false },
 );
@@ -476,6 +540,7 @@ export const questionApiSchemas = {
   questionRevisionPage: questionRevisionPageSchema,
   readinessReport: readinessReportSchema,
   mediaAsset: mediaAssetResourceSchema,
+  mediaAssetList: mediaAssetListSchema,
   questionMedia: questionMediaResourceSchema,
   participantQuestion: participantQuestionResourceSchema,
   questionImportPreview: questionImportPreviewSchema,
@@ -486,6 +551,10 @@ export const questionApiSchemas = {
   questionRevisionResponse: success(questionRevisionResourceSchema),
   readinessResponse: success(readinessReportSchema),
   mediaAssetResponse: success(mediaAssetResourceSchema),
+  mediaAssetListResponse: success(mediaAssetListSchema),
+  mediaContentResponse: t.Any(),
+  mediaDeleteResponse: success(mediaDeleteResponseSchema),
+  mediaDetachResponse: success(mediaDetachResponseSchema),
   questionMediaResponse: success(questionMediaResourceSchema),
   questionImportPreviewResponse: success(questionImportPreviewSchema),
   questionImportCommitResponse: success(questionImportCommitResultSchema),
@@ -511,6 +580,7 @@ export interface QuestionApiRouteContract {
     readonly status: 200 | 201 | 204;
     readonly schemaName?: QuestionApiSchemaName;
     readonly schema?: TSchema;
+    readonly contentType?: string;
   };
 }
 
@@ -717,6 +787,31 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     },
   },
   {
+    method: "GET",
+    path: "/api/v1/teacher/media",
+    operationId: "listQuestionMedia",
+    summary: "Daftar asset media orphan milik guru",
+    request: { query: mediaListQuerySchema },
+    response: {
+      status: 200,
+      schemaName: "mediaAssetListResponse",
+      schema: success(mediaAssetListSchema),
+    },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/teacher/media/:id/content",
+    operationId: "getQuestionMediaContent",
+    summary: "Preview binary asset setelah ownership check",
+    request: { params: mediaAssetParamsSchema },
+    response: {
+      status: 200,
+      schemaName: "mediaContentResponse",
+      schema: t.Any(),
+      contentType: "application/octet-stream",
+    },
+  },
+  {
     method: "POST",
     path: "/api/v1/teacher/media",
     operationId: "uploadQuestionMedia",
@@ -734,10 +829,14 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     operationId: "deleteQuestionMedia",
     summary: "Hapus asset yang orphan atau hanya direferensikan draft",
     request: {
-      params: revisionIdParamsSchema,
+      params: mediaAssetParamsSchema,
       headers: teacherMutationHeaders,
     },
-    response: { status: 204 },
+    response: {
+      status: 200,
+      schemaName: "mediaDeleteResponse",
+      schema: success(mediaDeleteResponseSchema),
+    },
   },
   {
     method: "POST",
@@ -763,8 +862,32 @@ export const questionApiRoutes: readonly QuestionApiRouteContract[] = [
     request: {
       params: revisionMediaParamsSchema,
       headers: teacherMutationHeaders,
+      body: t.Object(
+        { expectedUpdatedAt: utcTimestampSchema },
+        { additionalProperties: false },
+      ),
     },
-    response: { status: 204 },
+    response: {
+      status: 200,
+      schemaName: "mediaDetachResponse",
+      schema: success(mediaDetachResponseSchema),
+    },
+  },
+  {
+    method: "PATCH",
+    path: "/api/v1/teacher/question-revisions/:id/media/:mediaId",
+    operationId: "updateQuestionMedia",
+    summary: "Ubah target, alt, urutan, ukuran, atau alignment media",
+    request: {
+      params: revisionMediaParamsSchema,
+      headers: teacherMutationHeaders,
+      body: updateMediaBodySchema,
+    },
+    response: {
+      status: 200,
+      schemaName: "questionMediaResponse",
+      schema: success(questionMediaResourceSchema),
+    },
   },
 ] as const;
 
@@ -845,5 +968,9 @@ export const questionApiOpenApiSchemas: Readonly<Record<string, TSchema>> = {
   QuestionReadinessIssue: readinessIssueSchema,
   QuestionReadinessReport: readinessReportSchema,
   MediaAsset: mediaAssetResourceSchema,
+  MediaAssetList: mediaAssetListSchema,
+  MediaContentResponse: t.Any(),
+  MediaDeleteResponse: mediaDeleteResponseSchema,
+  MediaDetachResponse: mediaDetachResponseSchema,
   ParticipantQuestion: participantQuestionResourceSchema,
 };

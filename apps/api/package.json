@@ -7,6 +7,7 @@
     "dev": "bun --watch src/index.ts",
     "start": "bun src/index.ts",
     "db:migrate": "bun src/cli/migrate.ts",
+    "db:rebuild-question-hashes": "bun src/cli/rebuild-question-hashes.ts",
     "bootstrap:admin": "bun src/cli/bootstrap-admin.ts",
     "job:export": "bun src/cli/jobs.ts export",
     "job:finalize": "bun src/cli/jobs.ts finalize",
@@ -21,7 +22,14 @@
     "@gezycbt/config": "workspace:*",
     "@gezycbt/contracts": "workspace:*",
     "@gezycbt/database": "workspace:*",
-    "elysia": "1.4.30"
+    "elysia": "1.4.30",
+    "katex": "^0.19.0",
+    "sanitize-html": "^2.18.0"
   },
-  "devDependencies": { "@biomejs/biome": "2.3.10", "@types/bun": "1.4.2", "typescript": "5.9.3" }
+  "devDependencies": {
+    "@biomejs/biome": "2.3.10",
+    "@types/bun": "1.4.2",
+    "@types/sanitize-html": "^2.16.2",
+    "typescript": "5.9.3"
+  }
 }

@@ -8,4 +8,5 @@ export * from "./question-authoring";
 export * from "./repository";
 export * from "./result-reads";
 export * from "./routes";
+export * from "./schedule-authoring";
 export * from "./service";

@@ -1,14 +1,16 @@
 # Product Requirements Document — GezyCBT
 
-**Status:** Baseline produk disetujui untuk memulai development; belum diimplementasikan  
-**Versi dokumen:** 0.1  
-**Terakhir diperbarui:** 16 September 2026  
+**Status:** Baseline produk aktif; product delta rich content, LaTeX, dan media soal siap diimplementasikan
+**Versi dokumen:** 0.2
+**Terakhir diperbarui:** 4 Oktober 2026
 **Pemilik produk:** Pemilik deployment GezyCBT  
 **Target deployment:** Satu sekolah, satu deployment, satu database  
 **Target kapasitas:** Hingga 1.000 peserta aktif bersamaan  
-**Dokumen terkait:** [Arsitektur](./01-architecture.md), [Integrasi External AI Agent](./02-bot-automation.md), [UI/UX](./03-ui-ux.md)
+**Dokumen terkait:** [Arsitektur](./01-architecture.md), [Integrasi External AI Agent](./02-bot-automation.md), [UI/UX](./03-ui-ux.md), [Rencana Rich Content/LaTeX/Media](./15-question-rich-content-implementation-plan.md)
 
 **Baseline review:** `ISS-001` selesai pada 16 September 2026. Dokumen ini menjadi baseline produk v0.1 untuk Fase 0 dan Fase 1.
+
+**Product delta v0.2:** kebutuhan rich content terbatas, LaTeX, gambar target-aware, resize, alt text, pratinjau, authorized delivery, dan orphan cleanup ditetapkan pada 4 Oktober 2026. Implementasi dilacak melalui `ISS-176–ISS-186` dan wajib selesai sebelum pilot nyata yang memakai formula atau gambar soal.
 
 ### Status baseline
 
@@ -430,6 +432,8 @@ Setiap requirement memiliki prioritas:
 | FR-QB-009 | Must | Participant payload tidak pernah memuat answer key atau explanation. |
 | FR-QB-010 | Must | Stimulus opsional pada seluruh tipe soal; bila dipakai dapat memuat teks panjang, gambar, atau keduanya dalam urutan yang ditentukan guru. |
 | FR-QB-011 | Must | Setiap opsi pilihan dan pernyataan Benar/Salah dapat memuat teks panjang serta gambar yang terikat tepat pada item dan posisi sisipnya. |
+| FR-QB-012 | Must | Guru dapat membuka pratinjau draft yang memakai renderer, urutan konten, ukuran media, dan aturan responsive yang sama dengan halaman peserta. |
+| FR-QB-013 | Must | Perubahan rich content atau media pada draft memakai optimistic version dan ikut membentuk hash revision; seluruh bagian published revision tetap immutable. |
 
 ### 9.5 Tipe soal dan scoring
 
@@ -460,6 +464,22 @@ Aturan produk:
 | FR-MED-006 | Must | Media tidak disimpan sebagai base64 di payload soal. |
 | FR-MED-007 | Must | Gambar dapat ditempelkan pada stimulus, prompt, penjelasan, opsi tertentu, atau pernyataan tertentu; participant payload mempertahankan target dan urutan sisipnya di antara teks. |
 | FR-MED-008 | Must | Import CSV membawa teks saja. Gambar tidak menerima URL eksternal, placeholder media, atau base64 dan ditempelkan ke draft melalui editor sesudah import. |
+| FR-MED-009 | Must | Guru dapat mengubah ukuran tampil gambar dengan aspect ratio tetap; ukuran disimpan sebagai metadata responsive dan tidak mengubah binary asli. |
+| FR-MED-010 | Must | Guru dapat mengganti atau melepas gambar dari draft, melihat asset orphan miliknya, dan menghapus asset yang tidak mempunyai reference. |
+| FR-MED-011 | Must | Media peserta hanya dapat dilayani setelah server membuktikan bahwa asset direferensikan question revision dalam session yang dapat diakses actor atau practice credential tersebut. |
+| FR-MED-012 | Must | Satu question revision mempunyai maksimal tiga placement media pada baseline production. |
+| FR-MED-013 | Must | Housekeeping membersihkan orphan media secara bounded setelah retensi tujuh hari dan tidak pernah menghapus asset yang direferensikan draft atau published revision. |
+
+### 9.6A Rich text dan matematika
+
+| ID | Prioritas | Requirement |
+|---|---|---|
+| FR-MATH-001 | Must | Stimulus, prompt, penjelasan, opsi, dan pernyataan mendukung formula LaTeX inline dan block. |
+| FR-MATH-002 | Must | Sistem menyimpan source LaTeX canonical, bukan HTML hasil render, agar konten dapat divalidasi dan dirender ulang secara deterministik. |
+| FR-MATH-003 | Must | Formula invalid menghasilkan readiness error dengan field path yang tepat dan memblokir publish tanpa menghalangi penyimpanan draft. |
+| FR-MATH-004 | Must | Renderer matematika menonaktifkan trusted commands, macro buatan pengguna, arbitrary URL/HTML, dan membatasi expansion serta ukuran render. |
+| FR-MATH-005 | Must | Rich text disanitasi server-side melalui allowlist yang sama untuk web editor, CSV import, integration agent, preview, dan participant presentation. |
+| FR-MATH-006 | Must | Toolbar baseline menyediakan undo/redo, emphasis, list, subscript, superscript, inline math, block math, upload gambar, serta hapus format; paste tidak boleh menyimpan style, script, external image, atau base64 image. |
 
 ### 9.7 Exam authoring
 
@@ -873,6 +893,9 @@ Save state yang terlihat: Tersimpan, Belum tersimpan, Menyimpan, Offline—tersi
 - status tidak bergantung pada warna;
 - timer tidak diumumkan setiap detik;
 - offline dan threshold waktu diumumkan satu kali serta di-dedup;
+- gambar informatif mempunyai alt text yang bermakna, gambar dekoratif memakai alt kosong, dan alt text tidak otomatis diulang sebagai caption visual;
+- formula mempunyai fallback source yang dapat dibaca ketika render gagal dan kegagalan satu formula tidak menjatuhkan seluruh renderer soal;
+- resize gambar dapat dilakukan dengan keyboard atau melalui kontrol ukuran bernilai, tidak hanya drag handle;
 - reduced motion dan zoom 200% tidak menghilangkan fungsi.
 
 ### 12.6 Error boundary
@@ -905,6 +928,7 @@ Save state yang terlihat: Tersimpan, Belum tersimpan, Menyimpan, Offline—tersi
 | NFR-REL-004 | Setiap final session mempunyai maksimal satu result. |
 | NFR-REL-005 | Seluruh race kritis diuji dengan minimal dua database connection nyata. |
 | NFR-REL-006 | Background job idempotent dan tidak menjadi sumber correctness tunggal. |
+| NFR-REL-007 | Hash question revision meliputi sanitized content serta media placement canonical dan berubah pada attach, detach, alt, target, order, resize, atau alignment. |
 
 ### 13.2 Performance dan capacity
 
@@ -917,6 +941,7 @@ Save state yang terlihat: Tersimpan, Belum tersimpan, Menyimpan, Offline—tersi
 | NFR-PERF-005 | Export streaming/job tidak membangun seluruh file di memory. |
 | NFR-PERF-006 | Bundle peserta tidak memuat editor, admin table, atau chart yang tidak diperlukan. |
 | NFR-PERF-007 | Tidak ada media base64 atau `ORDER BY RAND()` pada critical path. |
+| NFR-PERF-008 | Editor dan dependency authoring hanya dimuat pada route staff; participant bundle hanya memuat renderer rich content/KaTeX yang diperlukan. |
 
 ### 13.3 Security
 
@@ -926,11 +951,12 @@ Save state yang terlihat: Tersimpan, Belum tersimpan, Menyimpan, Offline—tersi
 | NFR-SEC-002 | Password memakai Argon2id dengan bounded concurrency. |
 | NFR-SEC-003 | Semua query memakai parameter binding dan sort/filter allowlist. |
 | NFR-SEC-004 | Semua resource read/write memeriksa role, ownership, dan scope. |
-| NFR-SEC-005 | Rich text disanitasi server-side dan dilindungi CSP. |
+| NFR-SEC-005 | Rich text disanitasi server-side sebelum persistence dengan allowlist aplikasi yang sama untuk web, CSV, dan agent, lalu dilindungi CSP. |
 | NFR-SEC-006 | Secret, token, answer, dan key tidak masuk log. |
 | NFR-SEC-007 | Media disimpan di luar public webroot dan dilayani setelah authorization. |
 | NFR-SEC-008 | Private API memakai `Cache-Control: no-store`, kecuali media private cache yang disengaja. |
 | NFR-SEC-009 | Negative leakage contract tests wajib tersedia. |
+| NFR-SEC-010 | HTML canonical tidak menerima arbitrary image URL, base64 image, script, style, event handler, iframe, embedded object, atau trusted LaTeX command. |
 
 ### 13.4 Maintainability
 
@@ -1126,6 +1152,36 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 **When** restore dilakukan ke server kosong,  
 **Then** database, media, migration state, dan smoke test tiga role berhasil dalam target RTO.
 
+### AC-19 — Rich content dan LaTeX aman
+
+**Given** guru, import CSV, atau integration agent mengirim rich text yang memuat formula serta markup berbahaya,
+**When** draft disimpan dan dipratinjau,
+**Then** source LaTeX aman dipertahankan, markup di luar allowlist dibuang atau ditolak, dan tidak ada script, external image, atau trusted command yang dijalankan.
+
+### AC-20 — Gambar pada soal dan opsi
+
+**Given** guru mengunggah gambar valid dan menyisipkannya pada stimulus atau opsi tertentu,
+**When** guru mengisi alt text, mengubah ukuran, menyimpan, mengurutkan opsi, membuka preview, lalu publish,
+**Then** gambar tetap berada pada target dan urutan yang benar, ukuran responsive bertahan setelah reload, participant melihat hasil yang sama, dan published revision tidak dapat diubah.
+
+### AC-21 — Authorized media delivery
+
+**Given** dua peserta mempunyai session dengan manifest berbeda,
+**When** satu peserta meminta media yang hanya direferensikan session peserta lain atau mencoba URL protected secara langsung,
+**Then** server menolak tanpa membocorkan storage key, sementara media session miliknya dapat dimuat melalui endpoint authorized.
+
+### AC-22 — Penghapusan media tidak terpakai
+
+**Given** upload tidak pernah di-attach atau seluruh placement draft telah dilepas,
+**When** guru menghapus asset orphan atau housekeeping menjalankan retention tujuh hari,
+**Then** metadata dan binary dibersihkan secara idempotent, sedangkan asset dengan reference draft atau published tetap utuh.
+
+### AC-23 — Preview parity
+
+**Given** draft memuat teks panjang, formula inline/block, serta gambar pada beberapa target,
+**When** guru berpindah antara preview ponsel, tablet, desktop, dan halaman participant staging,
+**Then** urutan konten, formula, ukuran/alignment gambar, wrapping, dan semantic answer controls konsisten.
+
 ---
 
 ## 17. Testing dan quality gates
@@ -1134,6 +1190,9 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 
 - lifecycle dan eligibility;
 - exact-match scorer tiga tipe;
+- rich-content sanitizer dan canonical serializer;
+- LaTeX validation, trusted-command rejection, expansion, dan size bounds;
+- media placement target, order, resize, alt/decorative, dan revision hash;
 - randomization deterministik;
 - deadline serta attempt policy;
 - role/ownership/scope;
@@ -1149,6 +1208,7 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - result release/unrelease;
 - media reference protection;
 - media stimulus/opsi/pernyataan tetap terkait target yang tepat pada revision immutable;
+- concurrent attach/update/publish, clone placement ke draft baru, dan orphan cleanup race;
 - auth/session expiry/revoke;
 - agent credential/grant/approval/export.
 
@@ -1156,6 +1216,8 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 
 - frontend/backend schema konsisten;
 - participant response bebas answer key dan internal fields;
+- participant media URL tidak membuka asset di luar manifest/session actor;
+- OpenAPI media route sama dengan route runtime aktual;
 - monitoring bebas raw answer/device fingerprint;
 - import error bebas credential;
 - practice result bebas correctness per soal;
@@ -1171,6 +1233,8 @@ Practice form hanya meminta identitas yang dibutuhkan. Nama yang sama tidak dian
 - extension, end session, close schedule, reset attempt;
 - light/dark/system;
 - stimulus kosong, stimulus teks panjang, serta gambar pada stimulus/opsi/pernyataan;
+- LaTeX inline/block, preview parity, resize responsive, alt/decorative, dan orphan management;
+- payload XSS dari web, CSV, serta agent dan media IDOR lintas session;
 - mobile/tablet/desktop;
 - keyboard dan screen-reader smoke test.
 
@@ -1222,6 +1286,10 @@ Rilis tidak boleh dilanjutkan bila terdapat:
 | Key bocor | Integritas ujian rusak | DTO terpisah dan negative contract test |
 | Report/export berat | Autosave lambat | Resource priority, pagination, worker concurrency kecil |
 | Media berbahaya | XSS/storage abuse | Magic bytes, allowlist, size/dimension limit, private storage |
+| Rich text berbahaya | Stored XSS atau resource exfiltration pada halaman peserta | Server-side allowlist sebelum persistence, CSP, no external image, security corpus |
+| LaTeX berbahaya atau terlalu kompleks | External request, layout abuse, atau browser freeze | `trust=false`, macro tetap, expansion/size/source bounds, render isolation |
+| Media salah target setelah reorder/revision clone | Soal atau opsi menampilkan diagram yang keliru | Stable placement key, child ownership constraint, canonical hash, migration/integration test |
+| Orphan media menumpuk | Disk VPS penuh | Orphan inventory, disk guard, retention tujuh hari, bounded housekeeping |
 | RAM 2 GB habis | Restart/OOM | Pool kecil, bounded queue, memory budget, soak test |
 | Disk lambat/penuh | Transaction gagal | SSD/NVMe, alert, reject upload/export lebih dahulu |
 | Backup tidak dapat direstore | Kehilangan data | Automated verification dan restore drill |
@@ -1316,6 +1384,10 @@ Jika ditemukan perbedaan:
 | Capability | Izin use case spesifik yang dapat diberikan ke integration client |
 | Exact action plan | Snapshot immutable tindakan agent yang akan dikonfirmasi |
 | Stable ID | ID resource yang dipakai mutation agar tidak mengandalkan nama ambigu |
+| Rich content canonical | HTML terbatas yang telah disanitasi, dinormalisasi, dan hanya memuat node/atribut allowlist aplikasi |
+| Media placement | Relasi gambar ke revision, target field/child, posisi sisip, alt/decorative, ukuran, dan alignment |
+| Orphan media | Asset READY yang tidak mempunyai media placement aktif |
+| LaTeX source | Notasi formula yang disimpan dan divalidasi sebelum dirender oleh KaTeX |
 
 ---
 

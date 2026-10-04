@@ -1,8 +1,8 @@
 # Integrasi External AI Agent dengan GezyCBT
 
-**Status:** ISS-120–ISS-132 selesai pada baseline machine integration; adapter runtime Hivekeep/Hermes tetap mengikuti external compatibility spike sebelum pilot
-**Versi dokumen:** 0.8
-**Terakhir diperbarui:** 18 September 2026
+**Status:** Baseline machine integration dan adapter Hivekeep untuk pembuatan kuis PRACTICE tersedia; adapter runtime tetap mengikuti external compatibility spike sebelum pilot
+**Versi dokumen:** 0.9
+**Terakhir diperbarui:** 2 Oktober 2026
 **Platform yang dipertimbangkan:** Hivekeep atau Hermes Agent  
 **Dokumen induk:** [01-architecture.md](./01-architecture.md)
 
@@ -387,6 +387,8 @@ Tool yang dilarang:
 
 **Results:** get_schedule_summary, list_schedule_results, list_practice_results, get_participant_result, request_result_export, get_export_status, create_export_download_link.
 
+**Schedule authoring:** create_practice_quiz, search_question_banks, create/update schedule draft, rotate practice token, prepare/open schedule.
+
 **High risk:** prepare_result_release, prepare_schedule_close, prepare_session_time_extension, prepare_session_end, prepare_attempt_reset, get_action_status, confirm_action.
 
 High-risk tools dapat tidak dipasang di toolbox agent hingga benar-benar dibutuhkan.
@@ -499,6 +501,32 @@ Tutup Jadwal, Perpanjang Waktu, Akhiri Sesi, reset attempt, atau release result 
 **Akhiri Sesi** hanya menargetkan satu session dan menghasilkan `finalization_reason=STAFF_END`. **Tutup Jadwal** menargetkan schedule serta session aktif di dalamnya dan menghasilkan `finalization_reason=SCHEDULE_CLOSE`. Agent tidak dapat mengirim atau menetapkan nilai finalization reason lain; server menentukannya dari use case. `finalization_note` berasal dari reason administratif tetapi tidak tersedia melalui Agent Integration API.
 
 Read model session/result dapat memuat safe enum `PARTICIPANT_SUBMIT`, `DEADLINE`, `STAFF_END`, `SCHEDULE_CLOSE`, atau `RESET_ATTEMPT`. Enum menjelaskan penyebab finalisasi dan tidak menyatakan bahwa hasil sudah dirilis.
+
+### 8.6 Membuat kuis latihan siap pakai
+
+Adapter Hivekeep menyediakan tool `create_practice_quiz` untuk permintaan seperti
+“buatkan kuis pilihan ganda dari soal ini, waktu 15 menit, lalu siap dipakai”.
+Tool menerima title, subject ID, question-bank ID, optional owner teacher ID,
+daftar soal dengan opsi dan kunci, durasi, serta token opsional. Ia menjalankan urutan berikut melalui
+Agent Integration API:
+
+1. Membuat dan mem-publish setiap question revision.
+2. Membuat exam draft, memasukkan published question revisions, lalu publish exam.
+3. Membuat schedule `PRACTICE` dengan identity field `name` dan
+   `IMMEDIATE_SCORE`.
+4. Memasang token lima karakter, memvalidasi readiness, dan membuka schedule.
+5. Mengembalikan schedule ID, URL, token, durasi, dan window waktu.
+
+Token practice harus tepat lima karakter dari alfabet
+`ABCDEFGHJKMNPQRSTUVWXYZ23456789`; huruf yang mudah tertukar seperti `I` tidak
+dipakai. Jika token tidak diberikan, GezyCBT menghasilkan token dan
+menampilkannya sekali pada response mutation.
+
+Tool memakai stable ID hasil discovery. Jika question bank belum diketahui,
+adapter memanggil `search_question_banks` dan tidak memilih otomatis ketika
+hasilnya ambigu. Credential disimpan sebagai secret pada vault Hivekeep.
+Partial failure mengembalikan phase dan stable ID resource yang telah dibuat
+agar operator dapat melanjutkan dari panel GezyCBT.
 
 Reset attempt mengikuti aturan web admin: session aktif difinalisasi dengan `RESET_ATTEMPT`, session yang sudah final tidak ditulis ulang, lalu server membuat tepat satu `exam_attempt_grant`. Grant dikonsumsi secara atomik oleh tepat satu replacement session. Agent tidak dapat membuat grant secara langsung atau membuat lebih dari satu grant belum terpakai untuk pasangan schedule/peserta.
 
@@ -697,7 +725,25 @@ POST /api/v1/integrations/agent/actions/:id/confirm
 POST /api/v1/integrations/agent/actions/:id/cancel
 ~~~
 
-### 11.5 Web management
+### 11.5 Schedule authoring
+
+~~~text
+GET   /api/v1/integrations/agent/schedules/:id
+POST  /api/v1/integrations/agent/schedules
+PATCH /api/v1/integrations/agent/schedules/:id
+POST  /api/v1/integrations/agent/schedules/:id/rotate-token
+POST  /api/v1/integrations/agent/schedules/:id/ready
+POST  /api/v1/integrations/agent/schedules/:id/open
+~~~
+
+Schedule create/update memakai capability `schedules.create` atau
+`schedules.update` dan `expectedUpdatedAt` untuk optimistic concurrency.
+Pemasangan token memakai `schedules.rotate_token`; plaintext hanya dikembalikan
+oleh mutation tersebut. Transisi READY/OPEN memakai `schedules.activate` dan
+menjalankan readiness serta window check yang sama dengan web staff route.
+Semua mutation memakai `Idempotency-Key`.
+
+### 11.6 Web management
 
 ~~~text
 GET/POST /api/v1/admin/integration-clients

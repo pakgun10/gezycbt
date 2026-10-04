@@ -58,6 +58,7 @@ export interface MediaStorage {
     mimeType: MediaMimeType,
   ): Promise<void>;
   remove(storageKey: string): Promise<void>;
+  readonly read?: (storageKey: string) => Promise<Uint8Array>;
 }
 
 export interface ImageDecoder {

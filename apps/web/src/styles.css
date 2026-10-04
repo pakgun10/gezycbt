@@ -1,3 +1,5 @@
+@import "katex/dist/katex.min.css";
+
 :root {
   font-family:
     system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -79,6 +81,127 @@ button {
   border: 1px solid transparent;
   border-radius: 8px;
   cursor: pointer;
+}
+.safe-question-content {
+  line-height: 1.65;
+}
+.safe-question-content > :first-child {
+  margin-top: 0;
+}
+.safe-question-content > :last-child {
+  margin-bottom: 0;
+}
+.safe-question-content .question-media {
+  max-width: 100%;
+  margin-top: 14px;
+  margin-bottom: 14px;
+}
+.safe-question-content .question-media img {
+  display: block;
+  max-width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  border-radius: 8px;
+}
+.safe-question-content .question-media[data-media-align="CENTER"] {
+  margin-right: auto;
+  margin-left: auto;
+}
+.safe-question-content .question-media figcaption {
+  color: var(--muted);
+  font-size: 0.875rem;
+  text-align: center;
+}
+.safe-question-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 0;
+}
+.media-manager {
+  display: grid;
+  gap: 12px;
+  margin: 18px 0;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.media-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+.media-form label {
+  display: grid;
+  gap: 5px;
+  font-size: 0.9rem;
+}
+.media-form input:not([type="checkbox"]),
+.media-form select {
+  min-height: 40px;
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 7px 9px;
+  color: var(--text);
+  background: var(--surface);
+}
+.media-form label.checkbox-label {
+  display: flex;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+}
+.media-attachments {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.media-attachment {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.media-attachment img {
+  width: 72px;
+  height: 60px;
+  object-fit: contain;
+  border-radius: 5px;
+  background: var(--canvas);
+}
+.media-attachment small {
+  display: block;
+  margin: 3px 0;
+}
+.preview-overlay {
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+.preview-card {
+  width: min(780px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  padding: 24px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.preview-options {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0;
+}
+.preview-option {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
 }
 button:focus-visible,
 a:focus-visible,

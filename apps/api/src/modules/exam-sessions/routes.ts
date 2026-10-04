@@ -20,6 +20,7 @@ import type {
   ExamSessionStartService,
   ExamSubmissionService,
 } from "./service";
+import type { ParticipantMediaAccess } from "../media/participant-serving";
 
 export interface ExamSessionRoutesOptions {
   readonly startService: Pick<
@@ -53,6 +54,18 @@ export interface ExamSessionRoutesOptions {
   }) => Promise<readonly ParticipantScheduleSummary[]>;
   readonly mainAccessCodeDigest: (code: string) => Promise<Uint8Array>;
   readonly practiceTokenDigest: (token: string) => Promise<Uint8Array>;
+  readonly participantMedia?: {
+    readonly authorize: (
+      mediaAssetId: Id,
+      access: ParticipantMediaAccess,
+    ) => Promise<{
+      readonly storageKey: string;
+      readonly mimeType: "image/jpeg" | "image/png" | "image/webp";
+      readonly internalRedirect: string;
+    } | null>;
+  };
+  readonly mediaRead?: (storageKey: string) => Promise<Uint8Array>;
+  readonly useInternalMediaRedirect?: boolean;
 }
 
 /** Participant runtime routes; authentication/session middleware is injected by the host. */
@@ -224,6 +237,49 @@ export function createExamSessionRoutes(options: ExamSessionRoutesOptions) {
               practiceCredential,
             ),
           };
+        } catch (error) {
+          throw mapError(error);
+        }
+      },
+    )
+    .get(
+      "/api/v1/participant/media/:id",
+      async ({ params, request, set }) => {
+        try {
+          if (!options.participantMedia)
+            throw new ExamSessionError(
+              "SERVICE_BUSY",
+              "Media peserta belum tersedia.",
+              503,
+            );
+          const raw = readPracticeCredential(request.headers.get("cookie"));
+          const practiceCredential = raw
+            ? await digestPracticeCredential(raw)
+            : undefined;
+          const context = await resolveParticipantContext(options, request);
+          const media = await options.participantMedia.authorize(
+            String((params as Record<string, unknown>).id) as Id,
+            {
+              ...(context.actor.userId
+                ? { participantId: context.actor.userId }
+                : {}),
+              ...(practiceCredential ? { practiceCredential } : {}),
+            },
+          );
+          if (!media)
+            throw new ExamSessionError(
+              "AUTHENTICATION_REQUIRED",
+              "Media tidak dapat dibuka.",
+              404,
+            );
+          set.headers["cache-control"] = "private, no-store";
+          set.headers["x-content-type-options"] = "nosniff";
+          set.headers["content-type"] = media.mimeType;
+          if (options.useInternalMediaRedirect || !options.mediaRead) {
+            set.headers["x-accel-redirect"] = media.internalRedirect;
+            return "";
+          }
+          return await options.mediaRead(media.storageKey);
         } catch (error) {
           throw mapError(error);
         }

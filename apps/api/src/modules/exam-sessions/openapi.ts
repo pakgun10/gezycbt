@@ -44,7 +44,18 @@ function buildPaths(routes: readonly ExamSessionApiRouteContract[]) {
       security: route.security ?? [{ participantCookie: [] }],
       parameters,
       responses: {
-        "200": { description: "Berhasil" },
+        "200": {
+          description: "Berhasil",
+          ...(route.response?.schema
+            ? {
+                content: {
+                  [route.response.contentType ?? "application/json"]: {
+                    schema: route.response.schema,
+                  },
+                },
+              }
+            : {}),
+        },
         "401": { description: "Authentication required" },
         "409": { description: "Runtime state conflict" },
         "422": { description: "Invalid answer shape" },

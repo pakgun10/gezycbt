@@ -7,6 +7,10 @@ import {
 } from "../modules/exam-sessions";
 import { ExportService } from "../modules/exports";
 import {
+  FileSystemMediaStorage,
+  SqlMediaRelationRepository,
+} from "../modules/media";
+import {
   ScheduleLifecycleReconciler,
   ScheduleService,
   SqlScheduleRepository,
@@ -75,7 +79,44 @@ export async function runJob(
         expiredSessions: expiredSessions.affectedRows,
       };
     });
-    return { job: name, ...result };
+    const mediaRoot =
+      Bun.env.GEZYCBT_MEDIA_ROOT ??
+      (Bun.env.APP_ENV === "production"
+        ? "/var/lib/gezycbt/media"
+        : ".data/media");
+    const mediaRepository = new SqlMediaRelationRepository(database);
+    const mediaStorage = new FileSystemMediaStorage(mediaRoot);
+    const olderThan = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .replace("Z", "") as UtcTimestamp;
+    const orphanAssets = (await mediaRepository.listOrphans({
+      olderThan,
+      limit: 100,
+    })) as readonly import("../modules/media").MediaAsset[];
+    let orphanMediaDeleted = 0;
+    let orphanMediaCleanupFailures = 0;
+    for (const asset of orphanAssets) {
+      try {
+        const deleted = await mediaRepository.deleteAsset(asset.id);
+        if (!deleted) continue;
+        try {
+          await mediaStorage.remove(deleted.storageKey);
+        } catch {
+          await mediaRepository.restoreAsset?.(deleted.id);
+          orphanMediaCleanupFailures += 1;
+          continue;
+        }
+        orphanMediaDeleted += 1;
+      } catch {
+        orphanMediaCleanupFailures += 1;
+      }
+    }
+    return {
+      job: name,
+      ...result,
+      orphanMediaDeleted,
+      orphanMediaCleanupFailures,
+    };
   } finally {
     await database.close();
   }

@@ -1,5 +1,16 @@
-import { formatId, type Id, parseId } from "@gezycbt/contracts";
+import {
+  formatId,
+  type Id,
+  parseId,
+  type UtcTimestamp,
+} from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
+import {
+  canonicalQuestionValue,
+  type CanonicalMediaHashEntry,
+} from "../questions/content-hash";
+import type { QuestionDraftContent } from "../questions/domain";
+import { sanitizeRichContent } from "../questions/rich-content";
 import type {
   MediaAsset,
   MediaAssetCreateInput,
@@ -7,6 +18,7 @@ import type {
 } from "./domain";
 import {
   type AttachMediaInput,
+  MEDIA_ALIGNMENTS,
   MEDIA_USAGES,
   MediaAssetReferencedError,
   MediaPublishedReferenceError,
@@ -20,7 +32,9 @@ import {
   validateMediaAttachment,
 } from "./relation-domain";
 
-type AssetRow = Record<string, unknown> & {
+type Row = Record<string, unknown>;
+
+type AssetRow = Row & {
   id: unknown;
   storage_key: unknown;
   original_name: unknown;
@@ -33,24 +47,33 @@ type AssetRow = Record<string, unknown> & {
   created_by: unknown;
 };
 
-type RevisionTargetRow = Record<string, unknown> & {
+type RevisionTargetRow = Row & {
   id: unknown;
   status: unknown;
   owner_teacher_id: unknown;
   subject_id: unknown;
   question_bank_id: unknown;
   question_bank_name: unknown;
+  updated_at?: unknown;
 };
 
-type RelationRow = Record<string, unknown> & {
+type RelationRow = Row & {
+  placement_key?: unknown;
   question_revision_id: unknown;
   media_asset_id: unknown;
   usage: unknown;
+  question_option_id?: unknown;
+  true_false_statement_id?: unknown;
+  sort_order?: unknown;
   alt_text: unknown;
   is_decorative: unknown;
+  display_width_percent?: unknown;
+  alignment?: unknown;
+  media_asset_status?: unknown;
+  updated_at?: unknown;
 };
 
-type ReferenceRow = Record<string, unknown> & {
+type ReferenceRow = Row & {
   question_revision_id: unknown;
   revision_status: unknown;
 };
@@ -94,8 +117,9 @@ export class SqlMediaRelationRepository
 
   async findRevisionTarget(id: Id): Promise<MediaRevisionTarget | null> {
     const rows = await this.database.query<RevisionTargetRow>(
-      `SELECT qr.id, qr.status, qb.owner_teacher_id, qb.subject_id,
-              qb.id AS question_bank_id, qb.name AS question_bank_name
+      `SELECT qr.id, qr.status, qr.updated_at, qb.owner_teacher_id,
+              qb.subject_id, qb.id AS question_bank_id,
+              qb.name AS question_bank_name
        FROM question_revisions qr
        JOIN questions q ON q.id = qr.question_id
        JOIN question_banks qb ON qb.id = q.question_bank_id
@@ -116,56 +140,111 @@ export class SqlMediaRelationRepository
   }
 
   async list(questionRevisionId: Id): Promise<readonly MediaRelation[]> {
-    const rows = await this.database.query<RelationRow>(
-      `SELECT question_revision_id, media_asset_id, \`usage\`, alt_text,
-              is_decorative
-       FROM question_revision_media
-       WHERE question_revision_id = ?
-       ORDER BY media_asset_id ASC`,
+    const placementRows = await this.database.query<RelationRow>(
+      `SELECT placement_key, question_revision_id, media_asset_id, \`usage\`,
+              question_option_id, true_false_statement_id, sort_order,
+              alt_text, is_decorative, display_width_percent, alignment,
+              updated_at, ma.status AS media_asset_status
+       FROM question_media_placements p
+       JOIN media_assets ma ON ma.id = p.media_asset_id
+       WHERE p.question_revision_id = ?
+       ORDER BY p.\`usage\`, p.sort_order, p.id`,
       [questionRevisionId],
     );
-    return rows.map(mapRelation);
+    if (placementRows.length > 0) return placementRows.map(mapRelation);
+    // Compatibility fallback is useful during a rolling deployment and for
+    // repositories created before migration 0022 was applied.
+    const legacyRows = await this.database.query<RelationRow>(
+      `SELECT qrm.question_revision_id, qrm.media_asset_id, qrm.\`usage\`,
+              qrm.alt_text, qrm.is_decorative, ma.status AS media_asset_status
+       FROM question_revision_media qrm
+       JOIN media_assets ma ON ma.id = qrm.media_asset_id
+       WHERE qrm.question_revision_id = ?
+       ORDER BY qrm.media_asset_id ASC`,
+      [questionRevisionId],
+    );
+    return legacyRows.map(mapLegacyRelation);
   }
 
   async attach(input: AttachMediaInput): Promise<MediaRelation> {
+    const normalized = validateMediaAttachment(input);
     return this.database.transaction(async (connection) => {
-      // Asset is always locked before the revision so attach/detach/delete use
-      // one lock order and do not introduce avoidable deadlocks.
-      const asset = await readAsset(connection, input.mediaAssetId, true);
+      // Asset and revision are always locked in this order. This serializes
+      // attach/detach/delete and makes the max-three rule race-safe.
+      const asset = await readAsset(connection, normalized.mediaAssetId, true);
       if (!asset || asset.status !== "READY")
         throw new MediaRelationNotFoundError("Media asset is not available");
       const revision = await readRevisionTarget(
         connection,
-        input.questionRevisionId,
+        normalized.questionRevisionId,
         true,
       );
       if (!revision) throw new MediaRelationNotFoundError();
       if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
+      if (
+        normalized.expectedUpdatedAt &&
+        revision.updatedAt !== normalized.expectedUpdatedAt
+      )
+        throw new MediaRelationConflictError();
+      await assertChildTarget(connection, normalized);
+      const countRows = await connection.query<{ total: unknown }>(
+        "SELECT COUNT(*) AS total FROM question_media_placements WHERE question_revision_id = ?",
+        [normalized.questionRevisionId],
+      );
+      if (Number(countRows[0]?.total ?? 0) >= 3)
+        throw new MediaRelationConflictError();
       const existing = await connection.query<RelationRow>(
-        `SELECT question_revision_id, media_asset_id, \`usage\`, alt_text,
-                is_decorative
-         FROM question_revision_media
-         WHERE question_revision_id = ? AND media_asset_id = ? LIMIT 1`,
-        [input.questionRevisionId, input.mediaAssetId],
+        `SELECT placement_key FROM question_media_placements
+         WHERE question_revision_id = ? AND placement_key = ? LIMIT 1`,
+        [normalized.questionRevisionId, normalized.placementKey],
       );
       if (existing[0]) throw new MediaRelationConflictError();
       await connection.execute(
-        `INSERT INTO question_revision_media
-           (question_revision_id, media_asset_id, \`usage\`, alt_text, is_decorative)
-         VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO question_media_placements
+           (placement_key, question_revision_id, media_asset_id, \`usage\`,
+            question_option_id, true_false_statement_id, sort_order, alt_text,
+            is_decorative, display_width_percent, alignment)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          input.questionRevisionId,
-          input.mediaAssetId,
-          input.usage,
-          input.altText,
-          input.isDecorative,
+          normalized.placementKey,
+          normalized.questionRevisionId,
+          normalized.mediaAssetId,
+          normalized.usage,
+          normalized.questionOptionId,
+          normalized.trueFalseStatementId,
+          normalized.sortOrder,
+          normalized.altText,
+          normalized.isDecorative,
+          normalized.displayWidthPercent,
+          normalized.alignment,
         ],
       );
-      return input;
+      // Keep the old relation table as a compatibility mirror for one asset
+      // per revision. New code reads placements first, so repeated use of one
+      // asset remains possible in the new table.
+      await connection.execute(
+        `INSERT INTO question_revision_media
+           (question_revision_id, media_asset_id, \`usage\`, alt_text, is_decorative)
+         VALUES (?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE alt_text = VALUES(alt_text),
+          is_decorative = VALUES(is_decorative), \`usage\` = VALUES(\`usage\`)`,
+        [
+          normalized.questionRevisionId,
+          normalized.mediaAssetId,
+          normalized.usage,
+          normalized.altText,
+          normalized.isDecorative,
+        ],
+      );
+      return normalized;
     });
   }
 
-  async detach(questionRevisionId: Id, mediaAssetId: Id): Promise<boolean> {
+  async detach(
+    questionRevisionId: Id,
+    mediaAssetId: Id,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<boolean> {
     return this.database.transaction(async (connection) => {
       const asset = await readAsset(connection, mediaAssetId, true);
       if (!asset) return false;
@@ -176,12 +255,241 @@ export class SqlMediaRelationRepository
       );
       if (!revision) throw new MediaRelationNotFoundError();
       if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
+      if (
+        expectedUpdatedAt &&
+        revision.updatedAt !== expectedUpdatedAt
+      )
+        throw new MediaRelationConflictError();
       const result = await connection.execute(
-        `DELETE FROM question_revision_media
+        `DELETE FROM question_media_placements
          WHERE question_revision_id = ? AND media_asset_id = ?`,
         [questionRevisionId, mediaAssetId],
       );
+      await removeLegacyMirrorIfUnused(connection, questionRevisionId, mediaAssetId);
       return result.affectedRows === 1;
+    });
+  }
+
+  async detachByPlacement(
+    questionRevisionId: Id,
+    placementKey: string,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<boolean> {
+    return this.database.transaction(async (connection) => {
+      const revision = await readRevisionTarget(
+        connection,
+        questionRevisionId,
+        true,
+      );
+      if (!revision) throw new MediaRelationNotFoundError();
+      if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
+      if (
+        expectedUpdatedAt &&
+        revision.updatedAt !== expectedUpdatedAt
+      )
+        throw new MediaRelationConflictError();
+      const rows = await connection.query<RelationRow>(
+        `SELECT media_asset_id FROM question_media_placements
+         WHERE question_revision_id = ? AND placement_key = ? FOR UPDATE`,
+        [questionRevisionId, placementKey],
+      );
+      if (!rows[0]) return false;
+      const result = await connection.execute(
+        `DELETE FROM question_media_placements
+         WHERE question_revision_id = ? AND placement_key = ?`,
+        [questionRevisionId, placementKey],
+      );
+      const mediaAssetId = parseDatabaseId(rows[0].media_asset_id);
+      if (mediaAssetId)
+        await removeLegacyMirrorIfUnused(connection, questionRevisionId, mediaAssetId);
+      return result.affectedRows === 1;
+    });
+  }
+
+  async update(input: {
+    readonly questionRevisionId: Id;
+    readonly placementKey: string;
+    readonly altText?: string | null;
+    readonly isDecorative?: boolean;
+    readonly questionOptionId?: Id | null;
+    readonly trueFalseStatementId?: Id | null;
+    readonly sortOrder?: number;
+    readonly displayWidthPercent?: number;
+    readonly alignment?: import("./relation-domain").MediaAlignment;
+    readonly expectedUpdatedAt?: UtcTimestamp;
+  }): Promise<MediaRelation | null> {
+    return this.database.transaction(async (connection) => {
+      const revision = await readRevisionTarget(
+        connection,
+        input.questionRevisionId,
+        true,
+      );
+      if (!revision) throw new MediaRelationNotFoundError();
+      if (revision.status !== "DRAFT") throw new MediaRelationImmutableError();
+      if (
+        input.expectedUpdatedAt &&
+        revision.updatedAt !== input.expectedUpdatedAt
+      )
+        throw new MediaRelationConflictError();
+      const rows = await connection.query<RelationRow>(
+        `SELECT placement_key, question_revision_id, media_asset_id, \`usage\`,
+                question_option_id, true_false_statement_id, sort_order,
+                alt_text, is_decorative, display_width_percent, alignment,
+                updated_at
+         FROM question_media_placements
+         WHERE question_revision_id = ? AND placement_key = ? FOR UPDATE`,
+        [input.questionRevisionId, input.placementKey],
+      );
+      if (!rows[0]) return null;
+      const current = mapRelation(rows[0]);
+      const next = validateMediaAttachment({
+        questionRevisionId: input.questionRevisionId,
+        mediaAssetId: current.mediaAssetId,
+        ...(current.placementKey
+          ? { placementKey: current.placementKey }
+          : {}),
+        usage: current.usage,
+        questionOptionId:
+          input.questionOptionId === undefined
+            ? current.questionOptionId ?? null
+            : input.questionOptionId,
+        trueFalseStatementId:
+          input.trueFalseStatementId === undefined
+            ? current.trueFalseStatementId ?? null
+            : input.trueFalseStatementId,
+        sortOrder: input.sortOrder ?? current.sortOrder ?? 0,
+        altText: input.altText === undefined ? current.altText : input.altText,
+        isDecorative:
+          input.isDecorative === undefined
+            ? current.isDecorative
+            : input.isDecorative,
+        displayWidthPercent:
+          input.displayWidthPercent ?? current.displayWidthPercent ?? 100,
+        alignment: input.alignment ?? current.alignment ?? "CENTER",
+      });
+      await assertChildTarget(connection, next);
+      await connection.execute(
+        `UPDATE question_media_placements
+         SET question_option_id = ?, true_false_statement_id = ?, sort_order = ?,
+             alt_text = ?, is_decorative = ?, display_width_percent = ?,
+             alignment = ?, updated_at = UTC_TIMESTAMP(6)
+         WHERE question_revision_id = ? AND placement_key = ?`,
+        [
+          next.questionOptionId,
+          next.trueFalseStatementId,
+          next.sortOrder,
+          next.altText,
+          next.isDecorative,
+          next.displayWidthPercent,
+          next.alignment,
+          input.questionRevisionId,
+          input.placementKey,
+        ],
+      );
+      return next;
+    });
+  }
+
+  async listOrphans(input: {
+    readonly createdBy?: Id;
+    readonly limit?: number;
+    readonly olderThan?: UtcTimestamp;
+  } = {}): Promise<readonly MediaAsset[]> {
+    const limit = Math.min(Math.max(input.limit ?? 100, 1), 100);
+    const params: unknown[] = [];
+    const owner = input.createdBy ? "AND ma.created_by = ?" : "";
+    if (input.createdBy) params.push(input.createdBy);
+    const age = input.olderThan ? "AND ma.created_at <= ?" : "";
+    if (input.olderThan) params.push(input.olderThan);
+    params.push(limit);
+    const rows = await this.database.query<AssetRow>(
+      `SELECT ma.id, ma.storage_key, ma.original_name, ma.mime_type,
+              ma.byte_size, ma.sha256, ma.width, ma.height, ma.status,
+              ma.created_by
+       FROM media_assets ma
+       WHERE ma.status = 'READY' ${owner} ${age}
+         AND NOT EXISTS (SELECT 1 FROM question_media_placements p WHERE p.media_asset_id = ma.id)
+         AND NOT EXISTS (SELECT 1 FROM question_revision_media legacy WHERE legacy.media_asset_id = ma.id)
+       ORDER BY ma.created_at ASC, ma.id ASC LIMIT ?`,
+      params,
+    );
+    return rows.map(mapAsset);
+  }
+
+  async refreshRevisionHash(questionRevisionId: Id): Promise<void> {
+    await this.database.transaction(async (connection) => {
+      const rows = await connection.query<Row>(
+        `SELECT id, \`type\`, stimulus_html, prompt_html, explanation_html
+         FROM question_revisions WHERE id = ? FOR UPDATE`,
+        [questionRevisionId],
+      );
+      const revision = rows[0];
+      if (!revision) throw new MediaRelationNotFoundError();
+      const optionRows = await connection.query<Row>(
+        "SELECT id, position, content_html, is_correct FROM question_options WHERE question_revision_id = ? ORDER BY position",
+        [questionRevisionId],
+      );
+      const statementRows = await connection.query<Row>(
+        "SELECT id, position, statement_html, correct_value FROM true_false_statements WHERE question_revision_id = ? ORDER BY position",
+        [questionRevisionId],
+      );
+      const placementRows = await connection.query<RelationRow>(
+        `SELECT placement_key, question_revision_id, media_asset_id, \`usage\`,
+                question_option_id, true_false_statement_id, sort_order,
+                alt_text, is_decorative, display_width_percent, alignment
+         FROM question_media_placements WHERE question_revision_id = ?`,
+        [questionRevisionId],
+      );
+      const legacyRows = placementRows.length
+        ? []
+        : await connection.query<RelationRow>(
+            `SELECT question_revision_id, media_asset_id, \`usage\`, alt_text,
+                    is_decorative FROM question_revision_media
+             WHERE question_revision_id = ?`,
+            [questionRevisionId],
+          );
+      const content: QuestionDraftContent = {
+        type: String(revision.type) as QuestionDraftContent["type"],
+        stimulusHtml: sanitizeRichContent(String(revision.stimulus_html), 100_000),
+        promptHtml:
+          revision.prompt_html === null
+            ? null
+            : sanitizeRichContent(String(revision.prompt_html), 100_000),
+        explanationHtml:
+          revision.explanation_html === null
+            ? null
+            : sanitizeRichContent(String(revision.explanation_html), 100_000),
+          options: optionRows.map((row) => ({
+          ...(parseDatabaseId(row.id)
+            ? { id: parseDatabaseId(row.id) as Id }
+            : {}),
+          position: Number(row.position),
+          contentHtml: sanitizeRichContent(String(row.content_html), 20_000),
+          isCorrect: toBoolean(row.is_correct) ?? false,
+        })),
+          statements: statementRows.map((row) => ({
+          ...(parseDatabaseId(row.id)
+            ? { id: parseDatabaseId(row.id) as Id }
+            : {}),
+          position: Number(row.position),
+          statementHtml: sanitizeRichContent(String(row.statement_html), 20_000),
+          correctValue: toBoolean(row.correct_value) ?? false,
+        })),
+      };
+      const media = (placementRows.length ? placementRows : legacyRows).map(
+        (row) => toHashEntry(mapRelation(row)),
+      );
+      const digest = await crypto.subtle.digest(
+        "SHA-256",
+        new TextEncoder().encode(canonicalQuestionValue(content, media)),
+      );
+      await connection.execute(
+        `UPDATE question_revisions
+         SET content_hash = ?,
+             updated_at = IF(status = 'DRAFT', UTC_TIMESTAMP(6), updated_at)
+         WHERE id = ?`,
+        [new Uint8Array(digest), questionRevisionId],
+      );
     });
   }
 
@@ -189,14 +497,21 @@ export class SqlMediaRelationRepository
     return this.database.transaction(async (connection) => {
       const asset = await readAsset(connection, id, true);
       if (!asset || asset.status !== "READY") return null;
-      const references = await connection.query<ReferenceRow>(
+      const placementReferences = await connection.query<ReferenceRow>(
+        `SELECT p.question_revision_id, qr.status AS revision_status
+         FROM question_media_placements p
+         JOIN question_revisions qr ON qr.id = p.question_revision_id
+         WHERE p.media_asset_id = ? FOR UPDATE`,
+        [id],
+      );
+      const legacyReferences = await connection.query<ReferenceRow>(
         `SELECT qrm.question_revision_id, qr.status AS revision_status
          FROM question_revision_media qrm
          JOIN question_revisions qr ON qr.id = qrm.question_revision_id
-         WHERE qrm.media_asset_id = ?
-         FOR UPDATE`,
+         WHERE qrm.media_asset_id = ? FOR UPDATE`,
         [id],
       );
+      const references = [...placementReferences, ...legacyReferences];
       if (references.some((row) => row.revision_status === "PUBLISHED"))
         throw new MediaPublishedReferenceError();
       if (references.length > 0) throw new MediaAssetReferencedError();
@@ -208,6 +523,13 @@ export class SqlMediaRelationRepository
       if (result.affectedRows !== 1) return null;
       return { ...asset, status: "DELETED" };
     });
+  }
+
+  async restoreAsset(id: Id): Promise<void> {
+    await this.database.execute(
+      "UPDATE media_assets SET status = 'READY', updated_at = UTC_TIMESTAMP(6) WHERE id = ? AND status = 'DELETED'",
+      [id],
+    );
   }
 }
 
@@ -231,8 +553,9 @@ async function readRevisionTarget(
   lock: boolean,
 ): Promise<MediaRevisionTarget | null> {
   const rows = await connection.query<RevisionTargetRow>(
-    `SELECT qr.id, qr.status, qb.owner_teacher_id, qb.subject_id,
-            qb.id AS question_bank_id, qb.name AS question_bank_name
+    `SELECT qr.id, qr.status, qr.updated_at, qb.owner_teacher_id,
+            qb.subject_id, qb.id AS question_bank_id,
+            qb.name AS question_bank_name
      FROM question_revisions qr
      JOIN questions q ON q.id = qr.question_id
      JOIN question_banks qb ON qb.id = q.question_bank_id
@@ -260,6 +583,9 @@ function mapRevisionTarget(row: RevisionTargetRow): MediaRevisionTarget {
     subjectId,
     questionBankId,
     questionBankName: row.question_bank_name,
+    ...(row.updated_at === undefined
+      ? {}
+      : { updatedAt: String(row.updated_at) as UtcTimestamp }),
   };
 }
 
@@ -267,10 +593,7 @@ function mapAsset(row: AssetRow): MediaAsset {
   const id = parseDatabaseId(row.id);
   const createdBy = parseDatabaseId(row.created_by);
   if (!id || !createdBy) throw new Error("Database returned invalid media ID");
-  if (
-    typeof row.storage_key !== "string" ||
-    typeof row.original_name !== "string"
-  )
+  if (typeof row.storage_key !== "string" || typeof row.original_name !== "string")
     throw new Error("Database returned invalid media filename metadata");
   if (
     row.mime_type !== "image/jpeg" &&
@@ -315,13 +638,119 @@ function mapRelation(row: RelationRow): MediaRelation {
     (row.alt_text !== null && typeof row.alt_text !== "string")
   )
     throw new Error("Database returned invalid media alt metadata");
-  return validateMediaAttachment({
+  const placementKey =
+    typeof row.placement_key === "string"
+      ? row.placement_key
+      : `legacy-${questionRevisionId}-${mediaAssetId}`;
+  const alignment =
+    typeof row.alignment === "string" &&
+    MEDIA_ALIGNMENTS.includes(row.alignment as (typeof MEDIA_ALIGNMENTS)[number])
+      ? (row.alignment as (typeof MEDIA_ALIGNMENTS)[number])
+      : "CENTER";
+  const mediaAssetStatus =
+    row.media_asset_status === "READY" || row.media_asset_status === "DELETED"
+      ? row.media_asset_status
+      : undefined;
+  return {
+    placementKey,
+    questionRevisionId,
+    mediaAssetId,
+    usage: row.usage as MediaUsage,
+    questionOptionId: parseDatabaseId(row.question_option_id),
+    trueFalseStatementId: parseDatabaseId(row.true_false_statement_id),
+    sortOrder: Number(row.sort_order ?? 0),
+    altText: row.alt_text as string | null,
+    isDecorative,
+    displayWidthPercent: Number(row.display_width_percent ?? 100),
+    alignment,
+    ...(mediaAssetStatus === undefined ? {} : { mediaAssetStatus }),
+    ...(row.updated_at === undefined
+      ? {}
+      : { updatedAt: String(row.updated_at) as UtcTimestamp }),
+  };
+}
+
+function mapLegacyRelation(row: RelationRow): MediaRelation {
+  const questionRevisionId = parseDatabaseId(row.question_revision_id);
+  const mediaAssetId = parseDatabaseId(row.media_asset_id);
+  if (!questionRevisionId || !mediaAssetId)
+    throw new Error("Database returned invalid media relation ID");
+  if (
+    typeof row.usage !== "string" ||
+    !MEDIA_USAGES.includes(row.usage as MediaUsage)
+  )
+    throw new Error("Database returned invalid media usage");
+  const isDecorative = toBoolean(row.is_decorative);
+  if (
+    isDecorative === null ||
+    (row.alt_text !== null && typeof row.alt_text !== "string")
+  )
+    throw new Error("Database returned invalid media alt metadata");
+  const mediaAssetStatus =
+    row.media_asset_status === "READY" || row.media_asset_status === "DELETED"
+      ? row.media_asset_status
+      : undefined;
+  return {
     questionRevisionId,
     mediaAssetId,
     usage: row.usage as MediaUsage,
     altText: row.alt_text as string | null,
     isDecorative,
-  });
+    ...(mediaAssetStatus === undefined ? {} : { mediaAssetStatus }),
+  };
+}
+
+async function assertChildTarget(
+  connection: DatabaseConnection,
+  input: AttachMediaInput,
+): Promise<void> {
+  if (input.usage === "OPTION") {
+    const rows = await connection.query<Row>(
+      "SELECT id FROM question_options WHERE id = ? AND question_revision_id = ? LIMIT 1",
+      [input.questionOptionId, input.questionRevisionId],
+    );
+    if (!rows[0]) throw new MediaRelationNotFoundError("Option target was not found");
+  }
+  if (input.usage === "STATEMENT") {
+    const rows = await connection.query<Row>(
+      "SELECT id FROM true_false_statements WHERE id = ? AND question_revision_id = ? LIMIT 1",
+      [input.trueFalseStatementId, input.questionRevisionId],
+    );
+    if (!rows[0]) throw new MediaRelationNotFoundError("Statement target was not found");
+  }
+}
+
+async function removeLegacyMirrorIfUnused(
+  connection: DatabaseConnection,
+  questionRevisionId: Id,
+  mediaAssetId: Id,
+): Promise<void> {
+  const remaining = await connection.query<Row>(
+    `SELECT id FROM question_media_placements
+     WHERE question_revision_id = ? AND media_asset_id = ? LIMIT 1`,
+    [questionRevisionId, mediaAssetId],
+  );
+  if (!remaining[0])
+    await connection.execute(
+      "DELETE FROM question_revision_media WHERE question_revision_id = ? AND media_asset_id = ?",
+      [questionRevisionId, mediaAssetId],
+    );
+}
+
+function toHashEntry(relation: MediaRelation): CanonicalMediaHashEntry {
+  return {
+    placementKey:
+      relation.placementKey ?? `${relation.questionRevisionId}-${relation.mediaAssetId}`,
+    mediaAssetId: relation.mediaAssetId,
+    usage: relation.usage,
+    questionOptionId: relation.questionOptionId ?? null,
+    trueFalseStatementId: relation.trueFalseStatementId ?? null,
+    sortOrder: relation.sortOrder ?? 0,
+    altText: relation.altText,
+    isDecorative: relation.isDecorative,
+    displayWidthPercent: relation.displayWidthPercent ?? 100,
+    alignment: relation.alignment ?? "CENTER",
+  };
 }
 
 function parseDatabaseId(value: unknown): Id | null {

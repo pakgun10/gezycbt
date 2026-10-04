@@ -112,6 +112,41 @@ describe("QuestionDraftService", () => {
     expect(repository.createdFromPublished).toBe(true);
   });
 
+  test("preserves source child IDs for media target remapping", async () => {
+    const repository = new FakeQuestionRepository();
+    repository.revision = {
+      ...repository.revision,
+      status: "PUBLISHED",
+      publishedAt: NOW,
+      options: [
+        { id: "50" as Id, position: 1, contentHtml: "A", isCorrect: true },
+        { id: "51" as Id, position: 2, contentHtml: "B", isCorrect: false },
+      ],
+    };
+    const service = new QuestionDraftService(
+      repository,
+      new FakeAuthorization(),
+    );
+
+    await service.updateDraft(
+      ACTOR,
+      repository.revision.id,
+      {
+        ...choiceContent(),
+        options: [
+          { id: "50" as Id, position: 1, contentHtml: "A+", isCorrect: true },
+          { id: "51" as Id, position: 2, contentHtml: "B", isCorrect: false },
+        ],
+      },
+      NOW,
+    );
+
+    expect(repository.clonedInput?.options.map((option) => option.id)).toEqual([
+      "50" as Id,
+      "51" as Id,
+    ]);
+  });
+
   test("authorizes before rejecting an archived bank", async () => {
     const repository = new FakeQuestionRepository();
     repository.bank = { ...repository.bank, status: "ARCHIVED" };
@@ -220,6 +255,7 @@ class FakeQuestionRepository implements QuestionDraftRepository {
   }
 
   createdFromPublished = false;
+  clonedInput: QuestionDraftContent | undefined;
 
   async createDraftRevision(
     _sourceRevisionId: Id,
@@ -227,6 +263,7 @@ class FakeQuestionRepository implements QuestionDraftRepository {
     _expectedUpdatedAt?: UtcTimestamp,
   ): Promise<QuestionDraft> {
     this.createdFromPublished = true;
+    this.clonedInput = input;
     const source = this.revision;
     this.revision = {
       ...source,

@@ -15,6 +15,8 @@ import {
   validateQuestionContent,
 } from "./domain";
 import type { QuestionDraftRepository } from "./repository";
+import { hashCanonicalQuestion } from "./content-hash";
+import type { MediaRelation } from "../media/relation-domain";
 
 export class QuestionDraftService {
   constructor(
@@ -43,12 +45,13 @@ export class QuestionDraftService {
       );
     const createdBy = context.actor.userId;
     if (!createdBy) throw new QuestionNotFoundError();
-    return this.repository.createDraft({
+    const created = await this.repository.createDraft({
       ...content,
       questionBankId: bank.id,
       createdBy,
       contentHash: await hashQuestionContent(content),
     });
+    return this.withMedia(created);
   }
 
   async getDraft(
@@ -62,7 +65,7 @@ export class QuestionDraftService {
       context.actor,
       revision.questionBank,
     );
-    return revision;
+    return this.withMedia(revision);
   }
 
   async updateDraft(
@@ -79,7 +82,16 @@ export class QuestionDraftService {
       current.questionBank,
     );
     const content = validateQuestionContent(input);
-    const contentHash = await hashQuestionContent(content);
+    // A published revision is cloned into new child rows. Preserve source
+    // child IDs long enough for the repository to remap media targets when a
+    // teacher reorders options or statements; the repository strips them from
+    // the inserted rows.
+    if (current.status === "PUBLISHED")
+      assertCloneChildReferences(current, content);
+    const media = this.repository.listMedia
+      ? await this.repository.listMedia(revisionId)
+      : [];
+    const contentHash = await hashQuestionContent(content, media);
     const updated =
       current.status === "PUBLISHED"
         ? await this.repository.createDraftRevision(
@@ -93,7 +105,17 @@ export class QuestionDraftService {
             expectedUpdatedAt,
           );
     if (!updated) throw new QuestionNotFoundError();
-    return updated;
+    if (current.status === "PUBLISHED" && this.repository.refreshRevisionHash) {
+      await this.repository.refreshRevisionHash(updated.id);
+      const refreshed = await this.repository.findRevision(updated.id);
+      if (refreshed) return this.withMedia(refreshed);
+    }
+    return this.withMedia(updated);
+  }
+
+  private async withMedia(draft: QuestionDraft): Promise<QuestionDraft> {
+    if (!this.repository.listMedia) return draft;
+    return { ...draft, media: await this.repository.listMedia(draft.id) };
   }
 }
 
@@ -106,32 +128,47 @@ function assertNewChildren(content: QuestionDraftContent): void {
   }
 }
 
+function assertCloneChildReferences(
+  source: QuestionDraft,
+  content: QuestionDraftContent,
+): void {
+  const sourceOptionIds = new Set(
+    source.options.flatMap((option) => (option.id ? [option.id] : [])),
+  );
+  const sourceStatementIds = new Set(
+    source.statements.flatMap((statement) =>
+      statement.id ? [statement.id] : [],
+    ),
+  );
+  if (
+    content.options.some(
+      (option) => option.id !== undefined && !sourceOptionIds.has(option.id),
+    ) ||
+    content.statements.some(
+      (statement) =>
+        statement.id !== undefined && !sourceStatementIds.has(statement.id),
+    )
+  )
+    throw new QuestionForeignReferenceError();
+}
+
 export async function hashQuestionContent(
   content: QuestionDraftContent,
+  media: readonly MediaRelation[] = [],
 ): Promise<Uint8Array> {
-  const canonical = JSON.stringify({
-    type: content.type,
-    stimulusHtml: content.stimulusHtml,
-    promptHtml: content.promptHtml,
-    explanationHtml: content.explanationHtml,
-    options: [...content.options]
-      .sort((a, b) => a.position - b.position)
-      .map((option) => ({
-        position: option.position,
-        contentHtml: option.contentHtml,
-        isCorrect: option.isCorrect,
-      })),
-    statements: [...content.statements]
-      .sort((a, b) => a.position - b.position)
-      .map((statement) => ({
-        position: statement.position,
-        statementHtml: statement.statementHtml,
-        correctValue: statement.correctValue,
-      })),
-  });
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(canonical),
+  return hashCanonicalQuestion(
+    content,
+    media.map((item) => ({
+      placementKey: item.placementKey ?? `${item.questionRevisionId}-${item.mediaAssetId}`,
+      mediaAssetId: item.mediaAssetId,
+      usage: item.usage,
+      questionOptionId: item.questionOptionId ?? null,
+      trueFalseStatementId: item.trueFalseStatementId ?? null,
+      sortOrder: item.sortOrder ?? 0,
+      altText: item.altText,
+      isDecorative: item.isDecorative,
+      displayWidthPercent: item.displayWidthPercent ?? 100,
+      alignment: item.alignment ?? "CENTER",
+    })),
   );
-  return new Uint8Array(digest);
 }

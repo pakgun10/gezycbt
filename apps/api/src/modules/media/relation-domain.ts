@@ -1,4 +1,4 @@
-import type { Id } from "@gezycbt/contracts";
+import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { MediaAsset } from "./domain";
 
 export const MEDIA_USAGES = [
@@ -10,20 +10,42 @@ export const MEDIA_USAGES = [
 ] as const;
 export type MediaUsage = (typeof MEDIA_USAGES)[number];
 
+export const MEDIA_ALIGNMENTS = ["LEFT", "CENTER", "RIGHT"] as const;
+export type MediaAlignment = (typeof MEDIA_ALIGNMENTS)[number];
+
+export const MAX_MEDIA_PLACEMENTS_PER_REVISION = 3;
+export const DEFAULT_MEDIA_DISPLAY_WIDTH_PERCENT = 100;
+
 export interface MediaRelation {
+  readonly placementKey?: string;
   readonly questionRevisionId: Id;
   readonly mediaAssetId: Id;
   readonly usage: MediaUsage;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignment;
+  /** Internal readiness signal; never included in participant resources. */
+  readonly mediaAssetStatus?: "READY" | "DELETED";
+  readonly updatedAt?: UtcTimestamp;
 }
 
 export interface AttachMediaInput {
   readonly questionRevisionId: Id;
   readonly mediaAssetId: Id;
   readonly usage: MediaUsage;
+  readonly placementKey?: string;
+  readonly questionOptionId?: Id | null;
+  readonly trueFalseStatementId?: Id | null;
+  readonly sortOrder?: number;
   readonly altText: string | null;
   readonly isDecorative: boolean;
+  readonly displayWidthPercent?: number;
+  readonly alignment?: MediaAlignment;
+  readonly expectedUpdatedAt?: UtcTimestamp;
 }
 
 export interface MediaRevisionTarget {
@@ -33,6 +55,7 @@ export interface MediaRevisionTarget {
   readonly subjectId: Id;
   readonly questionBankId: Id;
   readonly questionBankName: string;
+  readonly updatedAt?: UtcTimestamp;
 }
 
 export interface MediaAssetReference {
@@ -45,7 +68,35 @@ export interface MediaRelationRepository {
   findAsset(id: Id): Promise<MediaAsset | null>;
   list(questionRevisionId: Id): Promise<readonly MediaRelation[]>;
   attach(input: AttachMediaInput): Promise<MediaRelation>;
-  detach(questionRevisionId: Id, mediaAssetId: Id): Promise<boolean>;
+  detach(
+    questionRevisionId: Id,
+    mediaAssetId: Id,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<boolean>;
+  detachByPlacement?(
+    questionRevisionId: Id,
+    placementKey: string,
+    expectedUpdatedAt?: UtcTimestamp,
+  ): Promise<boolean>;
+  update?(input: {
+    readonly questionRevisionId: Id;
+    readonly placementKey: string;
+    readonly altText?: string | null;
+    readonly isDecorative?: boolean;
+    readonly questionOptionId?: Id | null;
+    readonly trueFalseStatementId?: Id | null;
+    readonly sortOrder?: number;
+    readonly displayWidthPercent?: number;
+    readonly alignment?: MediaAlignment;
+    readonly expectedUpdatedAt?: UtcTimestamp;
+  }): Promise<MediaRelation | null>;
+  listOrphans?(input?: {
+    readonly createdBy?: Id;
+    readonly limit?: number;
+    readonly olderThan?: UtcTimestamp;
+  }): Promise<readonly MediaAsset[]>;
+  restoreAsset?(id: Id): Promise<void>;
+  refreshRevisionHash?(questionRevisionId: Id): Promise<void>;
   deleteAsset(id: Id): Promise<MediaAsset | null>;
 }
 
@@ -70,6 +121,13 @@ export class MediaRelationConflictError extends Error {
   constructor() {
     super("Media asset is already attached to this question revision");
     this.name = "MediaRelationConflictError";
+  }
+}
+
+export class MediaRelationVersionConflictError extends Error {
+  constructor() {
+    super("Media placement was changed by another request");
+    this.name = "MediaRelationVersionConflictError";
   }
 }
 
@@ -108,7 +166,68 @@ export function validateMediaAttachment(
       "Decorative media must be explicit",
     );
   const altText = normalizeAltText(input.altText, input.isDecorative);
-  return { ...input, altText };
+  const placementKey = input.placementKey ?? createPlacementKey();
+  if (!/^[A-Za-z0-9_-]{8,128}$/u.test(placementKey))
+    throw new MediaRelationValidationError(
+      "PLACEMENT_KEY_INVALID",
+      "Placement key media tidak valid",
+    );
+  if (input.usage === "OPTION" && !input.questionOptionId)
+    throw new MediaRelationValidationError(
+      "TARGET_REQUIRED",
+      "Media opsi harus mempunyai target option",
+    );
+  if (input.usage === "STATEMENT" && !input.trueFalseStatementId)
+    throw new MediaRelationValidationError(
+      "TARGET_REQUIRED",
+      "Media pernyataan harus mempunyai target statement",
+    );
+  if (input.usage !== "OPTION" && input.questionOptionId)
+    throw new MediaRelationValidationError(
+      "TARGET_INVALID",
+      "Target option hanya boleh digunakan untuk media opsi",
+    );
+  if (input.usage !== "STATEMENT" && input.trueFalseStatementId)
+    throw new MediaRelationValidationError(
+      "TARGET_INVALID",
+      "Target statement hanya boleh digunakan untuk media pernyataan",
+    );
+  const sortOrder = input.sortOrder ?? 0;
+  if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 100)
+    throw new MediaRelationValidationError(
+      "ORDER_INVALID",
+      "Urutan media tidak valid",
+    );
+  const displayWidthPercent = input.displayWidthPercent ?? DEFAULT_MEDIA_DISPLAY_WIDTH_PERCENT;
+  if (
+    !Number.isInteger(displayWidthPercent) ||
+    displayWidthPercent < 10 ||
+    displayWidthPercent > 100
+  )
+    throw new MediaRelationValidationError(
+      "DISPLAY_WIDTH_INVALID",
+      "Ukuran tampil media harus antara 10 dan 100 persen",
+    );
+  const alignment = input.alignment ?? "CENTER";
+  if (!MEDIA_ALIGNMENTS.includes(alignment))
+    throw new MediaRelationValidationError(
+      "ALIGNMENT_INVALID",
+      "Alignment media tidak valid",
+    );
+  return {
+    ...input,
+    placementKey,
+    questionOptionId: input.questionOptionId ?? null,
+    trueFalseStatementId: input.trueFalseStatementId ?? null,
+    sortOrder,
+    altText,
+    displayWidthPercent,
+    alignment,
+  };
+}
+
+function createPlacementKey(): string {
+  return `placement-${crypto.randomUUID().replaceAll("-", "")}`;
 }
 
 function normalizeAltText(

@@ -43,6 +43,7 @@ import {
   IntegrationQuestionAuthoringService,
   IntegrationRateLimiter,
   IntegrationResultReadService,
+  IntegrationScheduleAuthoringService,
   IntegrationService,
   SqlIntegrationAuditSink,
   SqlIntegrationDiscoveryRepository,
@@ -57,6 +58,7 @@ import {
   FileSystemMediaStorage,
   MediaRelationService,
   MediaUploadService,
+  ParticipantMediaService,
   SqlMediaRelationRepository,
 } from "../modules/media";
 import {
@@ -159,6 +161,7 @@ export function createRuntimeDependencies(
     authorization,
     mediaStorage,
   );
+  const participantMedia = new ParticipantMediaService(database);
   const examDrafts = new ExamDraftService(examRepository, authorization);
   const examPublish = new ExamPublishService(examRepository, authorization);
   const examReadiness = new ExamReadinessService(examRepository);
@@ -231,6 +234,12 @@ export function createRuntimeDependencies(
     readiness: questionReadiness,
     mediaUpload,
     mediaRelations,
+  });
+  const agentScheduleAuthoring = new IntegrationScheduleAuthoringService({
+    integration: integrationService,
+    schedules: scheduleDrafts,
+    accessCodes,
+    repository: scheduleRepository,
   });
   const agentExamAuthoring = new IntegrationExamAuthoringService({
     integration: integrationService,
@@ -369,6 +378,9 @@ export function createRuntimeDependencies(
               accessCodeHasher.digest("MAIN_ACCESS_CODE", code),
             practiceTokenDigest: (token) =>
               accessCodeHasher.digest("PRACTICE_TOKEN", token),
+            participantMedia,
+            mediaRead: (storageKey) => mediaStorage.read(storageKey),
+            useInternalMediaRedirect: config.appEnv === "production",
           }),
         )
         .use(
@@ -384,6 +396,7 @@ export function createRuntimeDependencies(
             resultReads: agentResultReads,
             exports: agentExports,
             actions: agentActions,
+            scheduleAuthoring: agentScheduleAuthoring,
           }),
         )
         .use(
@@ -415,6 +428,10 @@ export function createRuntimeDependencies(
               commit: userImportCommit,
             },
             runtime: { administration: examSessionAdministration },
+            mediaUpload,
+            mediaRelations,
+            mediaRead: (storageKey) => mediaStorage.read(storageKey),
+            useInternalMediaRedirect: config.appEnv === "production",
             exports,
             expectedOrigin: config.appOrigin,
           }),

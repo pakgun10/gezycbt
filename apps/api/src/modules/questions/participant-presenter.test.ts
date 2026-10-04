@@ -21,6 +21,12 @@ describe("participant-safe question presenter", () => {
         altText: "Diagram",
         isDecorative: false,
       },
+      {
+        usage: "EXPLANATION",
+        url: "/api/v1/participant/media/31",
+        altText: "Answer explanation",
+        isDecorative: false,
+      },
     ]);
 
     expect(result.questionId).toBe(source.questionId);

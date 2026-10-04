@@ -204,7 +204,9 @@ tersedia untuk admin; guru tidak dapat melihat atau mengubah integration client.
 
 ## Batasan yang sengaja ditunda
 
-- CRUD schedule agent: issue lanjutan setelah exam authoring.
+- CRUD schedule agent: tersedia untuk create/update/detail, rotate practice token,
+  dan transisi READY/OPEN; adapter Hivekeep memakainya untuk membuat kuis
+  PRACTICE siap pakai.
 - Protected media/export serving dan worker durable: ISS-141–ISS-142.
 - Instalasi adapter production Hivekeep/Hermes dan evidence external: sebelum
   pilot, mengikuti exit criteria ISS-131.

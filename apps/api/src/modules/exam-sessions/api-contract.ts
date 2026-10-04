@@ -63,6 +63,7 @@ const finalAnswerItem = t.Object(
   { additionalProperties: false },
 );
 const sessionParams = t.Object({ id }, { additionalProperties: false });
+const mediaParams = t.Object({ id }, { additionalProperties: false });
 const startMainBody = t.Object(
   {
     mainAccessCode: t.Optional(t.String({ minLength: 5, maxLength: 20 })),
@@ -144,9 +145,13 @@ export interface ExamSessionApiRouteContract {
   readonly operationId: string;
   readonly security?: readonly Readonly<Record<string, readonly string[]>>[];
   readonly request?: {
-    readonly params?: TSchema;
-    readonly headers?: TSchema;
-    readonly body?: TSchema;
+      readonly params?: TSchema;
+      readonly headers?: TSchema;
+      readonly body?: TSchema;
+    };
+  readonly response?: {
+    readonly contentType?: string;
+    readonly schema?: TSchema | Readonly<Record<string, unknown>>;
   };
 }
 
@@ -189,6 +194,17 @@ export const examSessionApiRoutes: readonly ExamSessionApiRouteContract[] = [
     operationId: "getParticipantSession",
     security: [{ participantCookie: [] }, { practiceCookie: [] }],
     request: { params: sessionParams },
+  },
+  {
+    method: "GET",
+    path: "/api/v1/participant/media/:id",
+    operationId: "getParticipantMedia",
+    security: [{ participantCookie: [] }, { practiceCookie: [] }],
+    request: { params: mediaParams },
+    response: {
+      contentType: "image/*",
+      schema: { type: "string", format: "binary" },
+    },
   },
   {
     method: "POST",

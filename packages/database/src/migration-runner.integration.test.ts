@@ -20,6 +20,7 @@ import { examSessionsMigration } from "./migrations/0013_exam_sessions";
 import { answersResultsMigration } from "./migrations/0014_answers_results";
 import { attemptGrantsMigration } from "./migrations/0015_attempt_grants";
 import { examSessionCredentialsMigration } from "./migrations/0016_exam_session_credentials";
+import { questionMediaPlacementsMigration } from "./migrations/0022_question_media_placements";
 
 const databaseUrl = Bun.env.TEST_DATABASE_URL;
 const integration = databaseUrl ? describe : describe.skip;
@@ -50,6 +51,7 @@ integration("migration runner with MariaDB", () => {
     await database.execute("DROP TABLE IF EXISTS exam_schedule_participants");
     await database.execute("DROP TABLE IF EXISTS exam_schedule_classes");
     await database.execute("DROP TABLE IF EXISTS exam_schedules");
+    await database.execute("DROP TABLE IF EXISTS question_media_placements");
     await database.execute("DROP TABLE IF EXISTS question_revision_media");
     await database.execute("DROP TABLE IF EXISTS media_assets");
     await database.execute("DROP TABLE IF EXISTS exam_questions");
@@ -132,6 +134,7 @@ integration("migration runner with MariaDB", () => {
         answersResultsMigration,
         attemptGrantsMigration,
         examSessionCredentialsMigration,
+        questionMediaPlacementsMigration,
       ],
       options,
     );
@@ -199,10 +202,11 @@ integration("migration runner with MariaDB", () => {
       "true_false_statements",
     ]);
     const mediaTables = await database.query<{ table_name: string }>(
-      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('media_assets', 'question_revision_media')",
+      "SELECT TABLE_NAME AS table_name FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name IN ('media_assets', 'question_revision_media', 'question_media_placements')",
     );
     expect(mediaTables.map((row) => row.table_name).sort()).toEqual([
       "media_assets",
+      "question_media_placements",
       "question_revision_media",
     ]);
     const examTables = await database.query<{ table_name: string }>(

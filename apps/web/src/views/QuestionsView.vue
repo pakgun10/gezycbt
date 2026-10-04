@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import { HttpStaffApi } from "../features/staff/api";
-import type { QuestionBankSummary, QuestionDraft, QuestionImportPreview, QuestionSummary, Subject } from "../features/staff/types";
+import type { MediaAlignment, MediaAsset, QuestionBankSummary, QuestionDraft, QuestionImportPreview, QuestionMedia, QuestionSummary, Subject } from "../features/staff/types";
 import { messageFrom, safeHtmlPreview } from "../features/staff/helpers";
 import { subjectOptionLabel } from "../features/staff/master-data-policies";
 import ScopeSwitcher from "../components/ScopeSwitcher.vue";
+import RichContentEditor from "../components/question/RichContentEditor.vue";
+import SafeQuestionContent from "../components/question/SafeQuestionContent.vue";
 
 const api = new HttpStaffApi();
 const items = ref<readonly QuestionSummary[]>([]);
@@ -31,7 +33,32 @@ const questionImportBusy = ref(false);
 const questionImportMessage = ref("");
 const publishMessage = ref("");
 const report = ref<{ isReady: boolean; issues: readonly { severity: string; message: string; fieldPath: string }[] } | null>(null);
-const form = ref({ questionBankId: "", type: "SINGLE_CHOICE", stimulusHtml: "", promptHtml: "", explanationHtml: "", options: [{ contentHtml: "", isCorrect: false }, { contentHtml: "", isCorrect: false }], statements: [{ statementHtml: "", correctValue: true }, { statementHtml: "", correctValue: false }, { statementHtml: "", correctValue: false }] });
+const previewOpen = ref(false);
+const previewViewport = ref<"phone" | "tablet" | "desktop">("desktop");
+const mediaBusy = ref(false);
+const mediaMessage = ref("");
+const mediaFile = ref<File | null>(null);
+const mediaAlt = ref("");
+const mediaDecorative = ref(false);
+const mediaWidth = ref(100);
+const mediaAlignment = ref<MediaAlignment>("CENTER");
+const mediaUsage = ref<QuestionMedia["usage"]>("STIMULUS");
+const mediaTargetId = ref("");
+const orphanMedia = ref<readonly MediaAsset[]>([]);
+const orphanMediaBusy = ref(false);
+const orphanMediaMessage = ref("");
+type EditableOption = { id?: string; contentHtml: string; isCorrect: boolean };
+type EditableStatement = { id?: string; statementHtml: string; correctValue: boolean };
+type QuestionForm = {
+  questionBankId: string;
+  type: QuestionDraft["type"];
+  stimulusHtml: string;
+  promptHtml: string;
+  explanationHtml: string;
+  options: EditableOption[];
+  statements: EditableStatement[];
+};
+const form = ref<QuestionForm>({ questionBankId: "", type: "SINGLE_CHOICE", stimulusHtml: "", promptHtml: "", explanationHtml: "", options: [{ contentHtml: "", isCorrect: false }, { contentHtml: "", isCorrect: false }], statements: [{ statementHtml: "", correctValue: true }, { statementHtml: "", correctValue: false }, { statementHtml: "", correctValue: false }] });
 const dirty = computed(() => Boolean(selected.value) && !saving.value);
 const activeBanks = computed(() => banks.value.filter((bank) => bank.status === "ACTIVE"));
 
@@ -48,11 +75,58 @@ function downloadQuestionImportTemplate(): void { const headers = ["type", "stim
 async function previewQuestionImport(): Promise<void> { if (!questionImportBankId.value || !questionImportCsv.value) { questionImportMessage.value = "Pilih bank soal dan file CSV terlebih dahulu."; return; } questionImportBusy.value = true; questionImportMessage.value = "Server sedang memvalidasi soal…"; try { questionImportPreview.value = await api.previewQuestionImport(questionImportBankId.value, questionImportCsv.value); questionImportMessage.value = questionImportPreview.value.errorCount ? "Preview selesai. Perbaiki baris error sebelum import." : "Preview valid. Soal akan dibuat sebagai draft."; } catch (cause) { questionImportMessage.value = messageFrom(cause, "Preview import belum dapat dibuat."); } finally { questionImportBusy.value = false; } }
 async function commitQuestionImport(): Promise<void> { const preview = questionImportPreview.value; if (!preview || preview.errorCount || questionImportBusy.value) return; const bankName = banks.value.find((bank) => bank.id === questionImportBankId.value)?.name ?? "bank yang dipilih"; if (!window.confirm(`Import ${preview.validCount} soal sebagai draft ke bank ${bankName}?`)) return; questionImportBusy.value = true; questionImportMessage.value = "Server sedang membuat draft soal…"; try { const result = await api.commitQuestionImport(questionImportBankId.value, questionImportCsv.value, preview.sourceHash); questionImportMessage.value = `${result.createdCount} soal berhasil dibuat sebagai draft.`; questionImportPreview.value = null; questionImportCsv.value = ""; questionImportFileName.value = ""; await load(); } catch (cause) { questionImportMessage.value = messageFrom(cause, "Import soal belum dapat diselesaikan."); } finally { questionImportBusy.value = false; } }
 function bankSubjectLabel(subjectId: string): string { const subject = subjects.value.find((item) => item.id === subjectId); return subject ? subjectOptionLabel(subject) : `Mata pelajaran #${subjectId}`; }
+async function loadOrphanMedia(): Promise<void> {
+  try {
+    orphanMedia.value = await api.listOrphanMedia();
+  } catch (cause) {
+    orphanMediaMessage.value = messageFrom(cause, "Daftar gambar tidak dapat dimuat.");
+  }
+}
+async function deleteOrphanMedia(asset: MediaAsset): Promise<void> {
+  if (!window.confirm(`Hapus gambar orphan “${asset.originalName}”?`)) return;
+  orphanMediaBusy.value = true;
+  orphanMediaMessage.value = "Menghapus gambar…";
+  try {
+    await api.deleteMedia(asset.id);
+    orphanMedia.value = orphanMedia.value.filter((item) => item.id !== asset.id);
+    orphanMediaMessage.value = "Gambar orphan dihapus.";
+  } catch (cause) {
+    orphanMediaMessage.value = messageFrom(cause, "Gambar belum dapat dihapus.");
+  } finally {
+    orphanMediaBusy.value = false;
+  }
+}
 function open(item?: QuestionSummary): void {
   report.value = null;
   publishMessage.value = "";
-  if (!item) { selected.value = { id: "new", questionId: "new", questionBank: { id: "", name: "Bank baru", subjectId: "" }, revisionNo: 1, type: "SINGLE_CHOICE", status: "DRAFT", stimulusHtml: "", promptHtml: "", explanationHtml: "", options: [], statements: [], updatedAt: "" }; form.value = { ...form.value, questionBankId: "", type: "SINGLE_CHOICE", stimulusHtml: "", promptHtml: "", explanationHtml: "" }; return; }
-  void api.question(item.id).then((draft) => { selected.value = draft; form.value = { questionBankId: draft.questionBank.id, type: draft.type, stimulusHtml: draft.stimulusHtml, promptHtml: draft.promptHtml ?? "", explanationHtml: draft.explanationHtml ?? "", options: draft.options.map((option) => ({ contentHtml: option.contentHtml, isCorrect: option.isCorrect })), statements: draft.statements.map((statement) => ({ statementHtml: statement.statementHtml, correctValue: statement.correctValue })) }; }).catch((cause) => { error.value = messageFrom(cause); });
+  if (!item) {
+    selected.value = { id: "new", questionId: "new", questionBank: { id: "", name: "Bank baru", subjectId: "" }, revisionNo: 1, type: "SINGLE_CHOICE", status: "DRAFT", stimulusHtml: "", promptHtml: "", explanationHtml: "", options: [], statements: [], media: [], updatedAt: "" };
+    form.value = {
+      questionBankId: "",
+      type: "SINGLE_CHOICE",
+      stimulusHtml: "",
+      promptHtml: "",
+      explanationHtml: "",
+      options: [{ contentHtml: "", isCorrect: false }, { contentHtml: "", isCorrect: false }],
+      statements: [{ statementHtml: "", correctValue: true }, { statementHtml: "", correctValue: false }, { statementHtml: "", correctValue: false }],
+    };
+    return;
+  }
+  void api.question(item.id).then((draft) => {
+    selected.value = draft;
+    hydrateForm(draft);
+  }).catch((cause) => { error.value = messageFrom(cause); });
+}
+function hydrateForm(draft: QuestionDraft): void {
+  form.value = {
+    questionBankId: draft.questionBank.id,
+    type: draft.type,
+    stimulusHtml: draft.stimulusHtml,
+    promptHtml: draft.promptHtml ?? "",
+    explanationHtml: draft.explanationHtml ?? "",
+    options: draft.options.map((option) => ({ ...(option.id ? { id: option.id } : {}), contentHtml: option.contentHtml, isCorrect: option.isCorrect })),
+    statements: draft.statements.map((statement) => ({ ...(statement.id ? { id: statement.id } : {}), statementHtml: statement.statementHtml, correctValue: statement.correctValue })),
+  };
 }
 function close(): void { selected.value = null; report.value = null; publishMessage.value = ""; }
 function addOption(): void { if (form.value.options.length < 10) form.value.options.push({ contentHtml: "", isCorrect: false }); }
@@ -60,8 +134,9 @@ function addStatement(): void { if (form.value.statements.length < 3) form.value
 async function save(): Promise<void> {
   if (!selected.value) return; saving.value = true; error.value = "";
   try {
-    const payload = { type: form.value.type, stimulusHtml: form.value.stimulusHtml, promptHtml: form.value.type === "TRUE_FALSE" ? null : form.value.promptHtml || null, explanationHtml: form.value.explanationHtml || null, options: form.value.type === "TRUE_FALSE" ? [] : form.value.options.map((item, index) => ({ position: index + 1, ...item })), statements: form.value.type === "TRUE_FALSE" ? form.value.statements.map((item, index) => ({ position: index + 1, ...item })) : [] };
+    const payload = { type: form.value.type, stimulusHtml: form.value.stimulusHtml, promptHtml: form.value.type === "TRUE_FALSE" ? null : form.value.promptHtml || null, explanationHtml: form.value.explanationHtml || null, options: form.value.type === "TRUE_FALSE" ? [] : form.value.options.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, contentHtml: item.contentHtml, isCorrect: item.isCorrect })), statements: form.value.type === "TRUE_FALSE" ? form.value.statements.map((item, index) => ({ ...(item.id ? { id: item.id } : {}), position: index + 1, statementHtml: item.statementHtml, correctValue: item.correctValue })) : [] };
     selected.value = selected.value.id === "new" ? await api.createQuestion({ questionBankId: form.value.questionBankId, ...payload }) : await api.updateQuestion(selected.value.id, payload, selected.value.updatedAt);
+    hydrateForm(selected.value);
     report.value = null;
     await load();
   } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; }
@@ -81,23 +156,167 @@ async function publish(): Promise<void> {
     await load();
   } catch (cause) { error.value = messageFrom(cause); }
 }
-onMounted(() => { void load(); });
+function readMediaFile(event: Event): void { mediaFile.value = (event.target as HTMLInputElement).files?.[0] ?? null; }
+async function uploadAndAttachMedia(): Promise<void> {
+  if (!selected.value || selected.value.id === "new" || !mediaFile.value) { mediaMessage.value = "Simpan draft dan pilih file gambar terlebih dahulu."; return; }
+  if (!mediaDecorative.value && !mediaAlt.value.trim()) { mediaMessage.value = "Alt text wajib diisi untuk gambar informatif."; return; }
+  const targetId = mediaUsage.value === "OPTION" || mediaUsage.value === "STATEMENT" ? mediaTargetId.value : undefined;
+  if ((mediaUsage.value === "OPTION" || mediaUsage.value === "STATEMENT") && !targetId) { mediaMessage.value = "Pilih target media terlebih dahulu."; return; }
+  mediaBusy.value = true; mediaMessage.value = "Mengunggah gambar…";
+  try {
+    const asset = await api.uploadMedia(mediaFile.value);
+    const relation = await api.attachQuestionMedia(selected.value.id, {
+      mediaAssetId: asset.id,
+      usage: mediaUsage.value,
+      ...(targetId ? mediaUsage.value === "OPTION" ? { questionOptionId: targetId } : { trueFalseStatementId: targetId } : {}),
+      altText: mediaDecorative.value ? null : mediaAlt.value.trim(),
+      isDecorative: mediaDecorative.value,
+      displayWidthPercent: mediaWidth.value,
+      alignment: mediaAlignment.value,
+      expectedUpdatedAt: selected.value.updatedAt,
+    });
+    const refreshed = await api.question(selected.value.id);
+    selected.value = refreshed;
+    const placeholder = `<figure data-content-node="question-media" data-media-placement="${relation.placementKey ?? ""}"></figure>`;
+    if (mediaUsage.value === "STIMULUS") form.value.stimulusHtml += placeholder;
+    else if (mediaUsage.value === "PROMPT") form.value.promptHtml += placeholder;
+    else if (mediaUsage.value === "EXPLANATION") form.value.explanationHtml += placeholder;
+    else if (mediaUsage.value === "OPTION") {
+      const index = selected.value.options.findIndex((option) => option.id === targetId);
+      if (index >= 0) form.value.options[index]!.contentHtml += placeholder;
+    } else if (mediaUsage.value === "STATEMENT") {
+      const index = selected.value.statements.findIndex((statement) => statement.id === targetId);
+      if (index >= 0) form.value.statements[index]!.statementHtml += placeholder;
+    }
+    mediaFile.value = null; mediaAlt.value = ""; mediaMessage.value = "Gambar berhasil ditambahkan. Simpan draft untuk menyimpan placeholder.";
+  } catch (cause) { mediaMessage.value = messageFrom(cause, "Gambar belum dapat diunggah."); } finally { mediaBusy.value = false; }
+}
+async function removeMedia(media: QuestionMedia): Promise<void> {
+  if (!selected.value || selected.value.id === "new" || !window.confirm("Hapus gambar dari soal?")) return;
+  mediaBusy.value = true;
+  try {
+    await api.detachQuestionMedia(
+      selected.value.id,
+      media.placementKey ?? media.mediaAssetId,
+      selected.value.updatedAt,
+    );
+    const placementKey = media.placementKey;
+    if (placementKey) {
+      form.value.stimulusHtml = removeMediaPlaceholder(
+        form.value.stimulusHtml,
+        placementKey,
+      );
+      form.value.promptHtml = removeMediaPlaceholder(
+        form.value.promptHtml,
+        placementKey,
+      );
+      form.value.explanationHtml = removeMediaPlaceholder(
+        form.value.explanationHtml,
+        placementKey,
+      );
+      form.value.options = form.value.options.map((option) => ({
+        ...option,
+        contentHtml: removeMediaPlaceholder(option.contentHtml, placementKey),
+      }));
+      form.value.statements = form.value.statements.map((statement) => ({
+        ...statement,
+        statementHtml: removeMediaPlaceholder(
+          statement.statementHtml,
+          placementKey,
+        ),
+      }));
+    }
+    const refreshed = await api.question(selected.value.id);
+    selected.value = refreshed;
+    mediaMessage.value = "Gambar dilepas dari draft.";
+    await loadOrphanMedia();
+  } catch (cause) {
+    mediaMessage.value = messageFrom(cause, "Gambar belum dapat dihapus.");
+  } finally {
+    mediaBusy.value = false;
+  }
+}
+async function updateMediaDetails(
+  media: QuestionMedia,
+  input: Record<string, unknown>,
+): Promise<void> {
+  if (!selected.value || selected.value.id === "new") return;
+  mediaBusy.value = true;
+  mediaMessage.value = "Menyimpan detail gambar…";
+  try {
+    await api.updateQuestionMedia(
+      selected.value.id,
+      media.placementKey ?? media.mediaAssetId,
+      { ...input, expectedUpdatedAt: selected.value.updatedAt },
+    );
+    selected.value = await api.question(selected.value.id);
+    mediaMessage.value = "Detail gambar disimpan.";
+  } catch (cause) {
+    mediaMessage.value = messageFrom(cause, "Detail gambar belum dapat disimpan.");
+  } finally {
+    mediaBusy.value = false;
+  }
+}
+function updateMediaAlt(media: QuestionMedia, event: Event): void {
+  void updateMediaDetails(media, {
+    altText: (event.target as HTMLInputElement).value,
+  });
+}
+function updateMediaWidth(media: QuestionMedia, event: Event): void {
+  void updateMediaDetails(media, {
+    displayWidthPercent: Number((event.target as HTMLInputElement).value),
+  });
+}
+function updateMediaAlignment(media: QuestionMedia, event: Event): void {
+  void updateMediaDetails(media, {
+    alignment: (event.target as HTMLSelectElement).value,
+  });
+}
+function updateMediaDecorative(media: QuestionMedia, event: Event): void {
+  const isDecorative = (event.target as HTMLInputElement).checked;
+  void updateMediaDetails(media, {
+    isDecorative,
+    altText: isDecorative ? null : media.altText ?? "",
+  });
+}
+function previewOptionMedia(index: number): readonly QuestionMedia[] {
+  const target = form.value.options[index]?.id;
+  return (selected.value?.media ?? []).filter((media) => media.usage === "OPTION" && media.questionOptionId === target);
+}
+function previewStatementMedia(index: number): readonly QuestionMedia[] {
+  const target = form.value.statements[index]?.id;
+  return (selected.value?.media ?? []).filter((media) => media.usage === "STATEMENT" && media.trueFalseStatementId === target);
+}
+function removeMediaPlaceholder(html: string, placementKey: string): string {
+  const documentValue = new DOMParser().parseFromString(html, "text/html");
+  documentValue.querySelectorAll("[data-media-placement]").forEach((node) => {
+    if (node.getAttribute("data-media-placement") === placementKey)
+      node.remove();
+  });
+  return documentValue.body.innerHTML;
+}
+onMounted(() => { void load(); void loadOrphanMedia(); });
 </script>
 
 <template>
   <header class="page-heading between"><div><p class="eyebrow">Guru · Authoring</p><h1>Bank Soal</h1><p class="muted">Buat bank dan validasi tiga tipe soal dengan answer key hanya di area staff.</p></div><div class="stack"><button class="btn-secondary" type="button" @click="showBankForm = !showBankForm">Buat bank</button><button class="btn-secondary" type="button" @click="showImportForm = !showImportForm">Import soal</button><button class="btn-primary" type="button" @click="open()">Buat soal</button></div></header>
   <section v-if="showBankForm" class="card bank-form"><form class="form-grid" @submit.prevent="createBank"><label>Mata pelajaran<select v-model="bankForm.subjectId" required><option value="" disabled>Pilih mata pelajaran</option><option v-for="subject in subjects" :key="subject.id" :value="subject.id">{{ subjectOptionLabel(subject) }}</option></select><small v-if="subjects.length === 0" class="muted">Belum ada mata pelajaran yang ditugaskan. Minta admin mengatur scope guru.</small></label><label>Nama bank<input v-model="bankForm.name" maxlength="200" required /></label><button class="btn-primary" type="submit" :disabled="bankSaving || subjects.length === 0 || !bankForm.subjectId">{{ bankSaving ? "Menyimpan…" : "Simpan bank" }}</button></form></section>
   <div v-if="bankNotice" class="alert alert-info" role="status">{{ bankNotice }}</div>
+  <section class="card orphan-media-panel" aria-labelledby="orphan-media-title"><div class="between"><div><h2 id="orphan-media-title">Gambar tidak terpakai</h2><p class="muted">Asset yang belum dipasang pada draft dapat dihapus manual; housekeeping juga membersihkan asset lebih dari tujuh hari.</p></div><button class="btn-quiet" type="button" :disabled="orphanMediaBusy" @click="loadOrphanMedia">Muat ulang</button></div><p v-if="orphanMediaMessage" class="alert alert-info" role="status">{{ orphanMediaMessage }}</p><div v-if="orphanMedia.length" class="orphan-media-list"><article v-for="asset in orphanMedia" :key="asset.id" class="orphan-media-item"><img :src="asset.url" :alt="asset.originalName" loading="lazy" /><div><strong>{{ asset.originalName }}</strong><small class="muted">{{ asset.width }} × {{ asset.height }} · {{ Math.ceil(asset.byteSize / 1024) }} KiB</small><button class="btn-quiet danger-action" type="button" :disabled="orphanMediaBusy" @click="deleteOrphanMedia(asset)">Hapus asset</button></div></article></div><p v-else class="muted">Tidak ada asset orphan.</p></section>
   <section class="card bank-list-panel" aria-labelledby="bank-list-title"><div class="between"><div><h2 id="bank-list-title">Bank soal tersedia</h2><p class="muted">Bank yang dapat Anda lihat dan kelola sesuai peran serta scope.</p></div><span class="selection-count">{{ banks.length }} bank</span></div><div v-if="banks.length" class="bank-list"><article v-for="bank in banks" :key="bank.id" class="bank-item"><div class="between bank-item-heading"><strong>{{ bank.name }}</strong><span class="badge" :class="bank.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ bank.status === 'ACTIVE' ? 'Aktif' : 'Arsip' }}</span></div><small>{{ bankSubjectLabel(bank.subjectId) }} · Bank #{{ bank.id }}</small><div v-if="bankEditingId === bank.id" class="bank-edit-form"><label :for="`bank-name-${bank.id}`">Nama bank<input :id="`bank-name-${bank.id}`" v-model="bankEditName" maxlength="200" @keyup.enter="saveBankEdit(bank)" /></label><div class="bank-actions"><button class="btn-primary" type="button" :disabled="bankActionBusy === bank.id" @click="saveBankEdit(bank)">{{ bankActionBusy === bank.id ? "Menyimpan…" : "Simpan nama" }}</button><button class="btn-quiet" type="button" :disabled="bankActionBusy === bank.id" @click="cancelBankEdit">Batal</button></div></div><div v-else class="bank-actions"><button class="btn-quiet" type="button" :disabled="bankActionBusy === bank.id" @click="beginBankEdit(bank)">Edit nama</button><button v-if="bank.status === 'ACTIVE'" class="btn-quiet danger-action" type="button" :disabled="bankActionBusy === bank.id" @click="changeBankStatus(bank, 'ARCHIVED')">Arsipkan</button><button v-else class="btn-quiet" type="button" :disabled="bankActionBusy === bank.id" @click="changeBankStatus(bank, 'ACTIVE')">Pulihkan</button></div></article></div><p v-else class="muted">Belum ada bank soal. Klik “Buat bank” untuk membuat yang pertama.</p></section>
   <section v-if="showImportForm" class="card import-panel" aria-labelledby="question-import-title"><div class="between"><div><h2 id="question-import-title">Import soal CSV</h2><p class="muted">Soal valid dibuat sebagai draft. Server tidak menyimpan file setelah preview.</p></div><button class="btn-quiet" type="button" @click="showImportForm = false">Tutup</button></div><div class="form-grid import-fields"><label>Bank tujuan<select v-model="questionImportBankId" :disabled="questionImportBusy" required @change="resetQuestionImportPreview"><option value="" disabled>Pilih bank soal</option><option v-for="bank in activeBanks" :key="bank.id" :value="bank.id">{{ bank.name }} · {{ bankSubjectLabel(bank.subjectId) }}</option></select></label><label>File CSV<input type="file" accept=".csv,text/csv" :disabled="questionImportBusy" @change="readQuestionImportFile" /><small class="muted">Maksimal 300 soal atau 1 MiB. Kunci menerima BENAR/SALAH, TRUE/FALSE, atau 1/0.</small></label></div><details class="import-help"><summary>Petunjuk format CSV</summary><ul><li>Template berisi satu contoh untuk setiap tipe; hapus contoh sebelum menggantinya dengan soal Anda.</li><li><strong>SINGLE_CHOICE</strong> dan <strong>MULTIPLE_RESPONSE</strong> memakai <code>prompt</code>, kolom <code>option_*</code>, dan <code>option_*_correct</code>.</li><li><strong>TRUE_FALSE</strong> hanya memakai <code>stimulus</code>, tiga kolom <code>statement_*</code>, dan kunci masing-masing pernyataan.</li></ul></details><div class="import-actions"><button class="btn-quiet" type="button" @click="downloadQuestionImportTemplate">Unduh template CSV</button><button class="btn-secondary" type="button" :disabled="questionImportBusy || !questionImportCsv || !questionImportBankId" @click="previewQuestionImport">{{ questionImportBusy ? "Memproses…" : "Preview import" }}</button></div><p v-if="questionImportFileName" class="muted small-copy">File: {{ questionImportFileName }}</p><p v-if="questionImportMessage" class="alert alert-info" aria-live="polite">{{ questionImportMessage }}</p><template v-if="questionImportPreview"><div class="import-summary"><span>Total {{ questionImportPreview.totalRows }}</span><span>Valid {{ questionImportPreview.validCount }}</span><span :class="{ 'text-danger': questionImportPreview.errorCount > 0 }">Error {{ questionImportPreview.errorCount }}</span></div><div class="table-scroll import-preview-table"><table><caption class="sr-only">Preview import soal</caption><thead><tr><th>Baris</th><th>Tipe</th><th>Ringkasan</th><th>Status</th><th>Detail</th></tr></thead><tbody><tr v-for="row in questionImportPreview.rows" :key="row.rowNumber"><td>{{ row.rowNumber }}</td><td>{{ row.type ?? "—" }}</td><td>{{ row.label ?? "—" }}</td><td><span class="badge" :class="row.status === 'VALID' ? 'badge-success' : 'badge-warning'">{{ row.status === 'VALID' ? 'Valid' : 'Error' }}</span></td><td><span v-if="row.errors.length === 0">—</span><span v-for="item in row.errors" :key="`${item.field}-${item.code}`" class="import-error">{{ item.field }}: {{ item.message }}</span></td></tr></tbody></table></div><div class="import-actions"><button class="btn-primary" type="button" :disabled="questionImportBusy || questionImportPreview.errorCount > 0" @click="commitQuestionImport">Import {{ questionImportPreview.validCount }} soal</button></div></template></section>
   <ScopeSwitcher :dirty="dirty" />
   <div class="toolbar"><form class="search-form" @submit.prevent="load"><label class="sr-only" for="question-search">Cari soal</label><input id="question-search" v-model="query" placeholder="Cari stimulus, bank, atau tipe" /><button class="btn-secondary" type="submit">Cari</button></form><span class="muted">{{ items.length }} item</span></div>
   <div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
   <section class="card table-card"><div v-if="loading" class="table-state">Memuat bank soal…</div><div v-else-if="items.length === 0" class="table-state"><strong>Belum ada soal</strong><span class="muted">Buat draft pertama dari tombol di atas.</span></div><div v-else class="table-scroll"><table><caption class="sr-only">Daftar soal</caption><thead><tr><th>Preview</th><th>Type</th><th>Status</th><th>Updated</th><th></th></tr></thead><tbody><tr v-for="item in items" :key="item.id"><td><strong>{{ item.bankName }}</strong><small>{{ safeHtmlPreview(item.label) }}</small></td><td>{{ item.type }}</td><td><span class="badge" :class="item.status === 'PUBLISHED' ? 'badge-success' : 'badge-warning'">{{ item.status }}</span></td><td>{{ item.updatedAt }}</td><td><button class="btn-quiet" type="button" @click="open(item)">Buka editor</button></td></tr></tbody></table></div></section>
-  <div v-if="selected" class="overlay" role="dialog" aria-modal="true" aria-labelledby="question-editor-title"><section class="drawer"><div class="between"><div><p class="eyebrow">{{ selected.status }}</p><h2 id="question-editor-title">Editor soal</h2></div><button class="btn-quiet" type="button" @click="close">Tutup</button></div><p v-if="publishMessage" class="alert alert-info" role="status">{{ publishMessage }}</p><form @submit.prevent="save"><div v-if="selected.id === 'new'" class="form-row"><label for="question-bank-id">Bank soal</label><select id="question-bank-id" v-model="form.questionBankId" required><option value="" disabled>Pilih bank soal</option><option v-for="bank in activeBanks" :key="bank.id" :value="bank.id">{{ bank.name }} · {{ bankSubjectLabel(bank.subjectId) }}</option></select><small v-if="activeBanks.length === 0" class="muted">Buat bank soal terlebih dahulu.</small></div><div class="form-row"><label for="question-type">Tipe soal</label><select id="question-type" v-model="form.type"><option value="SINGLE_CHOICE">Single choice · exact match</option><option value="MULTIPLE_RESPONSE">Multiple response · semua tepat</option><option value="TRUE_FALSE">True/False · tiga pernyataan</option></select></div><div class="form-row"><label for="stimulus">Stimulus (opsional)</label><textarea id="stimulus" v-model="form.stimulusHtml" rows="4" /></div><div v-if="form.type !== 'TRUE_FALSE'" class="form-row"><label for="prompt">Pertanyaan</label><textarea id="prompt" v-model="form.promptHtml" rows="3" required /></div><div v-if="form.type !== 'TRUE_FALSE'" class="child-editor"><div class="between"><h3>Opsi jawaban</h3><button class="btn-quiet" type="button" @click="addOption">Tambah opsi</button></div><div v-for="(option, index) in form.options" :key="index" class="child-row"><input v-model="option.contentHtml" :aria-label="`Isi opsi ${index + 1}`" required /><label><input v-model="option.isCorrect" type="checkbox" /> benar</label></div><p class="muted small-copy">Single choice harus tepat satu benar; multiple response minimal satu dan semua key harus tepat.</p></div><div v-else class="child-editor"><div class="between"><h3>Tiga pernyataan</h3><button class="btn-quiet" type="button" @click="addStatement">Tambah</button></div><div v-for="(statement, index) in form.statements" :key="index" class="child-row"><input v-model="statement.statementHtml" :aria-label="`Pernyataan ${index + 1}`" required /><select v-model="statement.correctValue" :aria-label="`Jawaban pernyataan ${index + 1}`"><option :value="true">Benar</option><option :value="false">Salah</option></select></div></div><div class="form-row"><label for="explanation">Penjelasan (opsional)</label><textarea id="explanation" v-model="form.explanationHtml" rows="3" /></div><div v-if="report" class="readiness" :class="report.isReady ? 'ready' : 'blocked'"><strong>{{ report.isReady ? 'Siap dipublish' : 'Belum siap dipublish' }}</strong><ul><li v-for="issue in report.issues" :key="`${issue.fieldPath}-${issue.message}`">{{ issue.severity }} · {{ issue.message }} <button v-if="issue.fieldPath" class="link-button" type="button">Buka field</button></li></ul></div><div class="editor-actions"><button class="btn-secondary" type="button" :disabled="saving" @click="validate">Validasi</button><button class="btn-primary" type="submit" :disabled="saving">{{ saving ? 'Menyimpan…' : 'Simpan draft' }}</button><button v-if="selected.status === 'DRAFT'" class="btn-secondary" type="button" :disabled="saving || !report?.isReady" @click="publish">Publish</button></div></form></section></div>
+  <div v-if="selected" class="overlay" role="dialog" aria-modal="true" aria-labelledby="question-editor-title"><section class="drawer"><div class="between"><div><p class="eyebrow">{{ selected.status }}</p><h2 id="question-editor-title">Editor soal</h2></div><div class="stack"><button class="btn-secondary" type="button" @click="previewOpen = true">Pratinjau</button><button class="btn-quiet" type="button" @click="close">Tutup</button></div></div><p v-if="publishMessage" class="alert alert-info" role="status">{{ publishMessage }}</p><form @submit.prevent="save"><div v-if="selected.id === 'new'" class="form-row"><label for="question-bank-id">Bank soal</label><select id="question-bank-id" v-model="form.questionBankId" required><option value="" disabled>Pilih bank soal</option><option v-for="bank in activeBanks" :key="bank.id" :value="bank.id">{{ bank.name }} · {{ bankSubjectLabel(bank.subjectId) }}</option></select><small v-if="activeBanks.length === 0" class="muted">Buat bank soal terlebih dahulu.</small></div><div class="form-row"><label for="question-type">Tipe soal</label><select id="question-type" v-model="form.type"><option value="SINGLE_CHOICE">Single choice · exact match</option><option value="MULTIPLE_RESPONSE">Multiple response · semua tepat</option><option value="TRUE_FALSE">True/False · tiga pernyataan</option></select></div><div class="form-row"><RichContentEditor v-model="form.stimulusHtml" label="Stimulus" placeholder="Tulis stimulus, diagram, atau konteks soal…" /></div><div v-if="form.type !== 'TRUE_FALSE'" class="form-row"><RichContentEditor v-model="form.promptHtml" label="Pertanyaan" placeholder="Tulis pertanyaan…" /></div><div v-if="form.type !== 'TRUE_FALSE'" class="child-editor"><div class="between"><h3>Opsi jawaban</h3><button class="btn-quiet" type="button" @click="addOption">Tambah opsi</button></div><div v-for="(option, index) in form.options" :key="index" class="child-row"><RichContentEditor v-model="option.contentHtml" :label="`Isi opsi ${index + 1}`" /><label><input v-model="option.isCorrect" type="checkbox" /> benar</label></div><p class="muted small-copy">Single choice harus tepat satu benar; multiple response minimal satu dan semua key harus tepat.</p></div><div v-else class="child-editor"><div class="between"><h3>Tiga pernyataan</h3><button class="btn-quiet" type="button" @click="addStatement">Tambah</button></div><div v-for="(statement, index) in form.statements" :key="index" class="child-row"><RichContentEditor v-model="statement.statementHtml" :label="`Pernyataan ${index + 1}`" /><select v-model="statement.correctValue" :aria-label="`Jawaban pernyataan ${index + 1}`"><option :value="true">Benar</option><option :value="false">Salah</option></select></div></div><div class="form-row"><RichContentEditor v-model="form.explanationHtml" label="Penjelasan (opsional)" placeholder="Tulis pembahasan…" /></div>
+      <section class="media-manager" aria-labelledby="media-manager-title"><div class="between"><div><h3 id="media-manager-title">Gambar soal</h3><p class="muted small-copy">Unggah gambar, atur alt text, ukuran, alignment, dan target penempatan.</p></div><span class="badge">{{ selected.media?.length ?? 0 }}/3</span></div><div v-if="selected.media?.length" class="media-attachments"><article v-for="media in selected.media" :key="media.placementKey ?? media.mediaAssetId" class="media-attachment"><img :src="media.url" :alt="media.isDecorative ? '' : media.altText ?? ''" /><div class="media-attachment-details"><strong>{{ media.usage }}</strong><label>Alt text<input :value="media.altText ?? ''" :disabled="mediaBusy || media.isDecorative" maxlength="500" @change="updateMediaAlt(media, $event)" /></label><label>Lebar (%)<input :value="media.displayWidthPercent ?? 100" type="number" min="10" max="100" step="1" :disabled="mediaBusy" @change="updateMediaWidth(media, $event)" /></label><label>Alignment<select :value="media.alignment ?? 'CENTER'" :disabled="mediaBusy" @change="updateMediaAlignment(media, $event)"><option value="LEFT">Kiri</option><option value="CENTER">Tengah</option><option value="RIGHT">Kanan</option></select></label><label class="checkbox-label"><input :checked="media.isDecorative" type="checkbox" :disabled="mediaBusy" @change="updateMediaDecorative(media, $event)" /> Gambar dekoratif</label><button class="btn-quiet danger-action" type="button" :disabled="mediaBusy" @click="removeMedia(media)">Hapus placement</button></div></article></div><div class="media-form"><label>Penempatan<select v-model="mediaUsage"><option value="STIMULUS">Stimulus</option><option value="PROMPT" :disabled="form.type === 'TRUE_FALSE'">Pertanyaan</option><option value="EXPLANATION">Penjelasan</option><option value="OPTION" :disabled="form.type === 'TRUE_FALSE'">Opsi</option><option value="STATEMENT" :disabled="form.type !== 'TRUE_FALSE'">Pernyataan</option></select></label><label v-if="mediaUsage === 'OPTION'">Target opsi<select v-model="mediaTargetId"><option value="" disabled>Pilih opsi</option><option v-for="option in selected.options" :key="option.id" :value="option.id">Opsi {{ option.position }}</option></select></label><label v-if="mediaUsage === 'STATEMENT'">Target pernyataan<select v-model="mediaTargetId"><option value="" disabled>Pilih pernyataan</option><option v-for="statement in selected.statements" :key="statement.id" :value="statement.id">Pernyataan {{ statement.position }}</option></select></label><label>File<input type="file" accept="image/jpeg,image/png,image/webp" @change="readMediaFile" /></label><label>Alt text<input v-model="mediaAlt" maxlength="500" :disabled="mediaDecorative" placeholder="Deskripsi gambar" /></label><label class="checkbox-label"><input v-model="mediaDecorative" type="checkbox" /> Gambar dekoratif</label><label>Lebar (%)<input v-model.number="mediaWidth" type="number" min="10" max="100" step="1" /></label><label>Alignment<select v-model="mediaAlignment"><option value="LEFT">Kiri</option><option value="CENTER">Tengah</option><option value="RIGHT">Kanan</option></select></label><button class="btn-secondary" type="button" :disabled="mediaBusy || (selected.media?.length ?? 0) >= 3" @click="uploadAndAttachMedia">{{ mediaBusy ? 'Memproses…' : 'Unggah & pasang' }}</button></div><p v-if="mediaMessage" class="alert alert-info" role="status">{{ mediaMessage }}</p></section>
+      <div v-if="report" class="readiness" :class="report.isReady ? 'ready' : 'blocked'"><strong>{{ report.isReady ? 'Siap dipublish' : 'Belum siap dipublish' }}</strong><ul><li v-for="issue in report.issues" :key="`${issue.fieldPath}-${issue.message}`">{{ issue.severity }} · {{ issue.message }} <button v-if="issue.fieldPath" class="link-button" type="button">Buka field</button></li></ul></div><div class="editor-actions"><button class="btn-secondary" type="button" :disabled="saving" @click="validate">Validasi</button><button class="btn-primary" type="submit" :disabled="saving">{{ saving ? 'Menyimpan…' : 'Simpan draft' }}</button><button v-if="selected.status === 'DRAFT'" class="btn-secondary" type="button" :disabled="saving || !report?.isReady" @click="publish">Publish</button></div></form></section></div>
+      <div v-if="previewOpen && selected" class="overlay preview-overlay" role="dialog" aria-modal="true" aria-labelledby="question-preview-title"><section class="preview-card" :class="`preview-${previewViewport}`"><div class="between"><h2 id="question-preview-title">Pratinjau soal</h2><button class="btn-quiet" type="button" @click="previewOpen = false">Tutup</button></div><div class="preview-viewport-switch" role="group" aria-label="Ukuran pratinjau"><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'phone' }" @click="previewViewport = 'phone'">360 px</button><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'tablet' }" @click="previewViewport = 'tablet'">768 px</button><button type="button" class="btn-quiet" :class="{ active: previewViewport === 'desktop' }" @click="previewViewport = 'desktop'">Desktop</button></div><SafeQuestionContent :html="form.stimulusHtml" :media="selected.media?.filter((media) => media.usage === 'STIMULUS')" /><SafeQuestionContent v-if="form.type !== 'TRUE_FALSE'" :html="form.promptHtml" :media="selected.media?.filter((media) => media.usage === 'PROMPT')" /><div v-if="form.type !== 'TRUE_FALSE'" class="preview-options"><div v-for="(option, index) in form.options" :key="index" class="preview-option"><strong>{{ String.fromCharCode(65 + index) }}.</strong><SafeQuestionContent :html="option.contentHtml" :media="previewOptionMedia(index)" /></div></div><div v-else class="preview-options"><div v-for="(statement, index) in form.statements" :key="index" class="preview-option"><strong>{{ index + 1 }}.</strong><SafeQuestionContent :html="statement.statementHtml" :media="previewStatementMedia(index)" /></div></div><SafeQuestionContent :html="form.explanationHtml" :media="selected.media?.filter((media) => media.usage === 'EXPLANATION')" /></section></div>
 </template>
 
 <style scoped>
-.page-heading { align-items: flex-start; margin-bottom: 18px; }.page-heading h1 { margin: 0 0 6px; }.eyebrow { margin: 0 0 4px; color: var(--primary); font-weight: 700; }.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0; }.search-form { display: flex; gap: 8px; }.search-form input { min-height: 40px; min-width: min(360px, 55vw); }.table-card, .import-panel, .bank-list-panel { padding: 20px; }.bank-list-panel { margin-bottom: 18px; }.bank-list-panel h2 { margin: 0 0 6px; }.bank-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 14px; }.bank-item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }.bank-item small { color: var(--subtle); }.bank-item-heading { align-items: center; gap: 8px; }.bank-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }.bank-edit-form { display: grid; gap: 8px; margin-top: 4px; }.bank-edit-form label { display: grid; gap: 6px; }.bank-edit-form input { min-height: 40px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.danger-action { color: var(--danger); }.import-panel { margin-bottom: 18px; }.import-panel h2 { margin: 0 0 6px; }.import-fields { margin-top: 18px; }.import-fields label { display: grid; gap: 6px; }.import-fields select, .import-fields input { width: 100%; min-height: 40px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.import-help { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); }.import-help summary { color: var(--text); cursor: pointer; font-weight: 700; }.import-help ul { margin: 10px 0 0; padding-left: 20px; }.import-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }.import-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }.import-summary span { padding: 8px 10px; border-radius: 8px; background: var(--canvas); font-size: .86rem; }.import-preview-table { margin-top: 16px; }.import-error { display: block; margin-bottom: 4px; color: var(--danger); font-size: .85rem; }.text-danger { color: var(--danger); }.table-scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; } th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; } th { color: var(--muted); font-size: .8rem; } td small { display: block; color: var(--subtle); margin-top: 4px; }.table-state { display: grid; gap: 6px; justify-items: center; padding: 42px 12px; }.badge { display: inline-flex; padding: 4px 8px; border-radius: 99px; background: var(--primary-soft); color: var(--primary); font-size: .78rem; font-weight: 700; }.badge-success { color: var(--success); background: var(--success-soft); }.badge-warning { color: var(--warning); background: var(--warning-soft); }.overlay { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end; background: rgb(2 6 23 / 45%); }.drawer { width: min(680px, 100%); height: 100%; overflow: auto; padding: 24px; background: var(--surface); box-shadow: var(--shadow); }.form-row textarea, .form-row select { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.child-editor { margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }.child-editor h3 { margin: 0; }.child-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin: 10px 0; }.child-row input:not([type='checkbox']), .child-row select { min-height: 40px; width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px; background: var(--surface); color: var(--text); }.readiness { margin: 16px 0; padding: 12px; border-radius: 8px; }.readiness.ready { color: var(--success); background: var(--success-soft); }.readiness.blocked { color: var(--danger); background: var(--danger-soft); }.readiness ul { margin-bottom: 0; padding-left: 20px; }.link-button { border: 0; min-height: auto; padding: 0; color: inherit; background: transparent; text-decoration: underline; }.editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }.small-copy { font-size: .84rem; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
-@media (max-width: 600px) { .page-heading, .toolbar { display: grid; align-items: stretch; }.search-form input { min-width: 0; flex: 1; } .drawer { padding: 18px 14px; } }
+.page-heading { align-items: flex-start; margin-bottom: 18px; }.page-heading h1 { margin: 0 0 6px; }.eyebrow { margin: 0 0 4px; color: var(--primary); font-weight: 700; }.toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 16px 0; }.search-form { display: flex; gap: 8px; }.search-form input { min-height: 40px; min-width: min(360px, 55vw); }.table-card, .import-panel, .bank-list-panel, .orphan-media-panel { padding: 20px; }.bank-list-panel, .orphan-media-panel { margin-bottom: 18px; }.bank-list-panel h2, .orphan-media-panel h2 { margin: 0 0 6px; }.bank-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-top: 14px; }.bank-item { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }.bank-item small, .orphan-media-item small { color: var(--subtle); }.bank-item-heading { align-items: center; gap: 8px; }.bank-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }.bank-edit-form { display: grid; gap: 8px; margin-top: 4px; }.bank-edit-form label { display: grid; gap: 6px; }.bank-edit-form input { min-height: 40px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.danger-action { color: var(--danger); }.orphan-media-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px; margin-top: 14px; }.orphan-media-item { display: grid; grid-template-columns: 72px 1fr; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }.orphan-media-item img { width: 72px; height: 72px; object-fit: contain; border-radius: 6px; background: var(--canvas); }.orphan-media-item div { display: grid; gap: 4px; min-width: 0; }.orphan-media-item strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.import-panel { margin-bottom: 18px; }.import-panel h2 { margin: 0 0 6px; }.import-fields { margin-top: 18px; }.import-fields label { display: grid; gap: 6px; }.import-fields select, .import-fields input { width: 100%; min-height: 40px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.import-help { margin-top: 16px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted); }.import-help summary { color: var(--text); cursor: pointer; font-weight: 700; }.import-help ul { margin: 10px 0 0; padding-left: 20px; }.import-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }.import-summary { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }.import-summary span { padding: 8px 10px; border-radius: 8px; background: var(--canvas); font-size: .86rem; }.import-preview-table { margin-top: 16px; }.import-error { display: block; margin-bottom: 4px; color: var(--danger); font-size: .85rem; }.text-danger { color: var(--danger); }.table-scroll { overflow-x: auto; } table { width: 100%; border-collapse: collapse; } th, td { padding: 12px 10px; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; } th { color: var(--muted); font-size: .8rem; } td small { display: block; color: var(--subtle); margin-top: 4px; }.table-state { display: grid; gap: 6px; justify-items: center; padding: 42px 12px; }.badge { display: inline-flex; padding: 4px 8px; border-radius: 99px; background: var(--primary-soft); color: var(--primary); font-size: .78rem; font-weight: 700; }.badge-success { color: var(--success); background: var(--success-soft); }.badge-warning { color: var(--warning); background: var(--warning-soft); }.overlay { position: fixed; inset: 0; z-index: 20; display: flex; justify-content: flex-end; background: rgb(2 6 23 / 45%); }.drawer { width: min(680px, 100%); height: 100%; overflow: auto; padding: 24px; background: var(--surface); box-shadow: var(--shadow); }.form-row textarea, .form-row select { width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px 10px; color: var(--text); background: var(--surface); }.child-editor { margin: 16px 0; padding: 14px; border: 1px solid var(--border); border-radius: 10px; }.child-editor h3 { margin: 0; }.child-row { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; margin: 10px 0; }.child-row input:not([type='checkbox']), .child-row select { min-height: 40px; width: 100%; border: 1px solid var(--border-strong); border-radius: 8px; padding: 8px; background: var(--surface); color: var(--text); }.readiness { margin: 16px 0; padding: 12px; border-radius: 8px; }.readiness.ready { color: var(--success); background: var(--success-soft); }.readiness.blocked { color: var(--danger); background: var(--danger-soft); }.readiness ul { margin-bottom: 0; padding-left: 20px; }.link-button { border: 0; min-height: auto; padding: 0; color: inherit; background: transparent; text-decoration: underline; }.editor-actions { display: flex; flex-wrap: wrap; gap: 8px; }.small-copy { font-size: .84rem; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; }
+.media-attachments { display: grid; gap: 10px; margin: 14px 0; }.media-attachment { display: grid; grid-template-columns: minmax(120px, 180px) 1fr; gap: 12px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }.media-attachment > img { width: 100%; max-height: 150px; object-fit: contain; border-radius: 6px; background: var(--canvas); }.media-attachment-details { display: grid; gap: 7px; align-content: start; }.media-attachment-details label { display: grid; gap: 4px; font-size: .82rem; }.media-attachment-details input, .media-attachment-details select { min-height: 34px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 8px; color: var(--text); background: var(--surface); }.media-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 10px; }.media-form label { display: grid; gap: 4px; font-size: .82rem; }.media-form input, .media-form select { min-height: 36px; box-sizing: border-box; border: 1px solid var(--border-strong); border-radius: 6px; padding: 6px 8px; color: var(--text); background: var(--surface); }.media-form button { align-self: end; }.checkbox-label { display: flex !important; grid-template-columns: auto 1fr; align-items: center; gap: 6px !important; }.preview-overlay { align-items: flex-start; justify-content: center; overflow: auto; padding: 28px 16px; }.preview-card { width: min(100%, 1000px); min-height: 80vh; padding: 22px; border-radius: 12px; background: var(--surface); box-shadow: var(--shadow); transition: width 160ms ease; }.preview-card.preview-phone { width: min(100%, 360px); }.preview-card.preview-tablet { width: min(100%, 768px); }.preview-viewport-switch { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 18px; }.preview-viewport-switch .active { color: var(--primary); border-color: var(--primary); background: var(--primary-soft); }.preview-options { display: grid; gap: 8px; margin: 14px 0; }.preview-option { display: grid; grid-template-columns: auto 1fr; gap: 8px; padding: 10px; border: 1px solid var(--border); border-radius: 8px; }
+@media (max-width: 600px) { .page-heading, .toolbar { display: grid; align-items: stretch; }.search-form input { min-width: 0; flex: 1; } .drawer { padding: 18px 14px; } .media-attachment, .media-form { grid-template-columns: 1fr; } }
 </style>
