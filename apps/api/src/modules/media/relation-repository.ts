@@ -1,7 +1,9 @@
 import {
   formatId,
+  formatUtcTimestamp,
   type Id,
   parseId,
+  parseUtcTimestamp,
   type UtcTimestamp,
 } from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
@@ -584,6 +586,7 @@ function mapRevisionTarget(row: RevisionTargetRow): MediaRevisionTarget {
     throw new Error("Database returned invalid question revision status");
   if (typeof row.question_bank_name !== "string")
     throw new Error("Database returned invalid question bank name");
+  const updatedAt = optionalTimestamp(row.updated_at);
   return {
     id,
     status: row.status,
@@ -591,9 +594,7 @@ function mapRevisionTarget(row: RevisionTargetRow): MediaRevisionTarget {
     subjectId,
     questionBankId,
     questionBankName: row.question_bank_name,
-    ...(row.updated_at === undefined
-      ? {}
-      : { updatedAt: String(row.updated_at) as UtcTimestamp }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
   };
 }
 
@@ -664,6 +665,7 @@ function mapRelation(row: RelationRow): MediaRelation {
     row.media_asset_status === "READY" || row.media_asset_status === "DELETED"
       ? row.media_asset_status
       : undefined;
+  const updatedAt = optionalTimestamp(row.updated_at);
   return {
     placementKey,
     questionRevisionId,
@@ -677,9 +679,7 @@ function mapRelation(row: RelationRow): MediaRelation {
     displayWidthPercent: Number(row.display_width_percent ?? 100),
     alignment,
     ...(mediaAssetStatus === undefined ? {} : { mediaAssetStatus }),
-    ...(row.updated_at === undefined
-      ? {}
-      : { updatedAt: String(row.updated_at) as UtcTimestamp }),
+    ...(updatedAt === undefined ? {} : { updatedAt }),
   };
 }
 
@@ -774,6 +774,22 @@ function parseDatabaseId(value: unknown): Id | null {
   if (typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
     return formatId(BigInt(value));
   return parseId(value) ?? null;
+}
+
+function optionalTimestamp(value: unknown): UtcTimestamp | undefined {
+  if (value === undefined || value === null) return undefined;
+  return toTimestamp(value);
+}
+
+function toTimestamp(value: unknown): UtcTimestamp {
+  if (value instanceof Date) return formatUtcTimestamp(value);
+  if (typeof value === "string") {
+    const timestamp = parseUtcTimestamp(
+      value.endsWith("Z") ? value : `${value.replace(" ", "T")}Z`,
+    );
+    if (timestamp) return timestamp;
+  }
+  throw new Error("Database returned invalid media timestamp");
 }
 
 function toPositiveNumber(value: unknown): number | null {

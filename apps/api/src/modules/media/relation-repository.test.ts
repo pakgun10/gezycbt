@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Id } from "@gezycbt/contracts";
+import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { DatabaseConnection, DatabasePort } from "@gezycbt/database";
 import {
   MediaAssetReferencedError,
@@ -73,6 +73,23 @@ describe("SqlMediaRelationRepository", () => {
         statement.includes("INSERT INTO question_revision_media"),
       ),
     ).toBe(true);
+  });
+
+  test("normalizes MariaDB Date timestamps before checking the revision version", async () => {
+    const database = new FakeMediaDatabase();
+    database.revisionUpdatedAt = new Date("2026-09-16T10:30:00.000Z");
+    const repository = new SqlMediaRelationRepository(database);
+
+    const result = await repository.attach({
+      questionRevisionId: "40" as Id,
+      mediaAssetId: "30" as Id,
+      usage: "STIMULUS",
+      altText: "Diagram",
+      isDecorative: false,
+      expectedUpdatedAt: "2026-09-16T10:30:00.000Z" as UtcTimestamp,
+    });
+
+    expect(result.usage).toBe("STIMULUS");
   });
 
   test("lists relations with normalized accessibility metadata", async () => {
@@ -167,6 +184,7 @@ class FakeMediaDatabase implements DatabasePort {
   references: Array<{ status: "DRAFT" | "PUBLISHED" }> = [];
   relationRows: Array<Record<string, unknown>> = [];
   assetRowsUseNumbers = false;
+  revisionUpdatedAt: unknown = undefined;
 
   async query<T extends Record<string, unknown>>(
     sql: string,
@@ -175,7 +193,9 @@ class FakeMediaDatabase implements DatabasePort {
     if (sql.includes("FROM media_assets"))
       return [assetRow(this.assetRowsUseNumbers)] as unknown as readonly T[];
     if (sql.includes("FROM question_revisions qr"))
-      return [revisionRow(this.revisionStatus)] as unknown as readonly T[];
+      return [
+        revisionRow(this.revisionStatus, this.revisionUpdatedAt),
+      ] as unknown as readonly T[];
     if (sql.includes("SELECT qrm.question_revision_id, qrm.media_asset_id"))
       return this.relationRows as readonly T[];
     if (sql.includes("FROM question_revision_media qrm"))
@@ -220,7 +240,10 @@ function assetRow(useNumbers = false): Record<string, unknown> {
   };
 }
 
-function revisionRow(status: "DRAFT" | "PUBLISHED"): Record<string, unknown> {
+function revisionRow(
+  status: "DRAFT" | "PUBLISHED",
+  updatedAt?: unknown,
+): Record<string, unknown> {
   return {
     id: 40n,
     status,
@@ -228,5 +251,6 @@ function revisionRow(status: "DRAFT" | "PUBLISHED"): Record<string, unknown> {
     subject_id: 20n,
     question_bank_id: 21n,
     question_bank_name: "Bank",
+    ...(updatedAt === undefined ? {} : { updated_at: updatedAt }),
   };
 }
