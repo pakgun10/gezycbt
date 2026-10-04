@@ -143,10 +143,11 @@ export class SqlMediaRelationRepository
 
   async list(questionRevisionId: Id): Promise<readonly MediaRelation[]> {
     const placementRows = await this.database.query<RelationRow>(
-      `SELECT placement_key, question_revision_id, media_asset_id, \`usage\`,
-              question_option_id, true_false_statement_id, sort_order,
-              alt_text, is_decorative, display_width_percent, alignment,
-              updated_at, ma.status AS media_asset_status
+      `SELECT p.placement_key, p.question_revision_id, p.media_asset_id,
+              p.\`usage\`, p.question_option_id,
+              p.true_false_statement_id, p.sort_order, p.alt_text,
+              p.is_decorative, p.display_width_percent, p.alignment,
+              p.updated_at AS updated_at, ma.status AS media_asset_status
        FROM question_media_placements p
        JOIN media_assets ma ON ma.id = p.media_asset_id
        WHERE p.question_revision_id = ?

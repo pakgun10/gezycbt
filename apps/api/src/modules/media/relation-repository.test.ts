@@ -118,6 +118,20 @@ describe("SqlMediaRelationRepository", () => {
     ]);
   });
 
+  test("qualifies placement timestamps when media assets are joined", async () => {
+    const database = new FakeMediaDatabase();
+    const repository = new SqlMediaRelationRepository(database);
+
+    await repository.list("40" as Id);
+
+    const joinedRead = database.statements.find(
+      (statement) =>
+        statement.includes("FROM question_media_placements p") &&
+        statement.includes("JOIN media_assets ma"),
+    );
+    expect(joinedRead).toContain("p.updated_at AS updated_at");
+  });
+
   test("does not mutate a published revision", async () => {
     const database = new FakeMediaDatabase();
     database.revisionStatus = "PUBLISHED";
