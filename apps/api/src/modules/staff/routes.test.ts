@@ -507,6 +507,22 @@ test("teacher list queries include the authenticated owner scope", async () => {
   expect(queries.some((parameters) => parameters.includes("2"))).toBe(true);
 });
 
+test("question list applies its cursor before reading the next page", async () => {
+  const { app, queries } = appFor("TEACHER");
+  const response = await app.handle(
+    new Request("https://cbt.example.test/api/v1/teacher/questions?cursor=50", {
+      headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+    }),
+  );
+
+  expect(response.status).toBe(200);
+  expect(
+    queries.some(
+      (parameters) => parameters.filter((value) => value === "50").length === 3,
+    ),
+  ).toBe(true);
+});
+
 test("question bank and question lists isolate teacher-owned banks", async () => {
   const teacher = appFor("TEACHER");
   const cookie = { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` };

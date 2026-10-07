@@ -1936,6 +1936,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
     wrapSqlRead(request, options, "TEACHER", async (actor) => {
       const limit = boundedLimit(queryValue(query, "limit"));
       const search = queryValue(query, "search") ?? "";
+      const cursor = optionalId(queryValue(query, "cursor"));
       const scoped =
         actor.user.role === "ADMIN"
           ? "1 = 1"
@@ -1967,6 +1968,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
          )
          JOIN question_banks qb ON qb.id = q.question_bank_id
          WHERE ${scoped} AND (? = '' OR qb.name LIKE ? OR qr.stimulus_html LIKE ?)
+           ${cursor ? "AND (qr.updated_at < (SELECT cursor_revision.updated_at FROM question_revisions cursor_revision WHERE cursor_revision.id = ?) OR (qr.updated_at = (SELECT cursor_revision.updated_at FROM question_revisions cursor_revision WHERE cursor_revision.id = ?) AND qr.id < ?))" : ""}
          ORDER BY qr.updated_at DESC, qr.id DESC LIMIT ?`,
         [
           ...(actor.user.role === "ADMIN"
@@ -1975,6 +1977,7 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
           search,
           `%${search}%`,
           `%${search}%`,
+          ...(cursor ? [cursor, cursor, cursor] : []),
           limit + 1,
         ],
       );
