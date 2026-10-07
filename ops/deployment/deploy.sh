@@ -19,7 +19,11 @@ mkdir -p "$root/releases" /run/lock
 exec 9>"$lock"
 flock -n 9 || { echo 'another deployment is running' >&2; exit 3; }
 [[ ! -e "$release" ]] || { echo "release already exists: $release" >&2; exit 4; }
-install -d -m 0750 "$release"
+previous_release="$(readlink -f "$root/current")"
+[[ -d "$previous_release" ]] || { echo "current release not found" >&2; exit 5; }
+# The API runs as gezycbt rather than the privileged deploy user, so each
+# immutable release must be traversable by that service account.
+install -d -m 0755 "$release"
 cp -a "$artifact_dir/." "$release/"
 find "$release" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >"$release/SHA256SUMS"
 export GEZYCBT_RELEASE_ROOT="$release"
@@ -36,6 +40,7 @@ for attempt in {1..20}; do
   sleep 1
 done
 echo 'readiness failed; rolling application symlink back' >&2
-"$root/current/ops/deployment/previous-release.sh" || true
+ln -sfn "$previous_release" "$root/current.next"
+mv -Tf "$root/current.next" "$root/current"
 systemctl restart gezycbt-api.service
 exit 1
