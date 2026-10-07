@@ -25,6 +25,9 @@ previous_release="$(readlink -f "$root/current")"
 # immutable release must be traversable by that service account.
 install -d -m 0755 "$release"
 cp -a "$artifact_dir/." "$release/"
+# cp -a also preserves the mode of artifact_dir itself. Normalize the release
+# root after the copy so a private staging directory cannot block systemd.
+chmod 0755 "$release"
 find "$release" -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum >"$release/SHA256SUMS"
 export GEZYCBT_RELEASE_ROOT="$release"
 # Migrations are forward-only and run before traffic switches to the release.
