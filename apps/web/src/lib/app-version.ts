@@ -1,4 +1,4 @@
-const DEFAULT_APP_VERSION = "1.4.2";
+const DEFAULT_APP_VERSION = "1.4.3";
 
 // SemVer 2.0.0 core, prerelease, and build metadata grammar.
 const SEMVER_PATTERN =
