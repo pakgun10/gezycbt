@@ -58,6 +58,10 @@ const emit = defineEmits<{
 const mathDialog = ref<"inline" | "block" | null>(null);
 const latex = ref("");
 const latexError = ref("");
+const mathEditTarget = ref<{
+  readonly kind: "inline" | "block";
+  readonly position: number;
+} | null>(null);
 const mediaDialog = ref(false);
 const mediaFile = ref<File | null>(null);
 const mediaAlt = ref("");
@@ -179,6 +183,16 @@ const editor = useEditor({
     QuestionMediaPlaceholder,
     Mathematics.configure({
       katexOptions: { throwOnError: false, trust: false, strict: "warn" },
+      inlineOptions: {
+        onClick(node, position) {
+          openMathForEdit("inline", String(node.attrs.latex ?? ""), position);
+        },
+      },
+      blockOptions: {
+        onClick(node, position) {
+          openMathForEdit("block", String(node.attrs.latex ?? ""), position);
+        },
+      },
     }),
   ],
   editorProps: {
@@ -274,8 +288,26 @@ function openMath(kind: "inline" | "block"): void {
   mathDialog.value = kind;
   latex.value = "";
   latexError.value = "";
+  mathEditTarget.value = null;
 }
-function insertMath(): void {
+function openMathForEdit(
+  kind: "inline" | "block",
+  source: string,
+  position: number,
+): void {
+  if (props.disabled) return;
+  mathDialog.value = kind;
+  latex.value = source;
+  latexError.value = "";
+  mathEditTarget.value = { kind, position };
+}
+function closeMathDialog(): void {
+  mathDialog.value = null;
+  latex.value = "";
+  latexError.value = "";
+  mathEditTarget.value = null;
+}
+function saveMath(): void {
   const value = latex.value.trim();
   if (!value || value.length > 2_000) {
     latexError.value = "LaTeX wajib diisi dan maksimal 2.000 karakter.";
@@ -283,9 +315,19 @@ function insertMath(): void {
   }
   const chain = editor.value?.chain().focus();
   if (!chain) return;
-  if (mathDialog.value === "inline") chain.insertInlineMath({ latex: value }).run();
-  else chain.insertBlockMath({ latex: value }).run();
-  mathDialog.value = null;
+  const target = mathEditTarget.value;
+  const changed = target
+    ? target.kind === "inline"
+      ? chain.updateInlineMath({ latex: value, pos: target.position }).run()
+      : chain.updateBlockMath({ latex: value, pos: target.position }).run()
+    : mathDialog.value === "inline"
+      ? chain.insertInlineMath({ latex: value }).run()
+      : chain.insertBlockMath({ latex: value }).run();
+  if (!changed) {
+    latexError.value = "Rumus tidak lagi tersedia. Tutup dialog lalu coba lagi.";
+    return;
+  }
+  closeMathDialog();
 }
 
 function toggleMediaDialog(): void {
@@ -518,10 +560,10 @@ function mediaNodePosition(
       </button>
     </div>
     <EditorContent v-if="editor" :editor="editor" />
-    <div v-if="mathDialog" class="math-dialog" role="dialog" aria-modal="true" aria-label="Sisipkan LaTeX">
-      <label>LaTeX {{ mathDialog === 'inline' ? 'inline' : 'blok' }}<textarea v-model="latex" rows="3" maxlength="2000" placeholder="Contoh: x^2 + y^2 = z^2" @keyup.ctrl.enter="insertMath" /></label>
+    <div v-if="mathDialog" class="math-dialog" role="dialog" aria-modal="true" :aria-label="mathEditTarget ? 'Ubah LaTeX' : 'Sisipkan LaTeX'">
+      <label>LaTeX {{ mathDialog === 'inline' ? 'inline' : 'blok' }}<textarea v-model="latex" rows="3" maxlength="2000" placeholder="Contoh: x^2 + y^2 = z^2" @keyup.ctrl.enter="saveMath" /></label>
       <p v-if="latexError" class="form-error">{{ latexError }}</p>
-      <div class="stack"><button type="button" class="btn-primary" @click="insertMath">Sisipkan</button><button type="button" class="btn-quiet" @click="mathDialog = null">Batal</button></div>
+      <div class="stack"><button type="button" class="btn-primary" @click="saveMath">{{ mathEditTarget ? 'Simpan perubahan LaTeX' : 'Sisipkan' }}</button><button type="button" class="btn-quiet" @click="closeMathDialog">Batal</button></div>
     </div>
     <p v-if="mediaDisabledReason" class="media-help" role="status">{{ mediaDisabledReason }}</p>
     <div v-if="mediaDialog" class="media-dialog" role="group" :aria-label="`Tambahkan gambar ke ${label}`">
@@ -567,6 +609,7 @@ function mediaNodePosition(
 .rich-editor :deep(figure[data-content-node="question-media"]) { display: block; box-sizing: border-box; max-width: 100%; min-height: 48px; margin-top: 10px; margin-bottom: 10px; padding: 6px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; background: var(--canvas); }
 .rich-editor :deep(figure[data-content-node="question-media"] img) { display: block; width: 100%; height: auto; max-height: 420px; margin: 0; border-radius: 6px; object-fit: contain; }
 .rich-editor :deep(figure[data-content-node="question-media"].ProseMirror-selectednode) { border-color: var(--primary); outline: 2px solid var(--primary-soft); }
+.rich-editor :deep(.tiptap-mathematics-render--editable) { cursor: pointer; }
 .media-edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 @media (max-width: 600px) { .rich-media-item { grid-template-columns: 1fr; }.media-dialog-grid { grid-template-columns: 1fr; } }
 </style>
