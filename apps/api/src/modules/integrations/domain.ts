@@ -230,7 +230,9 @@ export function validateDescription(
 
 export function validateCapability(value: string): string {
   const normalized = value.trim();
-  if (!/^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9_]*)+$/u.test(normalized))
+  // Capability namespaces may contain underscores, for example
+  // `question_banks.read` and `teacher_scopes.write`.
+  if (!/^[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)+$/u.test(normalized))
     throw new IntegrationValidationError("Capability is invalid");
   return normalized;
 }
