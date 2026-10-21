@@ -415,6 +415,63 @@ test("agent master data adapter can create a class with an idempotency boundary"
   });
 });
 
+test("agent master data adapter can create an academic year", async () => {
+  let received: Record<string, unknown> | undefined;
+  const masterData = {
+    async createAcademicYear(
+      _authentication: unknown,
+      input: Record<string, unknown>,
+      _requestId: string,
+      _idempotencyKey: string,
+    ) {
+      received = input;
+      return {
+        id: "91",
+        name: "2026/2027",
+        startsOn: "2026-07-01",
+        endsOn: "2027-06-30",
+        isActive: false,
+      };
+    },
+  };
+  const application = app(
+    true,
+    ["academic_years.write"],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    masterData,
+  );
+  const response = await application.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/academic-years",
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer integration-token",
+          "content-type": "application/json",
+          "idempotency-key": "academic-year-create-test-key",
+        },
+        body: JSON.stringify({
+          name: "2026/2027",
+          startsOn: "2026-07-01",
+          endsOn: "2027-06-30",
+        }),
+      },
+    ),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: { id: "91" } });
+  expect(received).toEqual({
+    name: "2026/2027",
+    startsOn: "2026-07-01",
+    endsOn: "2027-06-30",
+  });
+});
+
 test("agent result routes expose summary and paginated schedule reads", async () => {
   const resultReads = {
     async getScheduleSummary() {

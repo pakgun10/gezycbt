@@ -25,6 +25,7 @@ export const AGENT_COMPATIBILITY_MANIFEST = Object.freeze({
     discovery: Object.freeze(["GET /me", "GET /capabilities"]),
     mutations: Object.freeze([
       "POST /questions",
+      "POST /academic-years",
       "POST /question-revisions/:id/validate",
       "POST /question-revisions/:id/publish",
       "POST /exams",

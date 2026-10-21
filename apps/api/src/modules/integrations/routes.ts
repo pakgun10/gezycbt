@@ -321,6 +321,32 @@ export function createIntegrationRoutes(
   );
 
   app.post(
+    "/api/v1/integrations/agent/academic-years",
+    async ({ request, body }) =>
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          return masterData.createAcademicYear(
+            authentication,
+            {
+              name: stringField(payload.name, "name"),
+              startsOn: stringField(payload.startsOn, "startsOn"),
+              endsOn: stringField(payload.endsOn, "endsOn"),
+              ...(typeof payload.isActive === "boolean"
+                ? { isActive: payload.isActive }
+                : {}),
+            },
+            requestId,
+            key,
+          );
+        },
+      ),
+  );
+
+  app.post(
     "/api/v1/integrations/agent/users/:id/reset-password",
     async ({ request, params, body }) =>
       agentMutation(

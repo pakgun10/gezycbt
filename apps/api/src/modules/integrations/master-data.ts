@@ -4,6 +4,7 @@ import type {
   UseCaseContext,
 } from "../../application/actor-context";
 import type {
+  CreateAcademicYearInput,
   CreateClassInput,
   CreateSubjectInput,
   ScopeInput,
@@ -31,6 +32,7 @@ export interface IntegrationMasterDataOptions {
   >;
   readonly academics: Pick<
     AcademicMasterService,
+    | "createAcademicYear"
     | "createClass"
     | "updateClass"
     | "replaceClassMembers"
@@ -45,6 +47,37 @@ export interface IntegrationMasterDataOptions {
 
 export class IntegrationMasterDataService {
   constructor(private readonly options: IntegrationMasterDataOptions) {}
+
+  async createAcademicYear(
+    authentication: IntegrationAuthentication,
+    input: CreateAcademicYearInput,
+    requestId: string,
+    _idempotencyKey: string,
+  ) {
+    const grant = await this.options.integration.assertCapability(
+      authentication,
+      "academic_years.write",
+      requestId,
+    );
+    this.requireAdmin(authentication);
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
+    const result = await this.options.academics.createAcademicYear(
+      this.context(authentication, requestId, _idempotencyKey),
+      input,
+    );
+    await this.audit(
+      authentication,
+      "INTEGRATION_ACADEMIC_YEAR_CREATE",
+      result.id,
+      requestId,
+      { startsOn: result.startsOn, endsOn: result.endsOn },
+    );
+    return result;
+  }
 
   async createUser(
     authentication: IntegrationAuthentication,
