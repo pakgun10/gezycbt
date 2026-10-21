@@ -160,6 +160,51 @@ test("SQL discovery is bounded to 20 candidates and applies school scope", async
   expect(parameters.at(-1)).toBe(21);
 });
 
+test("SQL user discovery defaults to active non-admin users and omits credentials", async () => {
+  let statement = "";
+  let parameters: readonly unknown[] = [];
+  const repository = new SqlIntegrationDiscoveryRepository({
+    async query<T extends Record<string, unknown>>(
+      sql: string,
+      values?: readonly unknown[],
+    ) {
+      statement = sql;
+      parameters = values ?? [];
+      return [
+        {
+          id: 7n,
+          username: "teacher.one",
+          display_name: "Teacher One",
+          role: "TEACHER",
+          status: "ACTIVE",
+          last_login_at: null,
+        },
+      ] as unknown as readonly T[];
+    },
+  });
+  const page = await repository.searchUsers(
+    { limit: 20 },
+    {
+      ownerUserId: "1" as Id,
+      ownerRole: "ADMIN",
+      teacherSubjectIds: [],
+      teacherClassIds: [],
+      grants: [requiredGrant(adminAuthentication("users.read"))],
+    },
+  );
+  expect(page.items[0]).toEqual({
+    id: "7" as Id,
+    username: "teacher.one",
+    displayName: "Teacher One",
+    role: "TEACHER",
+    status: "ACTIVE",
+    lastLoginAt: null,
+  });
+  expect(statement).toContain("u.role IN ('TEACHER', 'PARTICIPANT')");
+  expect(statement).not.toContain("password_hash");
+  expect(parameters).toContain("ACTIVE");
+});
+
 test("teacher discovery keeps owner and subject scope in SQL and never selects answer keys", async () => {
   let statement = "";
   const repository = new SqlIntegrationDiscoveryRepository({

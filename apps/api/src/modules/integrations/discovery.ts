@@ -10,6 +10,7 @@ import type { DatabasePort } from "@gezycbt/database";
 import type { IntegrationGrant, IntegrationScopeType } from "./domain";
 
 export type DiscoveryResourceType =
+  | "users"
   | "subjects"
   | "classes"
   | "question_banks"
@@ -29,6 +30,7 @@ export interface DiscoveryQuery {
   readonly revisionStatus?: string;
   readonly type?: string;
   readonly mode?: string;
+  readonly role?: "TEACHER" | "PARTICIPANT";
 }
 
 export interface DiscoveryAccess {
@@ -49,6 +51,15 @@ export interface DiscoverySubject {
   readonly code: string;
   readonly name: string;
   readonly status: string;
+}
+
+export interface DiscoveryUser {
+  readonly id: Id;
+  readonly username: string;
+  readonly displayName: string;
+  readonly role: "TEACHER" | "PARTICIPANT";
+  readonly status: "ACTIVE" | "DISABLED";
+  readonly lastLoginAt: UtcTimestamp | null;
 }
 
 export interface DiscoveryClass {
@@ -115,6 +126,10 @@ export interface DiscoverySchedule {
 }
 
 export interface IntegrationDiscoveryRepository {
+  searchUsers(
+    query: DiscoveryQuery,
+    access: DiscoveryAccess,
+  ): Promise<DiscoveryPage<DiscoveryUser>>;
   searchSubjects(
     query: DiscoveryQuery,
     access: DiscoveryAccess,
@@ -145,6 +160,7 @@ type DatabaseQuery = Pick<DatabasePort, "query">;
 type Row = Record<string, unknown>;
 
 const RESOURCE_CAPABILITIES = {
+  users: "users.read",
   subjects: "subjects.read",
   classes: "classes.read",
   question_banks: "question_banks.read",
@@ -186,6 +202,32 @@ export class SqlIntegrationDiscoveryRepository
       [...parameters, query.limit + 1],
     );
     return page(rows, query.limit, mapSubject);
+  }
+
+  async searchUsers(
+    query: DiscoveryQuery,
+    access: DiscoveryAccess,
+  ): Promise<DiscoveryPage<DiscoveryUser>> {
+    const where = ["u.role IN ('TEACHER', 'PARTICIPANT')"];
+    const parameters: unknown[] = [];
+    addTextSearch(where, parameters, query.q, [
+      "u.username",
+      "u.username_normalized",
+      "u.display_name",
+    ]);
+    addEquals(where, parameters, "u.status", query.status ?? "ACTIVE");
+    if (query.role) addEquals(where, parameters, "u.role", query.role);
+    if (query.cursor) addCursor(where, parameters, "u.id", query.cursor);
+    addScope(where, parameters, access, {});
+    const rows = await this.database.query<Row>(
+      `SELECT u.id, u.username, u.display_name, u.role, u.status,
+              u.last_login_at
+       FROM users u
+       WHERE ${where.join(" AND ")}
+       ORDER BY u.id ASC LIMIT ?`,
+      [...parameters, query.limit + 1],
+    );
+    return page(rows, query.limit, mapUser);
   }
 
   async searchClasses(
@@ -546,6 +588,23 @@ function mapSubject(row: Row): DiscoverySubject {
   };
 }
 
+function mapUser(row: Row): DiscoveryUser {
+  const role = requiredString(row.role);
+  const status = requiredString(row.status);
+  if (role !== "TEACHER" && role !== "PARTICIPANT")
+    throw new Error("Database returned an invalid integration user role");
+  if (status !== "ACTIVE" && status !== "DISABLED")
+    throw new Error("Database returned an invalid integration user status");
+  return {
+    id: requiredId(row.id),
+    username: requiredString(row.username),
+    displayName: requiredString(row.display_name),
+    role,
+    status,
+    lastLoginAt: nullableTimestamp(row.last_login_at),
+  };
+}
+
 function mapClass(row: Row): DiscoveryClass {
   return {
     id: requiredId(row.id),
@@ -639,6 +698,10 @@ function requiredString(value: unknown): string {
 
 function nullableString(value: unknown): string | null {
   return value === null || value === undefined ? null : requiredString(value);
+}
+
+function nullableTimestamp(value: unknown): UtcTimestamp | null {
+  return value === null || value === undefined ? null : requiredTimestamp(value);
 }
 
 function positiveInteger(value: unknown): number {

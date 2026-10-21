@@ -195,6 +195,22 @@ export function createIntegrationRoutes(
     }
   });
 
+  app.get("/api/v1/integrations/agent/users", async ({ request, query }) => {
+    try {
+      const requestId = requestIdOf(request);
+      const authentication = await requireAgent(request, options, "read");
+      return {
+        data: await options.service.searchUsers(
+          authentication,
+          parseDiscoveryQuery(query, "users"),
+          requestId,
+        ),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
   app.get("/api/v1/integrations/agent/subjects", async ({ request, query }) => {
     try {
       const requestId = requestIdOf(request);
@@ -2179,6 +2195,7 @@ function parseDiscoveryQuery(
     "TRUE_FALSE",
   ]);
   const mode = queryEnum(candidate.mode, ["MAIN", "PRACTICE"]);
+  const role = queryEnum(candidate.role, ["TEACHER", "PARTICIPANT"]);
   return {
     ...(q ? { q } : {}),
     ...(cursor ? { cursor } : {}),
@@ -2191,6 +2208,7 @@ function parseDiscoveryQuery(
     ...(revisionStatus ? { revisionStatus } : {}),
     ...(type ? { type } : {}),
     ...(mode ? { mode } : {}),
+    ...(role ? { role: role as "TEACHER" | "PARTICIPANT" } : {}),
   };
 }
 
@@ -2435,5 +2453,7 @@ function resourceStatusValues(
       return ["DRAFT", "PUBLISHED", "ARCHIVED"];
     case "schedules":
       return ["DRAFT", "READY", "OPEN", "CLOSED", "ARCHIVED"];
+    case "users":
+      return ["ACTIVE", "DISABLED"];
   }
 }
