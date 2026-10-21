@@ -11,6 +11,7 @@ import {
   type DiscoveryResourceType,
   type DiscoverySchedule,
   type DiscoverySubject,
+  type DiscoveryUser,
   discoveryCapability,
   type IntegrationDiscoveryRepository,
 } from "./discovery";
@@ -269,6 +270,31 @@ export class IntegrationService {
       "subjects",
       requestId,
       (access) => this.options.discovery?.searchSubjects(query, access),
+    );
+  }
+
+  async searchUsers(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryUser>> {
+    // A user directory is a school-wide identity surface. Keep it available
+    // only to an explicitly granted client owned by an administrator; teacher
+    // clients continue to receive only their scoped academic resources.
+    if (authentication.client.ownerRole !== "ADMIN") {
+      await this.options.audit?.record({
+        action: "INTEGRATION_SCOPE_DENIED",
+        actorType: "EXTERNAL_AGENT",
+        clientId: authentication.client.id,
+        actorUserId: authentication.client.ownerUserId,
+        entityType: "users",
+        requestId,
+        outcome: "FAILURE",
+      });
+      throw new IntegrationScopeError();
+    }
+    return this.searchDiscovery(authentication, "users", requestId, (access) =>
+      this.options.discovery?.searchUsers(query, access),
     );
   }
 

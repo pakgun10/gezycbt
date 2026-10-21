@@ -12,6 +12,9 @@ const NOW = "2026-09-17T00:00:00.000Z" as UtcTimestamp;
 test("agent discovery route returns stable candidates and rejects limits above 20", async () => {
   const authentication = createAuthentication();
   const discovery: IntegrationDiscoveryRepository = {
+    async searchUsers() {
+      return { items: [], nextCursor: null };
+    },
     async searchSubjects() {
       return {
         items: [
@@ -96,6 +99,14 @@ test("agent discovery route returns stable candidates and rejects limits above 2
     ),
   );
   expect(invalidLimit.status).toBe(422);
+
+  const users = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/users?role=PARTICIPANT",
+      { headers: { authorization: "Bearer test-token" } },
+    ),
+  );
+  expect(users.status).toBe(200);
 });
 
 function createAuthentication(): IntegrationAuthentication {
@@ -132,6 +143,23 @@ function createAuthentication(): IntegrationAuthentication {
         id: "12" as Id,
         integrationClientId: "10" as Id,
         capability: "subjects.read",
+        scopeType: "SCHOOL",
+        scopeIds: [],
+        constraints: {},
+        grantVersion: 1,
+        status: "ACTIVE",
+        validFrom: NOW,
+        expiresAt: null,
+        issuedByUserId: "1" as Id,
+        revokedAt: null,
+        revokeReason: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      {
+        id: "13" as Id,
+        integrationClientId: "10" as Id,
+        capability: "users.read",
         scopeType: "SCHOOL",
         scopeIds: [],
         constraints: {},
