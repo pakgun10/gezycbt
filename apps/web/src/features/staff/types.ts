@@ -23,7 +23,7 @@ export interface CursorPage<T> {
   readonly nextCursor: string | null;
 }
 
-/** Offset page used only by the bounded admin user directory. */
+/** Offset page used by bounded admin tables that need numbered navigation. */
 export interface NumberedPage<T> extends CursorPage<T> {
   readonly page: number;
   readonly pageSize: number;

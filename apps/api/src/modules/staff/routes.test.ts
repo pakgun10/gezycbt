@@ -403,6 +403,35 @@ test("admin user list returns bounded numbered pages with a total", async () => 
   expect(queries).toEqual([[], [25, 75]]);
 });
 
+test("admin audit list returns bounded numbered pages with a total", async () => {
+  const { app, queries } = appFor("ADMIN", (sql) => {
+    if (sql.includes("COUNT(*) AS total FROM audit_logs"))
+      return [{ total: 76 }];
+    return [];
+  });
+  const response = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/admin/audit-logs?page=4&limit=25",
+      {
+        headers: { cookie: `__Host-gezycbt-auth=${"a".repeat(43)}` },
+      },
+    ),
+  );
+
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({
+    data: {
+      items: [],
+      nextCursor: null,
+      page: 4,
+      pageSize: 25,
+      totalItems: 76,
+      totalPages: 4,
+    },
+  });
+  expect(queries).toEqual([[], [25, 75]]);
+});
+
 test("admin credential import download streams the one-time CSV after re-auth", async () => {
   markStaffReauthenticated("1" as Id);
   const calls: unknown[][] = [];

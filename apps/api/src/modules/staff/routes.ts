@@ -2530,28 +2530,47 @@ export function createStaffRoutes(options: StaffRouteOptions): Elysia {
     wrapSqlRead(request, options, "ADMIN", async () => {
       const limit = boundedLimit(queryValue(query, "limit"));
       const search = queryValue(query, "search")?.trim().slice(0, 100) ?? "";
+      const requestedPage = optionalPage(queryValue(query, "page"));
       const parameters: unknown[] = [];
       const searchClause = search
         ? "WHERE action LIKE ? OR entity_type LIKE ? OR request_id LIKE ?"
         : "";
       if (search) parameters.push(`%${search}%`, `%${search}%`, `%${search}%`);
+
+      if (requestedPage !== undefined) {
+        const countRows = await options.database.query<Record<string, unknown>>(
+          `SELECT COUNT(*) AS total FROM audit_logs ${searchClause}`,
+          parameters,
+        );
+        const totalItems = Number(countRows[0]?.total ?? 0);
+        const totalPages = Math.ceil(totalItems / limit);
+        const pageNumber = Math.min(requestedPage, Math.max(totalPages, 1));
+        const offset = (pageNumber - 1) * limit;
+        const rows = await options.database.query<Record<string, unknown>>(
+          `SELECT id, action, entity_type, entity_id, actor_type, actor_user_id,
+                  request_id, created_at,
+                  JSON_UNQUOTE(JSON_EXTRACT(metadata_json, '$.outcome')) AS outcome
+           FROM audit_logs ${searchClause}
+           ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`,
+          [...parameters, limit, offset],
+        );
+        return {
+          items: rows.map(mapAuditRow),
+          nextCursor: null,
+          page: pageNumber,
+          pageSize: limit,
+          totalItems,
+          totalPages,
+        };
+      }
+
       parameters.push(limit + 1);
       const rows = await options.database.query<Record<string, unknown>>(
         `SELECT id, action, entity_type, entity_id, actor_type, actor_user_id, request_id, created_at, JSON_UNQUOTE(JSON_EXTRACT(metadata_json, '$.outcome')) AS outcome FROM audit_logs ${searchClause} ORDER BY created_at DESC, id DESC LIMIT ?`,
         parameters,
       );
       return page(
-        rows.slice(0, limit).map((row) => ({
-          id: String(row.id),
-          action: String(row.action),
-          outcome: row.outcome === "FAILURE" ? "FAILURE" : "SUCCESS",
-          actorLabel:
-            `${String(row.actor_type)} ${row.actor_user_id ? String(row.actor_user_id) : ""}`.trim(),
-          entityType: String(row.entity_type),
-          entityId: row.entity_id === null ? null : String(row.entity_id),
-          createdAt: String(row.created_at),
-          requestId: String(row.request_id),
-        })),
+        rows.slice(0, limit).map(mapAuditRow),
         rows.length > limit ? String(rows[limit]?.id) : null,
       );
     }),
@@ -2690,6 +2709,19 @@ function page<T>(
   nextCursor: string | null,
 ): { items: readonly T[]; nextCursor: string | null } {
   return { items, nextCursor };
+}
+function mapAuditRow(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    action: String(row.action),
+    outcome: row.outcome === "FAILURE" ? "FAILURE" : "SUCCESS",
+    actorLabel:
+      `${String(row.actor_type)} ${row.actor_user_id ? String(row.actor_user_id) : ""}`.trim(),
+    entityType: String(row.entity_type),
+    entityId: row.entity_id === null ? null : String(row.entity_id),
+    createdAt: String(row.created_at),
+    requestId: String(row.request_id),
+  };
 }
 function pageRequest(query: unknown): { cursor?: string; limit?: number } {
   const candidate = query as Record<string, unknown>;

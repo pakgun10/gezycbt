@@ -324,7 +324,7 @@ export interface StaffApi {
   exportDownloadToken(
     id: string,
   ): Promise<{ token: string; expiresAt: string }>;
-  audit(query?: string): Promise<CursorPage<AuditRow>>;
+  audit(query?: string, page?: number, limit?: number): Promise<NumberedPage<AuditRow>>;
   integrationClients(): Promise<CursorPage<IntegrationClient>>;
   integrationClient(id: string): Promise<IntegrationClientDetail>;
   createIntegrationClient(
@@ -1050,9 +1050,9 @@ export class HttpStaffApi implements StaffApi {
       {},
     );
   }
-  audit(query = "") {
-    return this.getPage<AuditRow>(
-      `/api/v1/admin/audit-logs?search=${encodeURIComponent(query)}`,
+  audit(query = "", page = 1, limit = 25) {
+    return this.getData<NumberedPage<AuditRow>>(
+      `/api/v1/admin/audit-logs?search=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
     );
   }
   integrationClients() {
