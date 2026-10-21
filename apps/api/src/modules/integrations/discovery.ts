@@ -651,9 +651,9 @@ function mapAcademicYear(row: Row): DiscoveryAcademicYear {
   return {
     id: requiredId(row.id),
     name: requiredString(row.name),
-    startsOn: requiredString(row.starts_on),
-    endsOn: requiredString(row.ends_on),
-    isActive: Boolean(row.is_active),
+    startsOn: requiredDate(row.starts_on),
+    endsOn: requiredDate(row.ends_on),
+    isActive: row.is_active === true || row.is_active === 1 || row.is_active === "1",
   };
 }
 
@@ -746,6 +746,11 @@ function requiredString(value: unknown): string {
   if (typeof value !== "string")
     throw new Error("Database returned invalid discovery text");
   return value;
+}
+
+function requiredDate(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return requiredString(value);
 }
 
 function nullableString(value: unknown): string | null {
