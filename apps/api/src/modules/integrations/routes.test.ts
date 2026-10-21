@@ -399,12 +399,20 @@ test("agent master data adapter can create a class with an idempotency boundary"
         "content-type": "application/json",
         "idempotency-key": "class-create-test-key",
       },
-      body: JSON.stringify({ academicYearId: "7", code: "X-1", name: "Kelas X-1" }),
+      body: JSON.stringify({
+        academicYearId: "7",
+        code: "X-1",
+        name: "Kelas X-1",
+      }),
     }),
   );
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ data: { id: "90" } });
-  expect(received).toEqual({ academicYearId: "7", code: "X-1", name: "Kelas X-1" });
+  expect(received).toEqual({
+    academicYearId: "7",
+    code: "X-1",
+    name: "Kelas X-1",
+  });
 });
 
 test("agent result routes expose summary and paginated schedule reads", async () => {

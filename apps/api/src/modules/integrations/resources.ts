@@ -1,11 +1,11 @@
-import type { DatabasePort } from "@gezycbt/database";
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
+import type { DatabasePort } from "@gezycbt/database";
 import {
+  type IntegrationAuthentication,
   IntegrationConflictError,
   IntegrationNotFoundError,
   IntegrationScopeError,
   IntegrationValidationError,
-  type IntegrationAuthentication,
 } from "./domain";
 import type { IntegrationService } from "./service";
 
@@ -47,7 +47,11 @@ export class IntegrationResourceService {
 
   async createQuestionBank(
     authentication: IntegrationAuthentication,
-    input: { readonly subjectId: Id; readonly ownerTeacherId?: Id; readonly name: string },
+    input: {
+      readonly subjectId: Id;
+      readonly ownerTeacherId?: Id;
+      readonly name: string;
+    },
     requestId: string,
   ) {
     const grant = await this.options.integration.assertCapability(
@@ -73,7 +77,12 @@ export class IntegrationResourceService {
     );
     const id = insertId(result);
     const created = await this.getQuestionBank(authentication, id, requestId);
-    await this.audit(authentication, "INTEGRATION_QUESTION_BANK_CREATE", id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_QUESTION_BANK_CREATE",
+      id,
+      requestId,
+    );
     return created;
   }
 
@@ -103,7 +112,12 @@ export class IntegrationResourceService {
     const result = await this.options.database.execute(
       `UPDATE question_banks SET name = ?, status = ?, updated_at = UTC_TIMESTAMP(6)
        WHERE id = ? AND updated_at = ?`,
-      [input.name?.trim() ?? String(current.name), input.status ?? String(current.status), id, databaseTimestamp(expectedUpdatedAt)],
+      [
+        input.name?.trim() ?? String(current.name),
+        input.status ?? String(current.status),
+        id,
+        databaseTimestamp(expectedUpdatedAt),
+      ],
     );
     if (affectedRows(result) !== 1)
       throw new IntegrationConflictError("Question bank version conflict");
@@ -139,7 +153,12 @@ export class IntegrationResourceService {
     );
     if (affectedRows(result) !== 1)
       throw new IntegrationConflictError("Question version conflict");
-    await this.audit(authentication, "INTEGRATION_QUESTION_ARCHIVE", id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_QUESTION_ARCHIVE",
+      id,
+      requestId,
+    );
     return { id, status: "ARCHIVED" };
   }
 
@@ -235,14 +254,21 @@ export class IntegrationResourceService {
     return { items: rows.map(mapSession), nextCursor: null };
   }
 
-  async getSettings(authentication: IntegrationAuthentication, requestId: string) {
+  async getSettings(
+    authentication: IntegrationAuthentication,
+    requestId: string,
+  ) {
     const grant = await this.options.integration.assertCapability(
       authentication,
       "settings.read",
       requestId,
     );
     this.requireAdmin(authentication);
-    await this.options.integration.assertResourceScope(authentication, grant, {});
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
     const row = await this.one(
       "SELECT id, school_name, school_code, address, timezone, updated_at FROM school_settings WHERE id = 1 LIMIT 1",
       [],
@@ -261,7 +287,12 @@ export class IntegrationResourceService {
 
   async updateSettings(
     authentication: IntegrationAuthentication,
-    input: { readonly schoolName?: string; readonly schoolCode?: string; readonly address?: string | null; readonly timezone?: string },
+    input: {
+      readonly schoolName?: string;
+      readonly schoolCode?: string;
+      readonly address?: string | null;
+      readonly timezone?: string;
+    },
     expectedUpdatedAt: UtcTimestamp | undefined,
     requestId: string,
   ) {
@@ -271,7 +302,11 @@ export class IntegrationResourceService {
       requestId,
     );
     this.requireAdmin(authentication);
-    await this.options.integration.assertResourceScope(authentication, grant, {});
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
     const current = await this.getSettings(authentication, requestId);
     const result = await this.options.database.execute(
       `UPDATE school_settings SET school_name = ?, school_code = ?, address = ?, timezone = ?, updated_at = UTC_TIMESTAMP(6)
@@ -286,7 +321,12 @@ export class IntegrationResourceService {
     );
     if (expectedUpdatedAt && affectedRows(result) !== 1)
       throw new IntegrationConflictError("Settings version conflict");
-    await this.audit(authentication, "INTEGRATION_SETTINGS_UPDATE", "1" as Id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_SETTINGS_UPDATE",
+      "1" as Id,
+      requestId,
+    );
     return this.getSettings(authentication, requestId);
   }
 
@@ -301,7 +341,11 @@ export class IntegrationResourceService {
       requestId,
     );
     this.requireAdmin(authentication);
-    await this.options.integration.assertResourceScope(authentication, grant, {});
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
     const rows = await this.options.database.query<Row>(
       `SELECT id, action, entity_type, entity_id, actor_type, actor_user_id,
               request_id, created_at,
@@ -315,7 +359,8 @@ export class IntegrationResourceService {
         action: String(row.action),
         outcome: row.outcome === "FAILURE" ? "FAILURE" : "SUCCESS",
         actorType: String(row.actor_type),
-        actorUserId: row.actor_user_id == null ? null : String(row.actor_user_id),
+        actorUserId:
+          row.actor_user_id == null ? null : String(row.actor_user_id),
         entityType: String(row.entity_type),
         entityId: row.entity_id == null ? null : String(row.entity_id),
         requestId: String(row.request_id),
@@ -325,13 +370,17 @@ export class IntegrationResourceService {
     };
   }
 
-  private async one(sql: string, params: readonly unknown[]): Promise<Row | null> {
+  private async one(
+    sql: string,
+    params: readonly unknown[],
+  ): Promise<Row | null> {
     const rows = await this.options.database.query<Row>(sql, params);
     return rows[0] ?? null;
   }
 
   private requireAdmin(authentication: IntegrationAuthentication): void {
-    if (authentication.client.ownerRole !== "ADMIN") throw new IntegrationScopeError();
+    if (authentication.client.ownerRole !== "ADMIN")
+      throw new IntegrationScopeError();
   }
 
   private async audit(
@@ -369,7 +418,8 @@ function mapSession(row: Row) {
   return {
     id: String(row.id),
     scheduleId: String(row.schedule_id),
-    participantId: row.participant_id == null ? null : String(row.participant_id),
+    participantId:
+      row.participant_id == null ? null : String(row.participant_id),
     participantName: String(row.participant_name_snapshot ?? ""),
     status: String(row.status),
     version: Number(row.version),

@@ -1,8 +1,8 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
-import type { ActorContext, UseCaseContext } from "../../application/actor-context";
-import type { PasswordService } from "../auth/password";
-import type { AuthSessionService } from "../auth/session";
-import type { AcademicMasterService } from "../academics/service";
+import type {
+  ActorContext,
+  UseCaseContext,
+} from "../../application/actor-context";
 import type {
   CreateClassInput,
   CreateSubjectInput,
@@ -10,25 +10,24 @@ import type {
   UpdateClassInput,
   UpdateSubjectInput,
 } from "../academics/domain";
+import type { AcademicMasterService } from "../academics/service";
+import type { PasswordService } from "../auth/password";
+import type { AuthSessionService } from "../auth/session";
+import { toUserView, type UserRole } from "../users/domain";
+import type { UserRepository } from "../users/repository";
 import {
+  type IntegrationAuthentication,
   IntegrationNotFoundError,
   IntegrationScopeError,
   IntegrationValidationError,
-  type IntegrationAuthentication,
 } from "./domain";
 import type { IntegrationService } from "./service";
-import type { UserRepository } from "../users/repository";
-import { toUserView, type UserRole } from "../users/domain";
 
 export interface IntegrationMasterDataOptions {
   readonly integration: IntegrationService;
   readonly users: Pick<
     UserRepository,
-    | "findById"
-    | "create"
-    | "update"
-    | "disable"
-    | "updatePassword"
+    "findById" | "create" | "update" | "disable" | "updatePassword"
   >;
   readonly academics: Pick<
     AcademicMasterService,
@@ -65,7 +64,11 @@ export class IntegrationMasterDataService {
       requestId,
     );
     this.requireAdmin(authentication);
-    await this.options.integration.assertResourceScope(authentication, grant, {});
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
     const passwordHash = await this.options.passwords.hash(
       input.password,
       input.role,
@@ -78,10 +81,16 @@ export class IntegrationMasterDataService {
       passwordHash,
       forcePasswordChange: input.forcePasswordChange ?? true,
     });
-    await this.audit(authentication, "INTEGRATION_USER_CREATE", user.id, requestId, {
-      role: user.role,
-      idempotencyKey,
-    });
+    await this.audit(
+      authentication,
+      "INTEGRATION_USER_CREATE",
+      user.id,
+      requestId,
+      {
+        role: user.role,
+        idempotencyKey,
+      },
+    );
     return toUserView(user);
   }
 
@@ -110,18 +119,29 @@ export class IntegrationMasterDataService {
     if (
       userId === authentication.client.ownerUserId &&
       (input.status === "DISABLED" ||
-        (input.role !== undefined && input.role !== authentication.client.ownerRole))
+        (input.role !== undefined &&
+          input.role !== authentication.client.ownerRole))
     )
       throw new IntegrationValidationError(
         "Integration client owner cannot disable or change its own role",
       );
-    const user = await this.options.users.update(userId, input, expectedUpdatedAt);
+    const user = await this.options.users.update(
+      userId,
+      input,
+      expectedUpdatedAt,
+    );
     if (!user) throw new IntegrationNotFoundError("User was not found");
     if (input.status === "DISABLED")
       await this.options.sessions.revokeUserSessions(userId, "USER_DISABLED");
-    await this.audit(authentication, "INTEGRATION_USER_UPDATE", user.id, requestId, {
-      status: user.status,
-    });
+    await this.audit(
+      authentication,
+      "INTEGRATION_USER_UPDATE",
+      user.id,
+      requestId,
+      {
+        status: user.status,
+      },
+    );
     return toUserView(user);
   }
 
@@ -182,9 +202,15 @@ export class IntegrationMasterDataService {
       userId,
       "PASSWORD_RESET",
     );
-    await this.audit(authentication, "INTEGRATION_USER_PASSWORD_RESET", user.id, requestId, {
-      revokedSessionCount,
-    });
+    await this.audit(
+      authentication,
+      "INTEGRATION_USER_PASSWORD_RESET",
+      user.id,
+      requestId,
+      {
+        revokedSessionCount,
+      },
+    );
     return { user: toUserView(user), revokedSessionCount };
   }
 
@@ -207,7 +233,12 @@ export class IntegrationMasterDataService {
       this.context(authentication, requestId, _idempotencyKey),
       input,
     );
-    await this.audit(authentication, "INTEGRATION_CLASS_CREATE", result.id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_CLASS_CREATE",
+      result.id,
+      requestId,
+    );
     return result;
   }
 
@@ -232,7 +263,12 @@ export class IntegrationMasterDataService {
       classId,
       input,
     );
-    await this.audit(authentication, "INTEGRATION_CLASS_UPDATE", result.id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_CLASS_UPDATE",
+      result.id,
+      requestId,
+    );
     return result;
   }
 
@@ -257,9 +293,15 @@ export class IntegrationMasterDataService {
       classId,
       participantIds,
     );
-    await this.audit(authentication, "INTEGRATION_CLASS_MEMBERS_REPLACE", classId, requestId, {
-      count: result.length,
-    });
+    await this.audit(
+      authentication,
+      "INTEGRATION_CLASS_MEMBERS_REPLACE",
+      classId,
+      requestId,
+      {
+        count: result.length,
+      },
+    );
     return result;
   }
 
@@ -275,12 +317,21 @@ export class IntegrationMasterDataService {
       requestId,
     );
     this.requireAdmin(authentication);
-    await this.options.integration.assertResourceScope(authentication, grant, {});
+    await this.options.integration.assertResourceScope(
+      authentication,
+      grant,
+      {},
+    );
     const result = await this.options.academics.createSubject(
       this.context(authentication, requestId, _idempotencyKey),
       input,
     );
-    await this.audit(authentication, "INTEGRATION_SUBJECT_CREATE", result.id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_SUBJECT_CREATE",
+      result.id,
+      requestId,
+    );
     return result;
   }
 
@@ -305,7 +356,12 @@ export class IntegrationMasterDataService {
       subjectId,
       input,
     );
-    await this.audit(authentication, "INTEGRATION_SUBJECT_UPDATE", result.id, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_SUBJECT_UPDATE",
+      result.id,
+      requestId,
+    );
     return result;
   }
 
@@ -352,7 +408,12 @@ export class IntegrationMasterDataService {
       teacherId,
       input,
     );
-    await this.audit(authentication, "INTEGRATION_TEACHER_SCOPES_REPLACE", teacherId, requestId);
+    await this.audit(
+      authentication,
+      "INTEGRATION_TEACHER_SCOPES_REPLACE",
+      teacherId,
+      requestId,
+    );
     return result;
   }
 

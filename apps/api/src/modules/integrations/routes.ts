@@ -2,16 +2,16 @@ import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { DatabasePort } from "@gezycbt/database";
 import { Elysia } from "elysia";
 import {
-  AcademicConflictError,
-  AcademicNotFoundError,
-  AcademicValidationError,
-} from "../academics/domain";
-import {
   AuthorizationDeniedError,
   AuthorizationRequiredError,
 } from "../../application/authorization";
 import { AppError } from "../../http/app-error";
 import { DiskProtectionError } from "../../observability/disk-guard";
+import {
+  AcademicConflictError,
+  AcademicNotFoundError,
+  AcademicValidationError,
+} from "../academics/domain";
 import {
   assertCsrfRequest,
   CSRF_HEADER_NAME,
@@ -80,12 +80,12 @@ import {
   type UpdateScheduleInput,
 } from "../schedules/domain";
 import {
+  type StoredUser,
   UserConflictError,
   UserNotFoundError,
   UserReferencedError,
   UserValidationError,
   UserVersionConflictError,
-  type StoredUser,
 } from "../users";
 import {
   AGENT_ACTION_OPERATIONS,
@@ -128,10 +128,12 @@ import {
   type IntegrationService,
   IntegrationValidationError,
 } from "./index";
+import type { IntegrationMasterDataService } from "./master-data";
 import {
   AgentQuestionNotFoundError,
   type IntegrationQuestionAuthoringService,
 } from "./question-authoring";
+import type { IntegrationResourceService } from "./resources";
 import {
   AgentResultNotFoundError,
   type IntegrationResultReadService,
@@ -140,8 +142,6 @@ import {
   AgentScheduleNotFoundError,
   type IntegrationScheduleAuthoringService,
 } from "./schedule-authoring";
-import type { IntegrationMasterDataService } from "./master-data";
-import type { IntegrationResourceService } from "./resources";
 
 export interface IntegrationRouteOptions {
   readonly database: DatabasePort;
@@ -283,48 +283,62 @@ export function createIntegrationRoutes(
   app.patch(
     "/api/v1/integrations/agent/users/:id",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        const status = optionalString(payload.status);
-        const displayName = optionalString(payload.displayName);
-        if (status !== undefined && status !== "ACTIVE" && status !== "DISABLED")
-          throw new IntegrationValidationError("status pengguna tidak valid");
-        return masterData.updateUser(
-          authentication,
-          idParam(params),
-          {
-            ...(displayName === undefined ? {} : { displayName }),
-            ...(payload.role === undefined ? {} : { role: userRole(payload.role) }),
-            ...(status === undefined
-              ? {}
-              : { status: status as "ACTIVE" | "DISABLED" }),
-            ...(typeof payload.forcePasswordChange === "boolean"
-              ? { forcePasswordChange: payload.forcePasswordChange }
-              : {}),
-          },
-          optionalTimestamp(payload.expectedUpdatedAt),
-          requestId,
-          key,
-        );
-      }),
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          const status = optionalString(payload.status);
+          const displayName = optionalString(payload.displayName);
+          if (
+            status !== undefined &&
+            status !== "ACTIVE" &&
+            status !== "DISABLED"
+          )
+            throw new IntegrationValidationError("status pengguna tidak valid");
+          return masterData.updateUser(
+            authentication,
+            idParam(params),
+            {
+              ...(displayName === undefined ? {} : { displayName }),
+              ...(payload.role === undefined
+                ? {}
+                : { role: userRole(payload.role) }),
+              ...(status === undefined
+                ? {}
+                : { status: status as "ACTIVE" | "DISABLED" }),
+              ...(typeof payload.forcePasswordChange === "boolean"
+                ? { forcePasswordChange: payload.forcePasswordChange }
+                : {}),
+            },
+            optionalTimestamp(payload.expectedUpdatedAt),
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.post(
     "/api/v1/integrations/agent/users/:id/reset-password",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        return masterData.resetPassword(
-          authentication,
-          idParam(params),
-          { newPassword: stringField(payload.newPassword, "newPassword") },
-          optionalTimestamp(payload.expectedUpdatedAt),
-          requestId,
-          key,
-        );
-      }),
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          return masterData.resetPassword(
+            authentication,
+            idParam(params),
+            { newPassword: stringField(payload.newPassword, "newPassword") },
+            optionalTimestamp(payload.expectedUpdatedAt),
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.post("/api/v1/integrations/agent/classes", async ({ request, body }) =>
@@ -347,44 +361,60 @@ export function createIntegrationRoutes(
   app.patch(
     "/api/v1/integrations/agent/classes/:id",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        const status = optionalString(payload.status);
-        const name = optionalString(payload.name);
-        if (status !== undefined && status !== "ACTIVE" && status !== "ARCHIVED")
-          throw new IntegrationValidationError("status kelas tidak valid");
-        return masterData.updateClass(
-          authentication,
-          idParam(params),
-          {
-            ...(name === undefined ? {} : { name }),
-            ...(status === undefined
-              ? {}
-              : { status: status as "ACTIVE" | "ARCHIVED" }),
-          },
-          requestId,
-          key,
-        );
-      }),
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          const status = optionalString(payload.status);
+          const name = optionalString(payload.name);
+          if (
+            status !== undefined &&
+            status !== "ACTIVE" &&
+            status !== "ARCHIVED"
+          )
+            throw new IntegrationValidationError("status kelas tidak valid");
+          return masterData.updateClass(
+            authentication,
+            idParam(params),
+            {
+              ...(name === undefined ? {} : { name }),
+              ...(status === undefined
+                ? {}
+                : { status: status as "ACTIVE" | "ARCHIVED" }),
+            },
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.put(
     "/api/v1/integrations/agent/classes/:id/members",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        if (!Array.isArray(payload.participantIds))
-          throw new IntegrationValidationError("participantIds harus berupa array");
-        return masterData.replaceClassMembers(
-          authentication,
-          idParam(params),
-          payload.participantIds.map((value) => idValue(value, "participantId")),
-          requestId,
-          key,
-        );
-      }),
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          if (!Array.isArray(payload.participantIds))
+            throw new IntegrationValidationError(
+              "participantIds harus berupa array",
+            );
+          return masterData.replaceClassMembers(
+            authentication,
+            idParam(params),
+            payload.participantIds.map((value) =>
+              idValue(value, "participantId"),
+            ),
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.post("/api/v1/integrations/agent/subjects", async ({ request, body }) =>
@@ -406,26 +436,34 @@ export function createIntegrationRoutes(
   app.patch(
     "/api/v1/integrations/agent/subjects/:id",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        const status = optionalString(payload.status);
-        const name = optionalString(payload.name);
-        if (status !== undefined && status !== "ACTIVE" && status !== "ARCHIVED")
-          throw new IntegrationValidationError("status mapel tidak valid");
-        return masterData.updateSubject(
-          authentication,
-          idParam(params),
-          {
-            ...(name === undefined ? {} : { name }),
-            ...(status === undefined
-              ? {}
-              : { status: status as "ACTIVE" | "ARCHIVED" }),
-          },
-          requestId,
-          key,
-        );
-      }),
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          const status = optionalString(payload.status);
+          const name = optionalString(payload.name);
+          if (
+            status !== undefined &&
+            status !== "ACTIVE" &&
+            status !== "ARCHIVED"
+          )
+            throw new IntegrationValidationError("status mapel tidak valid");
+          return masterData.updateSubject(
+            authentication,
+            idParam(params),
+            {
+              ...(name === undefined ? {} : { name }),
+              ...(status === undefined
+                ? {}
+                : { status: status as "ACTIVE" | "ARCHIVED" }),
+            },
+            requestId,
+            key,
+          );
+        },
+      ),
   );
 
   app.get(
@@ -451,24 +489,35 @@ export function createIntegrationRoutes(
   app.put(
     "/api/v1/integrations/agent/teacher-scopes/:teacherId",
     async ({ request, params, body }) =>
-      agentMutation(request, options, async (authentication, requestId, key) => {
-        const masterData = requireMasterData(options);
-        const payload = objectPayload(body);
-        if (!Array.isArray(payload.subjectIds) || !Array.isArray(payload.classIds))
-          throw new IntegrationValidationError(
-            "subjectIds dan classIds harus berupa array",
+      agentMutation(
+        request,
+        options,
+        async (authentication, requestId, key) => {
+          const masterData = requireMasterData(options);
+          const payload = objectPayload(body);
+          if (
+            !Array.isArray(payload.subjectIds) ||
+            !Array.isArray(payload.classIds)
+          )
+            throw new IntegrationValidationError(
+              "subjectIds dan classIds harus berupa array",
+            );
+          return masterData.replaceTeacherScopes(
+            authentication,
+            idParam({ id: (params as Record<string, unknown>).teacherId }),
+            {
+              subjectIds: payload.subjectIds.map((value) =>
+                idValue(value, "subjectId"),
+              ),
+              classIds: payload.classIds.map((value) =>
+                idValue(value, "classId"),
+              ),
+            },
+            requestId,
+            key,
           );
-        return masterData.replaceTeacherScopes(
-          authentication,
-          idParam({ id: (params as Record<string, unknown>).teacherId }),
-          {
-            subjectIds: payload.subjectIds.map((value) => idValue(value, "subjectId")),
-            classIds: payload.classIds.map((value) => idValue(value, "classId")),
-          },
-          requestId,
-          key,
-        );
-      }),
+        },
+      ),
   );
 
   app.get(
@@ -497,13 +546,22 @@ export function createIntegrationRoutes(
       agentMutation(request, options, async (authentication, requestId) => {
         const resources = requireResources(options);
         const payload = objectPayload(body);
-        return resources.createQuestionBank(authentication, {
-          subjectId: idValue(payload.subjectId, "subjectId"),
-          ...(payload.ownerTeacherId === undefined
-            ? {}
-            : { ownerTeacherId: idValue(payload.ownerTeacherId, "ownerTeacherId") }),
-          name: stringField(payload.name, "name"),
-        }, requestId);
+        return resources.createQuestionBank(
+          authentication,
+          {
+            subjectId: idValue(payload.subjectId, "subjectId"),
+            ...(payload.ownerTeacherId === undefined
+              ? {}
+              : {
+                  ownerTeacherId: idValue(
+                    payload.ownerTeacherId,
+                    "ownerTeacherId",
+                  ),
+                }),
+            name: stringField(payload.name, "name"),
+          },
+          requestId,
+        );
       }),
   );
 
@@ -616,34 +674,32 @@ export function createIntegrationRoutes(
     }
   });
 
-  app.patch(
-    "/api/v1/integrations/agent/settings",
-    async ({ request, body }) =>
-      agentMutation(request, options, async (authentication, requestId) => {
-        const resources = requireResources(options);
-        const payload = objectPayload(body);
-        const schoolName = optionalString(payload.schoolName);
-        const schoolCode = optionalString(payload.schoolCode);
-        const timezone = optionalString(payload.timezone);
-        return resources.updateSettings(
-          authentication,
-          {
-            ...(schoolName === undefined ? {} : { schoolName }),
-            ...(schoolCode === undefined ? {} : { schoolCode }),
-            ...(payload.address === undefined
-              ? {}
-              : {
-                  address:
-                    payload.address === null
-                      ? null
-                      : stringField(payload.address, "address"),
-                }),
-            ...(timezone === undefined ? {} : { timezone }),
-          },
-          optionalTimestamp(payload.expectedUpdatedAt),
-          requestId,
-        );
-      }),
+  app.patch("/api/v1/integrations/agent/settings", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId) => {
+      const resources = requireResources(options);
+      const payload = objectPayload(body);
+      const schoolName = optionalString(payload.schoolName);
+      const schoolCode = optionalString(payload.schoolCode);
+      const timezone = optionalString(payload.timezone);
+      return resources.updateSettings(
+        authentication,
+        {
+          ...(schoolName === undefined ? {} : { schoolName }),
+          ...(schoolCode === undefined ? {} : { schoolCode }),
+          ...(payload.address === undefined
+            ? {}
+            : {
+                address:
+                  payload.address === null
+                    ? null
+                    : stringField(payload.address, "address"),
+              }),
+          ...(timezone === undefined ? {} : { timezone }),
+        },
+        optionalTimestamp(payload.expectedUpdatedAt),
+        requestId,
+      );
+    }),
   );
 
   app.get("/api/v1/integrations/agent/audit", async ({ request, query }) => {
@@ -2054,7 +2110,10 @@ function mapIntegrationError(error: unknown): Error {
       "VALIDATION_FAILED",
       "Data integrasi tidak valid.",
     );
-  if (error instanceof AcademicNotFoundError || error instanceof UserNotFoundError)
+  if (
+    error instanceof AcademicNotFoundError ||
+    error instanceof UserNotFoundError
+  )
     return new AppError(404, "NOT_FOUND", "Resource tidak ditemukan.");
   if (
     error instanceof AcademicConflictError ||
@@ -2067,7 +2126,10 @@ function mapIntegrationError(error: unknown): Error {
       "VERSION_CONFLICT",
       "Resource berubah atau tidak dapat diubah pada state saat ini.",
     );
-  if (error instanceof AcademicValidationError || error instanceof UserValidationError)
+  if (
+    error instanceof AcademicValidationError ||
+    error instanceof UserValidationError
+  )
     return new AppError(422, "VALIDATION_FAILED", "Data resource tidak valid.");
   if (
     error instanceof AgentQuestionNotFoundError ||
