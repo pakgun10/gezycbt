@@ -41,6 +41,8 @@ import {
   IntegrationExamAuthoringService,
   IntegrationExportService,
   IntegrationQuestionAuthoringService,
+  IntegrationMasterDataService,
+  IntegrationResourceService,
   IntegrationRateLimiter,
   IntegrationResultReadService,
   IntegrationScheduleAuthoringService,
@@ -226,6 +228,17 @@ export function createRuntimeDependencies(
       academicRepository.getTeacherScopes(teacherId),
     rateLimiter: new IntegrationRateLimiter(),
   });
+  const agentMasterData = new IntegrationMasterDataService({
+    integration: integrationService,
+    users,
+    academics,
+    passwords: new PasswordService(),
+    sessions,
+  });
+  const agentResources = new IntegrationResourceService({
+    database,
+    integration: integrationService,
+  });
   const agentQuestionAuthoring = new IntegrationQuestionAuthoringService({
     integration: integrationService,
     repository: questionRepository,
@@ -397,6 +410,8 @@ export function createRuntimeDependencies(
             exports: agentExports,
             actions: agentActions,
             scheduleAuthoring: agentScheduleAuthoring,
+            masterData: agentMasterData,
+            resources: agentResources,
           }),
         )
         .use(

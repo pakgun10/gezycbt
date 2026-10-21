@@ -2,6 +2,11 @@ import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { DatabasePort } from "@gezycbt/database";
 import { Elysia } from "elysia";
 import {
+  AcademicConflictError,
+  AcademicNotFoundError,
+  AcademicValidationError,
+} from "../academics/domain";
+import {
   AuthorizationDeniedError,
   AuthorizationRequiredError,
 } from "../../application/authorization";
@@ -74,7 +79,14 @@ import {
   ScheduleWindowError,
   type UpdateScheduleInput,
 } from "../schedules/domain";
-import type { StoredUser } from "../users";
+import {
+  UserConflictError,
+  UserNotFoundError,
+  UserReferencedError,
+  UserValidationError,
+  UserVersionConflictError,
+  type StoredUser,
+} from "../users";
 import {
   AGENT_ACTION_OPERATIONS,
   AGENT_ACTION_STATUSES,
@@ -128,6 +140,8 @@ import {
   AgentScheduleNotFoundError,
   type IntegrationScheduleAuthoringService,
 } from "./schedule-authoring";
+import type { IntegrationMasterDataService } from "./master-data";
+import type { IntegrationResourceService } from "./resources";
 
 export interface IntegrationRouteOptions {
   readonly database: DatabasePort;
@@ -145,6 +159,8 @@ export interface IntegrationRouteOptions {
   readonly exports?: IntegrationExportService;
   readonly actions?: IntegrationActionService;
   readonly scheduleAuthoring?: IntegrationScheduleAuthoringService;
+  readonly masterData?: IntegrationMasterDataService;
+  readonly resources?: IntegrationResourceService;
 }
 
 export function createIntegrationRoutes(
@@ -236,6 +252,410 @@ export function createIntegrationRoutes(
           authentication,
           parseDiscoveryQuery(query, "classes"),
           requestId,
+        ),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.post("/api/v1/integrations/agent/users", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const masterData = requireMasterData(options);
+      const payload = objectPayload(body);
+      return masterData.createUser(
+        authentication,
+        {
+          username: stringField(payload.username, "username"),
+          displayName: stringField(payload.displayName, "displayName"),
+          role: userRole(payload.role),
+          password: stringField(payload.password, "password"),
+          ...(typeof payload.forcePasswordChange === "boolean"
+            ? { forcePasswordChange: payload.forcePasswordChange }
+            : {}),
+        },
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/users/:id",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        const status = optionalString(payload.status);
+        const displayName = optionalString(payload.displayName);
+        if (status !== undefined && status !== "ACTIVE" && status !== "DISABLED")
+          throw new IntegrationValidationError("status pengguna tidak valid");
+        return masterData.updateUser(
+          authentication,
+          idParam(params),
+          {
+            ...(displayName === undefined ? {} : { displayName }),
+            ...(payload.role === undefined ? {} : { role: userRole(payload.role) }),
+            ...(status === undefined
+              ? {}
+              : { status: status as "ACTIVE" | "DISABLED" }),
+            ...(typeof payload.forcePasswordChange === "boolean"
+              ? { forcePasswordChange: payload.forcePasswordChange }
+              : {}),
+          },
+          optionalTimestamp(payload.expectedUpdatedAt),
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/users/:id/reset-password",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        return masterData.resetPassword(
+          authentication,
+          idParam(params),
+          { newPassword: stringField(payload.newPassword, "newPassword") },
+          optionalTimestamp(payload.expectedUpdatedAt),
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.post("/api/v1/integrations/agent/classes", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const masterData = requireMasterData(options);
+      const payload = objectPayload(body);
+      return masterData.createClass(
+        authentication,
+        {
+          academicYearId: idValue(payload.academicYearId, "academicYearId"),
+          code: stringField(payload.code, "code"),
+          name: stringField(payload.name, "name"),
+        },
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/classes/:id",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        const status = optionalString(payload.status);
+        const name = optionalString(payload.name);
+        if (status !== undefined && status !== "ACTIVE" && status !== "ARCHIVED")
+          throw new IntegrationValidationError("status kelas tidak valid");
+        return masterData.updateClass(
+          authentication,
+          idParam(params),
+          {
+            ...(name === undefined ? {} : { name }),
+            ...(status === undefined
+              ? {}
+              : { status: status as "ACTIVE" | "ARCHIVED" }),
+          },
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.put(
+    "/api/v1/integrations/agent/classes/:id/members",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        if (!Array.isArray(payload.participantIds))
+          throw new IntegrationValidationError("participantIds harus berupa array");
+        return masterData.replaceClassMembers(
+          authentication,
+          idParam(params),
+          payload.participantIds.map((value) => idValue(value, "participantId")),
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.post("/api/v1/integrations/agent/subjects", async ({ request, body }) =>
+    agentMutation(request, options, async (authentication, requestId, key) => {
+      const masterData = requireMasterData(options);
+      const payload = objectPayload(body);
+      return masterData.createSubject(
+        authentication,
+        {
+          code: stringField(payload.code, "code"),
+          name: stringField(payload.name, "name"),
+        },
+        requestId,
+        key,
+      );
+    }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/subjects/:id",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        const status = optionalString(payload.status);
+        const name = optionalString(payload.name);
+        if (status !== undefined && status !== "ACTIVE" && status !== "ARCHIVED")
+          throw new IntegrationValidationError("status mapel tidak valid");
+        return masterData.updateSubject(
+          authentication,
+          idParam(params),
+          {
+            ...(name === undefined ? {} : { name }),
+            ...(status === undefined
+              ? {}
+              : { status: status as "ACTIVE" | "ARCHIVED" }),
+          },
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/teacher-scopes/:teacherId",
+    async ({ request, params }) => {
+      try {
+        const masterData = requireMasterData(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await masterData.getTeacherScopes(
+            authentication,
+            idParam({ id: (params as Record<string, unknown>).teacherId }),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.put(
+    "/api/v1/integrations/agent/teacher-scopes/:teacherId",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId, key) => {
+        const masterData = requireMasterData(options);
+        const payload = objectPayload(body);
+        if (!Array.isArray(payload.subjectIds) || !Array.isArray(payload.classIds))
+          throw new IntegrationValidationError(
+            "subjectIds dan classIds harus berupa array",
+          );
+        return masterData.replaceTeacherScopes(
+          authentication,
+          idParam({ id: (params as Record<string, unknown>).teacherId }),
+          {
+            subjectIds: payload.subjectIds.map((value) => idValue(value, "subjectId")),
+            classIds: payload.classIds.map((value) => idValue(value, "classId")),
+          },
+          requestId,
+          key,
+        );
+      }),
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/question-banks/:id",
+    async ({ request, params }) => {
+      try {
+        const resources = requireResources(options);
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resources.getQuestionBank(
+            authentication,
+            idParam(params),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.post(
+    "/api/v1/integrations/agent/question-banks",
+    async ({ request, body }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const resources = requireResources(options);
+        const payload = objectPayload(body);
+        return resources.createQuestionBank(authentication, {
+          subjectId: idValue(payload.subjectId, "subjectId"),
+          ...(payload.ownerTeacherId === undefined
+            ? {}
+            : { ownerTeacherId: idValue(payload.ownerTeacherId, "ownerTeacherId") }),
+          name: stringField(payload.name, "name"),
+        }, requestId);
+      }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/question-banks/:id",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const resources = requireResources(options);
+        const payload = objectPayload(body);
+        const name = optionalString(payload.name);
+        const status = optionalString(payload.status);
+        if (
+          status !== undefined &&
+          status !== "ACTIVE" &&
+          status !== "ARCHIVED"
+        )
+          throw new IntegrationValidationError("status bank soal tidak valid");
+        return resources.updateQuestionBank(
+          authentication,
+          idParam(params),
+          {
+            ...(name === undefined ? {} : { name }),
+            ...(status === undefined
+              ? {}
+              : { status: status as "ACTIVE" | "ARCHIVED" }),
+          },
+          requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+          requestId,
+        );
+      }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/questions/:id/archive",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const resources = requireResources(options);
+        const payload = objectPayload(body);
+        return resources.archiveQuestion(
+          authentication,
+          idParam(params),
+          requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+          requestId,
+        );
+      }),
+  );
+
+  app.patch(
+    "/api/v1/integrations/agent/exams/:id/archive",
+    async ({ request, params, body }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const resources = requireResources(options);
+        const payload = objectPayload(body);
+        return resources.archiveExam(
+          authentication,
+          idParam(params),
+          requiredTimestamp(payload.expectedUpdatedAt, "expectedUpdatedAt"),
+          requestId,
+        );
+      }),
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/sessions/:id",
+    async ({ request, params }) => {
+      try {
+        const resources = requireResources(options);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resources.getSession(
+            authentication,
+            idParam(params),
+            requestIdOf(request),
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get(
+    "/api/v1/integrations/agent/schedules/:id/sessions",
+    async ({ request, params }) => {
+      try {
+        const resources = requireResources(options);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await resources.listSessions(
+            authentication,
+            idParam(params),
+            requestIdOf(request),
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
+  app.get("/api/v1/integrations/agent/settings", async ({ request }) => {
+    try {
+      const resources = requireResources(options);
+      const authentication = await requireAgent(request, options, "read");
+      return {
+        data: await resources.getSettings(authentication, requestIdOf(request)),
+      };
+    } catch (error) {
+      throw mapIntegrationError(error);
+    }
+  });
+
+  app.patch(
+    "/api/v1/integrations/agent/settings",
+    async ({ request, body }) =>
+      agentMutation(request, options, async (authentication, requestId) => {
+        const resources = requireResources(options);
+        const payload = objectPayload(body);
+        const schoolName = optionalString(payload.schoolName);
+        const schoolCode = optionalString(payload.schoolCode);
+        const timezone = optionalString(payload.timezone);
+        return resources.updateSettings(
+          authentication,
+          {
+            ...(schoolName === undefined ? {} : { schoolName }),
+            ...(schoolCode === undefined ? {} : { schoolCode }),
+            ...(payload.address === undefined
+              ? {}
+              : {
+                  address:
+                    payload.address === null
+                      ? null
+                      : stringField(payload.address, "address"),
+                }),
+            ...(timezone === undefined ? {} : { timezone }),
+          },
+          optionalTimestamp(payload.expectedUpdatedAt),
+          requestId,
+        );
+      }),
+  );
+
+  app.get("/api/v1/integrations/agent/audit", async ({ request, query }) => {
+    try {
+      const resources = requireResources(options);
+      const authentication = await requireAgent(request, options, "read");
+      const limit = queryLimitValue(query, "limit");
+      return {
+        data: await resources.listAudit(
+          authentication,
+          requestIdOf(request),
+          limit,
         ),
       };
     } catch (error) {
@@ -1411,6 +1831,30 @@ function requireActionService(
   return options.actions;
 }
 
+function requireMasterData(
+  options: IntegrationRouteOptions,
+): IntegrationMasterDataService {
+  if (!options.masterData)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Master data integration belum tersedia.",
+    );
+  return options.masterData;
+}
+
+function requireResources(
+  options: IntegrationRouteOptions,
+): IntegrationResourceService {
+  if (!options.resources)
+    throw new AppError(
+      503,
+      "SERVICE_BUSY",
+      "Resource integration belum tersedia.",
+    );
+  return options.resources;
+}
+
 async function agentMutation<T>(
   request: Request,
   options: IntegrationRouteOptions,
@@ -1610,6 +2054,21 @@ function mapIntegrationError(error: unknown): Error {
       "VALIDATION_FAILED",
       "Data integrasi tidak valid.",
     );
+  if (error instanceof AcademicNotFoundError || error instanceof UserNotFoundError)
+    return new AppError(404, "NOT_FOUND", "Resource tidak ditemukan.");
+  if (
+    error instanceof AcademicConflictError ||
+    error instanceof UserConflictError ||
+    error instanceof UserVersionConflictError ||
+    error instanceof UserReferencedError
+  )
+    return new AppError(
+      409,
+      "VERSION_CONFLICT",
+      "Resource berubah atau tidak dapat diubah pada state saat ini.",
+    );
+  if (error instanceof AcademicValidationError || error instanceof UserValidationError)
+    return new AppError(422, "VALIDATION_FAILED", "Data resource tidak valid.");
   if (
     error instanceof AgentQuestionNotFoundError ||
     error instanceof QuestionNotFoundError
@@ -2124,6 +2583,12 @@ function objectPayload(value: unknown): Record<string, unknown> {
 function stringField(value: unknown, field: string): string {
   if (typeof value !== "string" || !value.trim())
     throw new AppError(422, "VALIDATION_FAILED", `${field} wajib diisi.`);
+  return value;
+}
+
+function userRole(value: unknown): "ADMIN" | "TEACHER" | "PARTICIPANT" {
+  if (value !== "ADMIN" && value !== "TEACHER" && value !== "PARTICIPANT")
+    throw new IntegrationValidationError("role pengguna tidak valid");
   return value;
 }
 function stringValue(value: unknown, field: string): string {

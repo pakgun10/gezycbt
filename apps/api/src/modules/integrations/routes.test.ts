@@ -92,6 +92,7 @@ function app(
   exportService?: unknown,
   actionService?: unknown,
   scheduleAuthoring?: unknown,
+  masterData?: unknown,
 ) {
   const repository = {
     async authenticate() {
@@ -155,6 +156,7 @@ function app(
         ...(scheduleAuthoring
           ? { scheduleAuthoring: scheduleAuthoring as never }
           : {}),
+        ...(masterData ? { masterData: masterData as never } : {}),
       }),
     )
     .onError(({ error, set }) => {
@@ -363,6 +365,46 @@ test("agent schedule authoring validates and delegates practice schedule creatio
       { key: "name", label: "Nama", type: "TEXT", required: true },
     ]),
   });
+});
+
+test("agent master data adapter can create a class with an idempotency boundary", async () => {
+  let received: Record<string, unknown> | undefined;
+  const masterData = {
+    async createClass(
+      _authentication: unknown,
+      input: Record<string, unknown>,
+      _requestId: string,
+      _idempotencyKey: string,
+    ) {
+      received = input;
+      return { id: "90", academicYearId: "7", code: "X-1", name: "Kelas X-1" };
+    },
+  };
+  const application = app(
+    true,
+    ["classes.write"],
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    masterData,
+  );
+  const response = await application.handle(
+    new Request("https://cbt.example.test/api/v1/integrations/agent/classes", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer integration-token",
+        "content-type": "application/json",
+        "idempotency-key": "class-create-test-key",
+      },
+      body: JSON.stringify({ academicYearId: "7", code: "X-1", name: "Kelas X-1" }),
+    }),
+  );
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ data: { id: "90" } });
+  expect(received).toEqual({ academicYearId: "7", code: "X-1", name: "Kelas X-1" });
 });
 
 test("agent result routes expose summary and paginated schedule reads", async () => {

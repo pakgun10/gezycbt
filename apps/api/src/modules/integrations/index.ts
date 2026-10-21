@@ -10,3 +10,5 @@ export * from "./result-reads";
 export * from "./routes";
 export * from "./schedule-authoring";
 export * from "./service";
+export * from "./master-data";
+export * from "./resources";
