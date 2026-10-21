@@ -31,6 +31,7 @@ export const BASELINE_INTEGRATION_CAPABILITIES = [
   "users.reset_password",
   "classes.read",
   "classes.write",
+  "academic_years.read",
   "academic_years.write",
   "subjects.read",
   "subjects.write",

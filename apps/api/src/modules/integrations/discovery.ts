@@ -11,6 +11,7 @@ import type { IntegrationGrant, IntegrationScopeType } from "./domain";
 
 export type DiscoveryResourceType =
   | "users"
+  | "academic_years"
   | "subjects"
   | "classes"
   | "question_banks"
@@ -60,6 +61,14 @@ export interface DiscoveryUser {
   readonly role: "TEACHER" | "PARTICIPANT";
   readonly status: "ACTIVE" | "DISABLED";
   readonly lastLoginAt: UtcTimestamp | null;
+}
+
+export interface DiscoveryAcademicYear {
+  readonly id: Id;
+  readonly name: string;
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly isActive: boolean;
 }
 
 export interface DiscoveryClass {
@@ -130,6 +139,10 @@ export interface IntegrationDiscoveryRepository {
     query: DiscoveryQuery,
     access: DiscoveryAccess,
   ): Promise<DiscoveryPage<DiscoveryUser>>;
+  searchAcademicYears(
+    query: DiscoveryQuery,
+    access: DiscoveryAccess,
+  ): Promise<DiscoveryPage<DiscoveryAcademicYear>>;
   searchSubjects(
     query: DiscoveryQuery,
     access: DiscoveryAccess,
@@ -161,6 +174,7 @@ type Row = Record<string, unknown>;
 
 const RESOURCE_CAPABILITIES = {
   users: "users.read",
+  academic_years: "academic_years.read",
   subjects: "subjects.read",
   classes: "classes.read",
   question_banks: "question_banks.read",
@@ -179,6 +193,34 @@ export class SqlIntegrationDiscoveryRepository
   implements IntegrationDiscoveryRepository
 {
   constructor(private readonly database: DatabaseQuery) {}
+
+  async searchAcademicYears(
+    query: DiscoveryQuery,
+    access: DiscoveryAccess,
+  ): Promise<DiscoveryPage<DiscoveryAcademicYear>> {
+    const where = ["1 = 1"];
+    const parameters: unknown[] = [];
+    addTextSearch(where, parameters, query.q, ["ay.name"]);
+    if (query.status) {
+      if (query.status !== "ACTIVE" && query.status !== "ARCHIVED")
+        throw new Error("Invalid academic year status");
+      where.push(
+        query.status === "ACTIVE"
+          ? "ay.is_active = TRUE"
+          : "ay.is_active = FALSE",
+      );
+    }
+    if (query.cursor) addCursor(where, parameters, "ay.id", query.cursor);
+    addScope(where, parameters, access, { academicYearColumn: "ay.id" });
+    const rows = await this.database.query<Row>(
+      `SELECT ay.id, ay.name, ay.starts_on, ay.ends_on, ay.is_active
+       FROM academic_years ay
+       WHERE ${where.join(" AND ")}
+       ORDER BY ay.id ASC LIMIT ?`,
+      [...parameters, query.limit + 1],
+    );
+    return page(rows, query.limit, mapAcademicYear);
+  }
 
   async searchSubjects(
     query: DiscoveryQuery,
@@ -602,6 +644,16 @@ function mapUser(row: Row): DiscoveryUser {
     role,
     status,
     lastLoginAt: nullableTimestamp(row.last_login_at),
+  };
+}
+
+function mapAcademicYear(row: Row): DiscoveryAcademicYear {
+  return {
+    id: requiredId(row.id),
+    name: requiredString(row.name),
+    startsOn: requiredString(row.starts_on),
+    endsOn: requiredString(row.ends_on),
+    isActive: Boolean(row.is_active),
   };
 }
 

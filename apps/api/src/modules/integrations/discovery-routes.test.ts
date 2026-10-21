@@ -15,6 +15,20 @@ test("agent discovery route returns stable candidates and rejects limits above 2
     async searchUsers() {
       return { items: [], nextCursor: null };
     },
+    async searchAcademicYears() {
+      return {
+        items: [
+          {
+            id: "2026" as Id,
+            name: "2026/2027",
+            startsOn: "2026-07-01",
+            endsOn: "2027-06-30",
+            isActive: true,
+          },
+        ],
+        nextCursor: null,
+      };
+    },
     async searchSubjects() {
       return {
         items: [
@@ -107,6 +121,21 @@ test("agent discovery route returns stable candidates and rejects limits above 2
     ),
   );
   expect(users.status).toBe(200);
+
+  const academicYears = await app.handle(
+    new Request(
+      "https://cbt.example.test/api/v1/integrations/agent/academic-years?q=2026&limit=20",
+      { headers: { authorization: "Bearer test-token" } },
+    ),
+  );
+  expect(academicYears.status).toBe(200);
+  expect(await academicYears.json()).toMatchObject({
+    data: {
+      items: [{ id: "2026", name: "2026/2027", isActive: true }],
+      nextCursor: null,
+      ambiguity: null,
+    },
+  });
 });
 
 function createAuthentication(): IntegrationAuthentication {
@@ -160,6 +189,23 @@ function createAuthentication(): IntegrationAuthentication {
         id: "13" as Id,
         integrationClientId: "10" as Id,
         capability: "users.read",
+        scopeType: "SCHOOL",
+        scopeIds: [],
+        constraints: {},
+        grantVersion: 1,
+        status: "ACTIVE",
+        validFrom: NOW,
+        expiresAt: null,
+        issuedByUserId: "1" as Id,
+        revokedAt: null,
+        revokeReason: null,
+        createdAt: NOW,
+        updatedAt: NOW,
+      },
+      {
+        id: "14" as Id,
+        integrationClientId: "10" as Id,
+        capability: "academic_years.read",
         scopeType: "SCHOOL",
         scopeIds: [],
         constraints: {},

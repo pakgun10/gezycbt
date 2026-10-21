@@ -227,6 +227,25 @@ export function createIntegrationRoutes(
     }
   });
 
+  app.get(
+    "/api/v1/integrations/agent/academic-years",
+    async ({ request, query }) => {
+      try {
+        const requestId = requestIdOf(request);
+        const authentication = await requireAgent(request, options, "read");
+        return {
+          data: await options.service.searchAcademicYears(
+            authentication,
+            parseDiscoveryQuery(query, "academic_years"),
+            requestId,
+          ),
+        };
+      } catch (error) {
+        throw mapIntegrationError(error);
+      }
+    },
+  );
+
   app.get("/api/v1/integrations/agent/subjects", async ({ request, query }) => {
     try {
       const requestId = requestIdOf(request);
@@ -2996,6 +3015,8 @@ function resourceStatusValues(
   resource: DiscoveryResourceType,
 ): readonly string[] {
   switch (resource) {
+    case "academic_years":
+      return ["ACTIVE", "ARCHIVED"];
     case "subjects":
     case "classes":
     case "question_banks":

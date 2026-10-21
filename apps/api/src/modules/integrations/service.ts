@@ -1,6 +1,7 @@
 import type { Id, UtcTimestamp } from "@gezycbt/contracts";
 import type { TeacherScope } from "../academics/domain";
 import {
+  type DiscoveryAcademicYear,
   type DiscoveryAccess,
   type DiscoveryClass,
   type DiscoveryExam,
@@ -295,6 +296,19 @@ export class IntegrationService {
     }
     return this.searchDiscovery(authentication, "users", requestId, (access) =>
       this.options.discovery?.searchUsers(query, access),
+    );
+  }
+
+  async searchAcademicYears(
+    authentication: IntegrationAuthentication,
+    query: DiscoveryQuery,
+    requestId?: string,
+  ): Promise<DiscoveryResponse<DiscoveryAcademicYear>> {
+    return this.searchDiscovery(
+      authentication,
+      "academic_years",
+      requestId,
+      (access) => this.options.discovery?.searchAcademicYears(query, access),
     );
   }
 
