@@ -18,6 +18,7 @@ import {
   SqlAuthThrottleRepository,
   SqlLoginFailureLimiter,
 } from "../modules/auth";
+import { createBackupRoutes } from "../modules/backup";
 import {
   createExamSessionRoutes,
   ExamAnswerService,
@@ -448,6 +449,17 @@ export function createRuntimeDependencies(
             mediaRead: (storageKey) => mediaStorage.read(storageKey),
             useInternalMediaRedirect: config.appEnv === "production",
             exports,
+            expectedOrigin: config.appOrigin,
+          }),
+        )
+        .use(
+          createBackupRoutes({
+            database,
+            mediaRead: (storageKey) => mediaStorage.read(storageKey),
+            mediaPut: (storageKey, bytes, mimeType) =>
+              mediaStorage.put(storageKey, bytes, mimeType),
+            sessionService: sessions,
+            users,
             expectedOrigin: config.appOrigin,
           }),
         );

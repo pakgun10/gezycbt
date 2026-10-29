@@ -67,6 +67,7 @@ export const STAFF_MENU: readonly StaffMenuItem[] = [
     roles: ["ADMIN", "TEACHER"],
   },
   { key: "audit", label: "Audit Log", to: "/admin/audit", roles: ["ADMIN"] },
+  { key: "backup", label: "Backup", to: "/admin/backup", roles: ["ADMIN"] },
   {
     key: "integrations",
     label: "Integrasi Agent",
