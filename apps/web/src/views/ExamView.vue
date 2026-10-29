@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useEscapeClose, useFocusTrap } from "../lib/dialog-a11y";
 import { useRoute, useRouter } from "vue-router";
 import QuestionPalette from "../components/exam/QuestionPalette.vue";
+import AppIcon from "../components/AppIcon.vue";
+import ProgressBar from "../components/ProgressBar.vue";
 import QuestionRenderer from "../components/exam/QuestionRenderer.vue";
 import SaveStatus from "../components/SaveStatus.vue";
 import ParticipantHeader from "../components/ParticipantHeader.vue";
@@ -194,6 +196,41 @@ const submitDialogRef = ref<HTMLElement | null>(null);
 const submitActive = computed(() => showSubmit.value);
 useEscapeClose(submitActive, () => { showSubmit.value = false; });
 useFocusTrap(submitActive, submitDialogRef);
+function jumpTo(target: "unanswered" | "marked"): void {
+  if (manifest.value.length === 0) return;
+  for (let step = 1; step <= manifest.value.length; step += 1) {
+    const index = (current.value + step) % manifest.value.length;
+    const item = manifest.value[index];
+    if (!item) continue;
+    const hit = target === "unanswered" ? !answeredIds.value.has(item.sessionQuestionId) : marked.value.has(item.sessionQuestionId);
+    if (hit) {
+      navigate(index);
+      return;
+    }
+  }
+}
+function jumpToUnanswered(): void {
+  jumpTo("unanswered");
+}
+function jumpToMarked(): void {
+  jumpTo("marked");
+}
+function onExamKeyDown(event: KeyboardEvent): void {
+  if (showSubmit.value || showPalette.value || authExpired.value) return;
+  const target = event.target as HTMLElement | null;
+  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.tagName === "SELECT" || target.isContentEditable)) return;
+  if (event.key === "ArrowRight" && current.value < manifest.value.length - 1 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    navigate(current.value + 1);
+  } else if (event.key === "ArrowLeft" && current.value > 0 && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    event.preventDefault();
+    navigate(current.value - 1);
+  } else if ((event.key === "m" || event.key === "M") && !event.metaKey && !event.ctrlKey && !event.altKey) {
+    toggleMark();
+  }
+}
+onMounted(() => window.addEventListener("keydown", onExamKeyDown));
+onUnmounted(() => window.removeEventListener("keydown", onExamKeyDown));
 const paletteDialogRef = ref<HTMLElement | null>(null);
 const paletteActive = computed(() => showPalette.value && !showSubmit.value);
 useEscapeClose(paletteActive, closePalette);
@@ -204,14 +241,15 @@ useFocusTrap(paletteActive, paletteDialogRef);
 <template>
   <div class="exam-page">
     <ParticipantHeader title="Ujian" compact hide-logout>
-      <template #actions><button ref="paletteTrigger" class="btn-quiet palette-button" type="button" @click="openPalette">☰ Soal</button></template>
+      <template #actions><button ref="paletteTrigger" class="btn-quiet palette-button" type="button" @click="openPalette"><AppIcon name="menu" /> Soal</button></template>
     </ParticipantHeader>
     <main v-if="!loadError && session" class="exam-main" aria-label="Halaman ujian">
       <header class="exam-toolbar"><div><span class="progress">Soal {{ current + 1 }} dari {{ manifest.length }}</span><span class="mobile-status"><SaveStatus :state="saveState" /></span></div><div class="toolbar-status"><span :class="`timer timer-${timerTone}`" aria-label="Sisa waktu">{{ timerText }}</span><SaveStatus :state="saveState" /></div></header>
+      <ProgressBar label="Soal dijawab" :value="answeredIds.size" :max="manifest.length" />
       <div v-if="wasOffline" class="offline-banner" role="alert" aria-live="assertive">Anda sedang offline. Jawaban disimpan di perangkat dan akan dikirim saat koneksi kembali.</div>
       <section v-if="saveState === 'CONFLICT' && conflicts.length" class="alert alert-warning conflict-panel" aria-labelledby="conflict-title"><h2 id="conflict-title">Jawaban perlu disinkronkan</h2><p>Versi jawaban di browser berbeda dengan yang tersimpan di server. Pilih versi yang ingin dipakai.</p><div v-for="conflict in conflicts" :key="conflict.sessionQuestionId" class="conflict-row"><span>Soal {{ (manifest.findIndex((item) => item.sessionQuestionId === conflict.sessionQuestionId) + 1) || "?" }}</span><div class="dialog-actions"><button class="btn-secondary" type="button" @click="exam.resolveConflict(conflict.sessionQuestionId, 'server')">Gunakan versi server</button><button class="btn-primary" type="button" @click="exam.resolveConflict(conflict.sessionQuestionId, 'local')">Pertahankan jawaban saya</button></div></div></section>
       <div class="exam-layout">
-        <section class="question-panel"><div class="question-actions"><button class="btn-secondary" type="button" @click="toggleMark">{{ currentQuestion && marked.has(currentQuestion.sessionQuestionId) ? "Hapus tanda" : "Tandai soal" }}</button></div><QuestionRenderer v-if="currentQuestion" :question="currentQuestion.question" :response="responseFor(currentQuestion)" @update="updateAnswer" /><FeedbackState v-else title="Soal tidak dapat ditampilkan" message="Coba muat ulang sesi ini." tone="error" /></section>
+        <section class="question-panel"><div class="question-actions"><button class="btn-quiet" type="button" :disabled="unansweredCount === 0" @click="jumpToUnanswered">Ke soal belum dijawab</button><button class="btn-quiet" type="button" :disabled="marked.size === 0" @click="jumpToMarked">Ke soal ditandai</button><button class="btn-secondary" type="button" @click="toggleMark">{{ currentQuestion && marked.has(currentQuestion.sessionQuestionId) ? "Hapus tanda" : "Tandai soal" }}</button></div><QuestionRenderer v-if="currentQuestion" :question="currentQuestion.question" :response="responseFor(currentQuestion)" @update="updateAnswer" /><FeedbackState v-else title="Soal tidak dapat ditampilkan" message="Coba muat ulang sesi ini." tone="error" /></section>
       <aside class="palette-side"><h2>Daftar Soal</h2><QuestionPalette :manifest="manifest" :current="current" :answered="answeredIds" :marked="marked" @select="navigate" /><button class="btn-primary submit-desktop" type="button" :disabled="saveState === 'ENDED' || submitBusy" @click="showSubmit = true">Kumpulkan Ujian</button></aside>
       </div>
       <nav class="exam-navigation" aria-label="Navigasi soal"><button class="btn-secondary" type="button" :disabled="current === 0" @click="navigate(current - 1)">Sebelumnya</button><button class="btn-primary" type="button" :disabled="saveState === 'ENDED' || submitBusy" @click="current === manifest.length - 1 ? (showSubmit = true) : navigate(current + 1)">{{ current === manifest.length - 1 ? "Tinjau & Kumpulkan" : "Berikutnya" }}</button></nav>
@@ -222,7 +260,9 @@ useFocusTrap(paletteActive, paletteDialogRef);
     <div class="sr-only" aria-live="assertive">{{ liveMessage }}</div>
     <div v-if="showPalette" ref="paletteDialogRef" class="overlay" role="dialog" aria-modal="true" aria-label="Daftar soal"><div class="drawer"><div class="between"><h2>Daftar Soal</h2><button ref="paletteClose" class="btn-secondary" type="button" @click="closePalette">Tutup</button></div><QuestionPalette :manifest="manifest" :current="current" :answered="answeredIds" :marked="marked" @select="navigate" /></div></div>
     <div v-if="authExpired" class="overlay" role="dialog" aria-modal="true" aria-labelledby="auth-expired-title"><div class="dialog card"><h2 id="auth-expired-title">{{ practiceRoute ? "Kredensial latihan berakhir" : "Sesi login berakhir" }}</h2><p v-if="practiceRoute">Kredensial latihan tidak tersedia. Mulai kembali dari token latihan.</p><template v-else><p>Ujian masih berjalan dan waktu tetap berjalan. Masuk kembali untuk menyinkronkan.</p><FeedbackState v-if="authError" title="Login ulang belum berhasil" :message="authError" tone="error" /><form @submit.prevent="retryAuth"><div class="form-row"><label for="resume-username">Username</label><input id="resume-username" v-model="authUsername" autocomplete="username" required /></div><div class="form-row"><label for="resume-password">Password</label><input id="resume-password" v-model="authPassword" type="password" autocomplete="current-password" required /></div><button class="btn-primary" type="submit" :disabled="authBusy">{{ authBusy ? "Masuk dan memuat…" : "Masuk ulang" }}</button></form></template><RouterLink v-if="practiceRoute" class="btn-secondary action-link" to="/practice/token">Masukkan token lagi</RouterLink></div></div>
-    <div v-if="showSubmit" ref="submitDialogRef" class="overlay" role="dialog" aria-modal="true" aria-labelledby="submit-title"><div class="dialog card"><h2 id="submit-title">Kumpulkan ujian?</h2><p>Jawaban tidak dapat diubah setelah dikumpulkan.</p><dl><div><dt>Jumlah soal</dt><dd>{{ manifest.length }}</dd></div><div><dt>Sudah dijawab</dt><dd>{{ answeredIds.size }}</dd></div><div><dt>Belum dijawab</dt><dd>{{ unansweredCount }}</dd></div></dl><FeedbackState v-if="submitError" title="Pengumpulan belum selesai" :message="submitError" tone="error" /><div class="dialog-actions"><button class="btn-secondary" type="button" :disabled="submitBusy" @click="showSubmit = false">Batal</button><button class="btn-primary" type="button" :disabled="submitBusy" @click="submit">{{ submitBusy ? "Mengumpulkan…" : "Kumpulkan Ujian" }}</button></div></div></div>
+    <div v-if="showSubmit" ref="submitDialogRef" class="overlay" role="dialog" aria-modal="true" aria-labelledby="submit-title"><div class="dialog card"><h2 id="submit-title">Kumpulkan ujian?</h2><p>Jawaban tidak dapat diubah setelah dikumpulkan.</p><dl><div><dt>Jumlah soal</dt><dd>{{ manifest.length }}</dd></div><div><dt>Sudah dijawab</dt><dd>{{ answeredIds.size }}</dd></div><div><dt>Belum dijawab</dt><dd>{{ unansweredCount }}</dd></div></dl><FeedbackState v-if="submitError" title="Pengumpulan belum selesai" :message="submitError" tone="error" />
+        <div v-if="unansweredCount > 0" class="review-list"><h3>Belum dijawab — ketuk nomor untuk kembali</h3><div class="review-grid"><button v-for="(item, index) in manifest" v-show="!answeredIds.has(item.sessionQuestionId)" :key="item.sessionQuestionId" type="button" :class="{ marked: marked.has(item.sessionQuestionId) }" :aria-label="`Kembali ke soal ${index + 1}${marked.has(item.sessionQuestionId) ? ', ditandai' : ''}`" @click="showSubmit = false; navigate(index)">{{ index + 1 }}</button></div></div>
+        <div class="dialog-actions"><button class="btn-secondary" type="button" :disabled="submitBusy" @click="showSubmit = false">Batal</button><button class="btn-primary" type="button" :disabled="submitBusy" @click="submit">{{ submitBusy ? "Mengumpulkan…" : "Kumpulkan Ujian" }}</button></div></div></div>
   </div>
 </template>
 
@@ -230,4 +270,5 @@ useFocusTrap(paletteActive, paletteDialogRef);
 .exam-page { min-height: 100vh; background: var(--canvas); }.exam-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-height: 56px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }.progress { font-weight: 700; }.toolbar-status { display: flex; align-items: center; gap: 16px; }.mobile-status { display: none; }.timer { min-width: 78px; font-variant-numeric: tabular-nums; font-weight: 700; }.timer-warning { color: var(--warning); }.timer-danger { color: var(--danger); }.offline-banner { margin: 12px 16px 0; padding: 10px 12px; color: var(--warning); background: var(--warning-soft); border-radius: 8px; }.exam-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; max-width: 1240px; margin: 0 auto; }.question-panel { min-width: 0; padding: 24px 32px 96px; }.question-actions { display: flex; justify-content: flex-end; margin-bottom: 12px; }.palette-side { padding: 24px 16px; border-left: 1px solid var(--border); background: var(--surface); }.palette-side h2 { margin-top: 0; font-size: 1.1rem; }.submit-desktop { width: 100%; margin-top: 20px; }.exam-navigation { position: fixed; right: 0; bottom: 0; left: 0; z-index: 5; display: flex; justify-content: space-between; gap: 12px; padding: 10px max(16px, calc((100vw - 1180px) / 2)); border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, transparent); }.exam-navigation button { min-width: 130px; }.palette-button { display: none; }.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: rgb(2 6 23 / 60%); }.dialog { width: min(480px, 100%); padding: 24px; }.dialog h2 { margin-top: 0; }.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }.drawer { align-self: stretch; width: min(360px, 100%); margin-left: auto; overflow: auto; background: var(--surface); }.drawer .between { padding: 16px; border-bottom: 1px solid var(--border); }.drawer h2 { margin: 0; font-size: 1.1rem; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 .conflict-panel { margin: 12px 16px 0; }.conflict-panel h2 { margin: 0 0 4px; font-size: 1rem; }.conflict-panel p { margin: 0 0 12px; }.conflict-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; padding-top: 10px; border-top: 1px solid color-mix(in srgb, var(--warning) 25%, transparent); }.conflict-row .dialog-actions { margin: 0; }
 @media (max-width: 767px) { .exam-toolbar { flex-wrap: wrap; }.toolbar-status { width: 100%; justify-content: space-between; }.toolbar-status .save-status { display: none; }.mobile-status { display: block; margin-top: 6px; }.palette-side { display: none; }.palette-button { display: inline-flex; align-items: center; }.question-panel { padding: 16px 16px 88px; }.exam-layout { display: block; }.exam-navigation button { flex: 1; min-width: 0; }.exam-navigation { padding: 10px 16px; } }
+.question-actions { display: flex; flex-wrap: wrap; gap: 8px; }.review-list { margin: 16px 0; }.review-list h3 { margin: 0 0 8px; }.review-grid { display: flex; flex-wrap: wrap; gap: 6px; }.review-grid button { min-width: 40px; min-height: 40px; border: 1px solid var(--border-strong); border-radius: 8px; background: var(--surface); color: var(--text); font-weight: 700; }.review-grid button.marked { border-color: #b45309; color: #b45309; }
 </style>

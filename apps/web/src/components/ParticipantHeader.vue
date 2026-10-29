@@ -2,6 +2,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import ThemeToggle from "./ThemeToggle.vue";
+import BrandMark from "./BrandMark.vue";
 import { HttpParticipantApi } from "../features/participant/api";
 import { useParticipantAuth } from "../features/participant/auth-store";
 import { participantOutbox } from "../features/exam/outbox";
@@ -42,7 +43,7 @@ async function logout(): Promise<void> {
 
 <template>
   <header class="participant-header">
-    <a class="brand" href="/participant/schedules" aria-label="GezyCBT, beranda peserta">GezyCBT</a>
+    <a class="brand" href="/participant/schedules" aria-label="GezyCBT, beranda peserta"><BrandMark /><span>GezyCBT</span></a>
     <span v-if="title" class="title">{{ title }}</span>
     <div class="header-actions">
       <ThemeToggle />
@@ -56,7 +57,7 @@ async function logout(): Promise<void> {
 
 <style scoped>
 .participant-header { min-height: 56px; display: flex; align-items: center; gap: 16px; padding: 8px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.brand { color: var(--text); font-size: 1.125rem; font-weight: 700; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-size: 1.125rem; font-weight: 700; text-decoration: none; }
 .title { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
 .header-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .logout-button { min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: 8px; color: var(--text); background: transparent; cursor: pointer; }

@@ -3,6 +3,8 @@ import { computed, ref } from "vue";
 import { useEscapeClose } from "../lib/dialog-a11y";
 import { RouterLink, useRoute, useRouter } from "vue-router";
 import ThemeToggle from "./ThemeToggle.vue";
+import AppIcon, { type IconName } from "./AppIcon.vue";
+import BrandMark from "./BrandMark.vue";
 import StaffSectionBoundary from "./StaffSectionBoundary.vue";
 import { menuForRole } from "../features/staff/policies";
 import { useStaffAuth } from "../features/staff/auth-store";
@@ -19,7 +21,7 @@ const admin = computed(() => role.value === "ADMIN");
 const nav = computed(() => menuForRole(role.value === "ADMIN" ? "ADMIN" : "TEACHER").map((item) => ({
   ...item,
   to: item.key === "dashboard" ? `/${admin.value ? "admin" : "teacher"}/dashboard` : item.to,
-  icon: { dashboard: "⌂", users: "◎", academic: "▦", teachers: "♙", questions: "◇", exams: "□", schedules: "◷", monitoring: "◉", results: "▤", exports: "⇩", audit: "≡", backup: "▣", integrations: "⚿" }[item.key] ?? "•",
+  icon: (({ dashboard: "home", users: "users", academic: "academic", teachers: "teacher", questions: "questions", exams: "exams", schedules: "schedules", monitoring: "monitoring", results: "results", exports: "exports", audit: "audit", backup: "backup", integrations: "integrations" }) satisfies Record<string, IconName>)[item.key] ?? "home",
 })));
 const menuFilter = ref("");
 const menuGroups = [
@@ -70,8 +72,8 @@ async function logout(): Promise<void> {
   <div class="staff-app">
     <a class="skip-link" href="#staff-content">Lewati ke konten utama</a>
     <header class="staff-topbar">
-      <button class="mobile-menu btn-secondary" type="button" aria-label="Buka menu navigasi" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen">☰</button>
-      <RouterLink class="brand" :to="admin ? '/admin/dashboard' : '/teacher/dashboard'">GezyCBT</RouterLink>
+      <button class="mobile-menu btn-secondary" type="button" aria-label="Buka menu navigasi" :aria-expanded="menuOpen" @click="menuOpen = !menuOpen"><AppIcon name="menu" /></button>
+      <RouterLink class="brand" :to="admin ? '/admin/dashboard' : '/teacher/dashboard'"><BrandMark /><span>GezyCBT</span></RouterLink>
       <span class="topbar-context">{{ currentItem?.label ?? props.title }}</span>
       <div class="topbar-actions"><ThemeToggle /><span class="user-chip">{{ auth.user.value?.displayName ?? "Staff" }}</span><button class="btn-quiet" type="button" @click="logout">Keluar</button></div>
     </header>
@@ -79,12 +81,12 @@ async function logout(): Promise<void> {
       <aside class="staff-sidebar" :class="{ open: menuOpen }" aria-label="Navigasi staf">
         <label class="menu-search"><span class="sr-only">Cari menu</span><input v-model="menuFilter" type="search" placeholder="Cari menu…" aria-label="Cari menu" /></label>
         <nav v-if="dashboardItem && dashboardVisible" aria-label="Menu utama">
-          <RouterLink :to="dashboardItem.to" :class="{ active: active(dashboardItem.to) }" @click="closeMenu"><span aria-hidden="true">{{ dashboardItem.icon }}</span><span>{{ dashboardItem.label }}</span></RouterLink>
+          <RouterLink :to="dashboardItem.to" :class="{ active: active(dashboardItem.to) }" @click="closeMenu"><AppIcon :name="dashboardItem.icon" /><span>{{ dashboardItem.label }}</span></RouterLink>
         </nav>
         <section v-for="group in filteredGroups" :key="group.label" class="menu-group">
           <h2>{{ group.label }}</h2>
           <nav :aria-label="`Menu ${group.label}`">
-            <RouterLink v-for="item in group.items" :key="item.to" :to="item.to" :class="{ active: active(item.to) }" @click="closeMenu"><span aria-hidden="true">{{ item.icon }}</span><span>{{ item.label }}</span></RouterLink>
+            <RouterLink v-for="item in group.items" :key="item.to" :to="item.to" :class="{ active: active(item.to) }" @click="closeMenu"><AppIcon :name="item.icon" /><span>{{ item.label }}</span></RouterLink>
           </nav>
         </section>
         <p v-if="menuFilter && !dashboardVisible && filteredGroups.length === 0" class="muted menu-empty">Tidak ada menu yang cocok.</p>
@@ -108,7 +110,7 @@ async function logout(): Promise<void> {
 <style scoped>
 .staff-app { min-height: 100vh; background: var(--canvas); }
 .staff-topbar { position: sticky; top: 0; z-index: 10; min-height: 64px; display: flex; align-items: center; gap: 16px; padding: 10px 24px; border-bottom: 1px solid var(--border); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); }
-.brand { color: var(--text); font-weight: 800; font-size: 1.125rem; text-decoration: none; }
+.brand { display: inline-flex; align-items: center; gap: 8px; color: var(--text); font-weight: 800; font-size: 1.125rem; text-decoration: none; }
 .topbar-context { color: var(--muted); border-left: 1px solid var(--border); padding-left: 16px; }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .user-chip { max-width: 180px; overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }

@@ -332,3 +332,17 @@ button:disabled {
     animation: none;
   }
 }
+
+/* P1: skala tipografi sesuai docs/03-ui-ux.md (H1 28px, H2 24px, H3 20px). */
+h1 {
+  font-size: 1.75rem;
+  line-height: 1.25;
+}
+h2 {
+  font-size: 1.5rem;
+  line-height: 1.3;
+}
+h3 {
+  font-size: 1.25rem;
+  line-height: 1.35;
+}
