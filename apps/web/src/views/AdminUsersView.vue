@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { requestConfirm, showToast } from "../lib/confirm";
 import { HttpStaffApi } from "../features/staff/api";
 import { useStaffAuth } from "../features/staff/auth-store";
 import type { NumberedPage, StaffUser } from "../features/staff/types";
@@ -48,7 +49,7 @@ async function create(): Promise<void> {
   try { await api.createUser(form.value); activePanel.value = "none"; form.value = { username: "", displayName: "", role: "PARTICIPANT", password: "" }; const totalAfterCreate = (userPage.value?.totalItems ?? 0) + 1; await load(Math.max(1, Math.ceil(totalAfterCreate / (userPage.value?.pageSize ?? 25)))); } catch (cause) { error.value = messageFrom(cause); } finally { saving.value = false; }
 }
 async function disable(user: StaffUser): Promise<void> {
-  if (!window.confirm(`Nonaktifkan akun ${user.displayName}? Sesi aktif akan dicabut.`)) return;
+  if (!(await requestConfirm({ title: "Nonaktifkan akun?", message: `Nonaktifkan akun ${user.displayName}? Sesi aktif akan dicabut.`, confirmLabel: "Nonaktifkan", danger: true }))) return;
   try { await api.disableUser(user.id, user.updatedAt); await load(); } catch (cause) { error.value = messageFrom(cause); }
 }
 function openEdit(user: StaffUser): void {
@@ -80,11 +81,11 @@ async function resetPassword(): Promise<void> {
     activePanel.value = "none"; selectedUser.value = null;
     await load();
     error.value = "";
-    window.alert(`Password ${result.user.displayName} berhasil direset. ${result.revokedSessionCount} sesi aktif dicabut.`);
+    showToast(`Password ${result.user.displayName} berhasil direset. ${result.revokedSessionCount} sesi aktif dicabut.`);
   } catch (cause) { error.value = messageFrom(cause, "Password belum direset."); } finally { saving.value = false; }
 }
 async function deleteUser(user: StaffUser): Promise<void> {
-  if (!window.confirm(`Hapus permanen akun ${user.displayName}? Akun dengan histori tidak dapat dihapus dan harus dinonaktifkan.`)) return;
+  if (!(await requestConfirm({ title: "Hapus permanen akun?", message: `Hapus permanen akun ${user.displayName}? Akun dengan histori tidak dapat dihapus dan harus dinonaktifkan.`, confirmLabel: "Hapus permanen", danger: true }))) return;
   const password = window.prompt("Masukkan ulang password admin untuk menghapus akun:");
   if (!password) return;
   saving.value = true; error.value = "";
@@ -119,7 +120,7 @@ async function makePreview(): Promise<void> {
 }
 async function commit(): Promise<void> {
   if (!preview.value || !canCommit.value) return;
-  if (!window.confirm(`Import ${preview.value.createCount} peserta baru?`)) return;
+  if (!(await requestConfirm({ title: "Import peserta?", message: `Import ${preview.value.createCount} peserta baru?`, confirmLabel: "Import" }))) return;
   importBusy.value = true;
   try { const password = window.prompt("Masukkan ulang password admin untuk commit import:"); if (!password) { importMessage.value = "Commit dibatalkan karena re-authentication diperlukan."; return; } await api.reauth(password); const result = await api.commitImport(preview.value.id, commitToken.value); preview.value = { ...preview.value, status: "COMMITTED" }; commitToken.value = ""; credentialArtifactId.value = result.artifactId; importRows.value = []; importMessage.value = `Import selesai. ${result.createdUserCount} akun diproses.`; await load(); } catch (cause) { importMessage.value = messageFrom(cause, "Import gagal."); } finally { importBusy.value = false; }
 }

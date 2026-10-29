@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useEscapeClose, useFocusTrap } from "../lib/dialog-a11y";
 import { HttpStaffApi } from "../features/staff/api";
 import type { AuditRow, NumberedPage } from "../features/staff/types";
 import { formatDate, messageFrom } from "../features/staff/helpers";
@@ -37,13 +38,19 @@ async function load(page = 1): Promise<void> {
   }
 }
 onMounted(() => { void load(1); });
+
+const auditDialogRef = ref<HTMLElement | null>(null);
+const auditActive = computed(() => selected.value !== null);
+useEscapeClose(auditActive, () => { selected.value = null; });
+useFocusTrap(auditActive, auditDialogRef);
+
 </script>
 
 <template>
   <header class="page-heading"><p class="eyebrow">Admin · Governance</p><h1>Audit log</h1><p class="muted">Jejak perubahan penting, tanpa password, token, answer key, atau raw answer.</p><p class="muted small-copy">Ringkasan audit disimpan minimal 1 tahun. Detail action agent minimal 90 hari. Saat ini tidak ada penghapusan otomatis audit.</p></header>
   <form class="toolbar" @submit.prevent="load(1)"><label class="sr-only" for="audit-search">Cari audit</label><input id="audit-search" v-model="query" placeholder="Actor, action, entity, request ID" /><button class="btn-secondary" type="submit">Filter</button></form><div v-if="error" class="alert alert-error" role="alert">{{ error }}</div>
   <section class="card table-card"><div v-if="loading" class="table-state">Memuat audit…</div><div v-else-if="items.length === 0" class="table-state"><strong>Belum ada aktivitas</strong><span class="muted">Audit akan tampil setelah mutation pertama.</span></div><template v-else><div class="table-summary"><strong>{{ items.length }} dari {{ auditPage?.totalItems ?? 0 }} catatan</strong><span v-if="auditPage?.totalPages">Halaman {{ currentPage }} dari {{ auditPage.totalPages }}</span></div><div class="table-scroll"><table><caption class="sr-only">Audit log</caption><thead><tr><th>Waktu</th><th>Aksi</th><th>Actor</th><th>Entity</th><th>Outcome</th><th></th></tr></thead><tbody><tr v-for="item in items" :key="item.id"><td>{{ formatDate(item.createdAt) }}</td><td>{{ item.action }}</td><td>{{ item.actorLabel }}</td><td>{{ item.entityType }} {{ item.entityId ?? '—' }}</td><td>{{ item.outcome }}</td><td><button class="btn-quiet" type="button" @click="selected = item">Detail</button></td></tr></tbody></table></div><nav v-if="auditPage && auditPage.totalPages > 1" class="pagination" aria-label="Pagination audit log"><button class="page-button" type="button" :disabled="currentPage === 1 || loading" aria-label="Halaman pertama" @click="load(1)">«</button><button class="page-button" type="button" :disabled="currentPage === 1 || loading" aria-label="Halaman sebelumnya" @click="load(currentPage - 1)">‹</button><template v-for="item in pageItems" :key="item"><span v-if="typeof item !== 'number'" class="page-gap" aria-hidden="true">…</span><button v-else class="page-button" :class="{ current: item === currentPage }" type="button" :disabled="loading" :aria-current="item === currentPage ? 'page' : undefined" :aria-label="`Halaman ${item}`" @click="load(item)">{{ item }}</button></template><button class="page-button" type="button" :disabled="currentPage === auditPage.totalPages || loading" aria-label="Halaman berikutnya" @click="load(currentPage + 1)">›</button><button class="page-button" type="button" :disabled="currentPage === auditPage.totalPages || loading" aria-label="Halaman terakhir" @click="load(auditPage.totalPages)">»</button></nav></template></section>
-  <div v-if="selected" class="overlay" role="dialog" aria-modal="true" aria-labelledby="audit-detail-title"><aside class="drawer"><div class="between"><h2 id="audit-detail-title">Detail audit</h2><button class="btn-quiet" type="button" @click="selected = null">Tutup</button></div><dl><div><dt>Action</dt><dd>{{ selected.action }}</dd></div><div><dt>Outcome</dt><dd>{{ selected.outcome }}</dd></div><div><dt>Actor</dt><dd>{{ selected.actorLabel }}</dd></div><div><dt>Entity</dt><dd>{{ selected.entityType }} · {{ selected.entityId ?? '—' }}</dd></div><div><dt>Request ID</dt><dd><code>{{ selected.requestId }}</code></dd></div><div><dt>Metadata aman</dt><dd><pre>{ "redacted": true, "note": "Field sensitif tidak ditampilkan" }</pre></dd></div></dl></aside></div>
+  <div v-if="selected" ref="auditDialogRef" class="overlay" role="dialog" aria-modal="true" aria-labelledby="audit-detail-title"><aside class="drawer"><div class="between"><h2 id="audit-detail-title">Detail audit</h2><button class="btn-quiet" type="button" @click="selected = null">Tutup</button></div><dl><div><dt>Action</dt><dd>{{ selected.action }}</dd></div><div><dt>Outcome</dt><dd>{{ selected.outcome }}</dd></div><div><dt>Actor</dt><dd>{{ selected.actorLabel }}</dd></div><div><dt>Entity</dt><dd>{{ selected.entityType }} · {{ selected.entityId ?? '—' }}</dd></div><div><dt>Request ID</dt><dd><code>{{ selected.requestId }}</code></dd></div><div><dt>Metadata aman</dt><dd><pre>{ "redacted": true, "note": "Field sensitif tidak ditampilkan" }</pre></dd></div></dl></aside></div>
 </template>
 
 <style scoped>

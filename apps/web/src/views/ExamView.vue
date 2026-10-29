@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { useEscapeClose, useFocusTrap } from "../lib/dialog-a11y";
 import { useRoute, useRouter } from "vue-router";
 import QuestionPalette from "../components/exam/QuestionPalette.vue";
 import QuestionRenderer from "../components/exam/QuestionRenderer.vue";
@@ -188,11 +189,21 @@ function thresholdMessage(): string { if (!exam.session.value) return ""; const 
 watch(showPalette, (open) => {
   if (open) void nextTick(() => paletteClose.value?.focus());
 });
+
+const submitDialogRef = ref<HTMLElement | null>(null);
+const submitActive = computed(() => showSubmit.value);
+useEscapeClose(submitActive, () => { showSubmit.value = false; });
+useFocusTrap(submitActive, submitDialogRef);
+const paletteDialogRef = ref<HTMLElement | null>(null);
+const paletteActive = computed(() => showPalette.value && !showSubmit.value);
+useEscapeClose(paletteActive, closePalette);
+useFocusTrap(paletteActive, paletteDialogRef);
+
 </script>
 
 <template>
   <div class="exam-page">
-    <ParticipantHeader title="Ujian" compact>
+    <ParticipantHeader title="Ujian" compact hide-logout>
       <template #actions><button ref="paletteTrigger" class="btn-quiet palette-button" type="button" @click="openPalette">☰ Soal</button></template>
     </ParticipantHeader>
     <main v-if="!loadError && session" class="exam-main" aria-label="Halaman ujian">
@@ -209,9 +220,9 @@ watch(showPalette, (open) => {
     <FeedbackState v-else title="Memuat sesi ujian…" message="Manifest dan jawaban sedang disiapkan." />
     <div ref="heading" tabindex="-1" class="sr-only" aria-live="off">Soal {{ current + 1 }} dari {{ manifest.length }}</div>
     <div class="sr-only" aria-live="assertive">{{ liveMessage }}</div>
-    <div v-if="showPalette" class="overlay" role="dialog" aria-modal="true" aria-label="Daftar soal"><div class="drawer"><div class="between"><h2>Daftar Soal</h2><button ref="paletteClose" class="btn-secondary" type="button" @click="closePalette">Tutup</button></div><QuestionPalette :manifest="manifest" :current="current" :answered="answeredIds" :marked="marked" @select="navigate" /></div></div>
+    <div v-if="showPalette" ref="paletteDialogRef" class="overlay" role="dialog" aria-modal="true" aria-label="Daftar soal"><div class="drawer"><div class="between"><h2>Daftar Soal</h2><button ref="paletteClose" class="btn-secondary" type="button" @click="closePalette">Tutup</button></div><QuestionPalette :manifest="manifest" :current="current" :answered="answeredIds" :marked="marked" @select="navigate" /></div></div>
     <div v-if="authExpired" class="overlay" role="dialog" aria-modal="true" aria-labelledby="auth-expired-title"><div class="dialog card"><h2 id="auth-expired-title">{{ practiceRoute ? "Kredensial latihan berakhir" : "Sesi login berakhir" }}</h2><p v-if="practiceRoute">Kredensial latihan tidak tersedia. Mulai kembali dari token latihan.</p><template v-else><p>Ujian masih berjalan dan waktu tetap berjalan. Masuk kembali untuk menyinkronkan.</p><FeedbackState v-if="authError" title="Login ulang belum berhasil" :message="authError" tone="error" /><form @submit.prevent="retryAuth"><div class="form-row"><label for="resume-username">Username</label><input id="resume-username" v-model="authUsername" autocomplete="username" required /></div><div class="form-row"><label for="resume-password">Password</label><input id="resume-password" v-model="authPassword" type="password" autocomplete="current-password" required /></div><button class="btn-primary" type="submit" :disabled="authBusy">{{ authBusy ? "Masuk dan memuat…" : "Masuk ulang" }}</button></form></template><RouterLink v-if="practiceRoute" class="btn-secondary action-link" to="/practice/token">Masukkan token lagi</RouterLink></div></div>
-    <div v-if="showSubmit" class="overlay" role="dialog" aria-modal="true" aria-labelledby="submit-title"><div class="dialog card"><h2 id="submit-title">Kumpulkan ujian?</h2><p>Jawaban tidak dapat diubah setelah dikumpulkan.</p><dl><div><dt>Jumlah soal</dt><dd>{{ manifest.length }}</dd></div><div><dt>Sudah dijawab</dt><dd>{{ answeredIds.size }}</dd></div><div><dt>Belum dijawab</dt><dd>{{ unansweredCount }}</dd></div></dl><FeedbackState v-if="submitError" title="Pengumpulan belum selesai" :message="submitError" tone="error" /><div class="dialog-actions"><button class="btn-secondary" type="button" :disabled="submitBusy" @click="showSubmit = false">Batal</button><button class="btn-primary" type="button" :disabled="submitBusy" @click="submit">{{ submitBusy ? "Mengumpulkan…" : "Kumpulkan Ujian" }}</button></div></div></div>
+    <div v-if="showSubmit" ref="submitDialogRef" class="overlay" role="dialog" aria-modal="true" aria-labelledby="submit-title"><div class="dialog card"><h2 id="submit-title">Kumpulkan ujian?</h2><p>Jawaban tidak dapat diubah setelah dikumpulkan.</p><dl><div><dt>Jumlah soal</dt><dd>{{ manifest.length }}</dd></div><div><dt>Sudah dijawab</dt><dd>{{ answeredIds.size }}</dd></div><div><dt>Belum dijawab</dt><dd>{{ unansweredCount }}</dd></div></dl><FeedbackState v-if="submitError" title="Pengumpulan belum selesai" :message="submitError" tone="error" /><div class="dialog-actions"><button class="btn-secondary" type="button" :disabled="submitBusy" @click="showSubmit = false">Batal</button><button class="btn-primary" type="button" :disabled="submitBusy" @click="submit">{{ submitBusy ? "Mengumpulkan…" : "Kumpulkan Ujian" }}</button></div></div></div>
   </div>
 </template>
 

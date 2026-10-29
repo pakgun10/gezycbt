@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { requestConfirm } from "../lib/confirm";
 import { useRoute } from "vue-router";
 import { HttpStaffApi } from "../features/staff/api";
 import type { RegradePreview, ResultRow, ScheduleSummary } from "../features/staff/types";
@@ -26,8 +27,8 @@ async function load(): Promise<void> { if (!scheduleId.value) return; loading.va
 function toggle(id: string): void { selected.value = selected.value.includes(id) ? selected.value.filter((item) => item !== id) : [...selected.value, id]; regradePreview.value = null; }
 function allOnPage(): boolean { return results.value.length > 0 && results.value.every((row) => selected.value.includes(row.id)); }
 function togglePage(): void { selected.value = allOnPage() ? [] : results.value.filter((row) => row.status === "SCORED").map((row) => row.id); regradePreview.value = null; }
-async function release(): Promise<void> { if (!scheduleId.value || (!allFiltered.value && selected.value.length === 0)) return; if (!window.confirm(allFiltered.value ? "Rilis seluruh hasil yang cocok dengan filter saat ini?" : `Rilis ${selected.value.length} hasil terpilih?`)) return; actionMessage.value = ""; try { const outcome = await api.releaseResults(scheduleId.value, selected.value, undefined, allFiltered.value, filter.value); actionMessage.value = `${outcome.released} hasil dirilis, ${outcome.skipped} dilewati.`; await load(); } catch (cause) { error.value = messageFrom(cause); } }
-async function unrelease(): Promise<void> { if (!scheduleId.value || (!allFiltered.value && selected.value.length === 0)) return; if (!window.confirm(allFiltered.value ? "Sembunyikan kembali seluruh hasil yang cocok dengan filter saat ini?" : `Sembunyikan kembali ${selected.value.length} hasil terpilih?`)) return; if (!reason.value.trim()) { actionMessage.value = "Alasan unrelease wajib diisi."; return; } try { const outcome = await api.unreleaseResults(scheduleId.value, selected.value, reason.value, allFiltered.value, filter.value); actionMessage.value = `${outcome.released} hasil disembunyikan kembali.`; reason.value = ""; await load(); } catch (cause) { error.value = messageFrom(cause); } }
+async function release(): Promise<void> { if (!scheduleId.value || (!allFiltered.value && selected.value.length === 0)) return; if (!(await requestConfirm({ title: "Rilis hasil?", message: allFiltered.value ? "Rilis seluruh hasil yang cocok dengan filter saat ini?" : `Rilis ${selected.value.length} hasil terpilih?`, confirmLabel: "Rilis" }))) return; actionMessage.value = ""; try { const outcome = await api.releaseResults(scheduleId.value, selected.value, undefined, allFiltered.value, filter.value); actionMessage.value = `${outcome.released} hasil dirilis, ${outcome.skipped} dilewati.`; await load(); } catch (cause) { error.value = messageFrom(cause); } }
+async function unrelease(): Promise<void> { if (!scheduleId.value || (!allFiltered.value && selected.value.length === 0)) return; if (!(await requestConfirm({ title: "Sembunyikan kembali hasil?", message: allFiltered.value ? "Sembunyikan kembali seluruh hasil yang cocok dengan filter saat ini?" : `Sembunyikan kembali ${selected.value.length} hasil terpilih?`, confirmLabel: "Sembunyikan" }))) return; if (!reason.value.trim()) { actionMessage.value = "Alasan unrelease wajib diisi."; return; } try { const outcome = await api.unreleaseResults(scheduleId.value, selected.value, reason.value, allFiltered.value, filter.value); actionMessage.value = `${outcome.released} hasil disembunyikan kembali.`; reason.value = ""; await load(); } catch (cause) { error.value = messageFrom(cause); } }
 async function previewRegrade(): Promise<void> {
   if (!scheduleId.value || selected.value.length === 0) return;
   error.value = "";
@@ -41,7 +42,7 @@ async function executeRegrade(): Promise<void> {
   if (!scheduleId.value || !regradePreview.value || selected.value.length === 0) return;
   if (regradePreview.value.eligibleCount === 0) { actionMessage.value = "Tidak ada hasil yang dapat diregrade karena perubahan soal tidak kompatibel."; return; }
   if (regradeReason.value.trim().length < 3) { actionMessage.value = "Alasan Regrade wajib diisi minimal 3 karakter."; return; }
-  if (!window.confirm(`Jalankan Regrade untuk ${regradePreview.value.eligibleCount} hasil yang kompatibel? Hasil yang tidak kompatibel tidak akan diubah.`)) return;
+  if (!(await requestConfirm({ title: "Jalankan Regrade?", message: `Jalankan Regrade untuk ${regradePreview.value.eligibleCount} hasil yang kompatibel? Hasil yang tidak kompatibel tidak akan diubah.`, confirmLabel: "Jalankan Regrade" }))) return;
   error.value = "";
   actionMessage.value = "";
   regradeBusy.value = true;

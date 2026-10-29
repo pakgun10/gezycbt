@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { requestConfirm } from "../lib/confirm";
 import { useRoute, useRouter } from "vue-router";
 
 const props = defineProps<{ readonly subjects?: readonly { id: string; name: string }[]; readonly classes?: readonly { id: string; name: string }[]; readonly dirty?: boolean }>();
@@ -10,7 +11,7 @@ const subjectId = computed(() => String(route.query.subjectId ?? ""));
 const classId = computed(() => String(route.query.classId ?? ""));
 
 async function update(key: "subjectId" | "classId", value: string): Promise<void> {
-  if (props.dirty && !window.confirm("Perubahan yang belum disimpan akan tetap berada di editor. Ganti scope?")) return;
+  if (props.dirty && !(await requestConfirm({ title: "Ganti scope?", message: "Perubahan yang belum disimpan akan tetap berada di editor.", confirmLabel: "Ganti scope" }))) return;
   const query = { ...route.query, [key]: value || undefined, cursor: undefined, page: undefined };
   await router.replace({ query });
   emit("change", key === "subjectId" ? value : subjectId.value, key === "classId" ? value : classId.value);
