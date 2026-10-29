@@ -341,6 +341,18 @@ export interface ExportJob {
   readonly errorMessage?: string | null;
 }
 
+export interface BackupSummary {
+  readonly app: string;
+  readonly formatVersion: number;
+  readonly schemaVersion: number;
+  readonly exportedAt: string;
+  readonly tables: readonly { readonly name: string; readonly rows: number }[];
+  readonly totalRows: number;
+  readonly mediaCount: number;
+  readonly mediaBytes: number;
+  readonly warnings: readonly string[];
+}
+
 export interface AuditRow {
   readonly id: string;
   readonly action: string;

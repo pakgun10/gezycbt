@@ -3,6 +3,7 @@ import { useStaffAuth } from "./auth-store";
 import type {
   AcademicYear,
   AuditRow,
+  BackupSummary,
   ClassMemberProfile,
   ClassRecord,
   CursorPage,
@@ -324,7 +325,14 @@ export interface StaffApi {
   exportDownloadToken(
     id: string,
   ): Promise<{ token: string; expiresAt: string }>;
-  audit(query?: string, page?: number, limit?: number): Promise<NumberedPage<AuditRow>>;
+  audit(
+    query?: string,
+    page?: number,
+    limit?: number,
+  ): Promise<NumberedPage<AuditRow>>;
+  backupDownload(passphrase: string): Promise<{ filename: string; blob: Blob }>;
+  backupPreview(fileBase64: string, passphrase: string): Promise<BackupSummary>;
+  backupRestore(fileBase64: string, passphrase: string): Promise<BackupSummary>;
   integrationClients(): Promise<CursorPage<IntegrationClient>>;
   integrationClient(id: string): Promise<IntegrationClientDetail>;
   createIntegrationClient(
@@ -1054,6 +1062,33 @@ export class HttpStaffApi implements StaffApi {
     return this.getData<NumberedPage<AuditRow>>(
       `/api/v1/admin/audit-logs?search=${encodeURIComponent(query)}&page=${page}&limit=${limit}`,
     );
+  }
+  async backupDownload(passphrase: string) {
+    const response = await this.client.download("/api/v1/admin/backup", {
+      method: "POST",
+      headers: mutationHeaders(
+        crypto.randomUUID(),
+        useStaffAuth().csrfToken.value,
+      ),
+      body: { passphrase },
+    });
+    const blob = await response.blob();
+    const disposition = response.headers.get("content-disposition") ?? "";
+    const match = /filename="([^"]+)"/u.exec(disposition);
+    return { filename: match?.[1] ?? "backup-gezycbt.gezycbtbackup", blob };
+  }
+  backupPreview(fileBase64: string, passphrase: string) {
+    return this.mutate<BackupSummary>("/api/v1/admin/backup/preview", "POST", {
+      fileBase64,
+      passphrase,
+    });
+  }
+  backupRestore(fileBase64: string, passphrase: string) {
+    return this.mutate<BackupSummary>("/api/v1/admin/backup/restore", "POST", {
+      fileBase64,
+      passphrase,
+      confirm: true,
+    });
   }
   integrationClients() {
     return this.getPage<IntegrationClient>("/api/v1/admin/integration-clients");
