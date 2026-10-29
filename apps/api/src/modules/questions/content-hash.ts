@@ -17,11 +17,18 @@ export function canonicalQuestionValue(
   content: QuestionDraftContent,
   media: readonly CanonicalMediaHashEntry[] = [],
 ): string {
+  // Labels are omitted when both are unset so existing revisions keep
+  // their historic hash; a custom label changes the hash, as intended.
+  const trueLabel = content.trueLabel ?? null;
+  const falseLabel = content.falseLabel ?? null;
   return JSON.stringify({
     type: content.type,
     stimulusHtml: content.stimulusHtml,
     promptHtml: content.promptHtml,
     explanationHtml: content.explanationHtml,
+    ...(trueLabel === null && falseLabel === null
+      ? {}
+      : { trueLabel, falseLabel }),
     options: [...content.options]
       .sort((a, b) => a.position - b.position)
       .map((option) => ({

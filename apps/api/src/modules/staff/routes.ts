@@ -3838,6 +3838,8 @@ function mapQuestionDraft(draft: {
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly {
     readonly id?: Id;
     readonly position: number;
@@ -3873,6 +3875,8 @@ function mapQuestionDraft(draft: {
     stimulusHtml: draft.stimulusHtml,
     promptHtml: draft.promptHtml,
     explanationHtml: draft.explanationHtml,
+    trueLabel: draft.trueLabel ?? null,
+    falseLabel: draft.falseLabel ?? null,
     options: draft.options.map((option) => ({
       ...(option.id ? { id: String(option.id) } : {}),
       position: option.position,

@@ -9,6 +9,8 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ (event: "update", value: AnswerResponse): void }>();
 
+const trueLabel = computed(() => props.question.trueLabel ?? "Benar");
+const falseLabel = computed(() => props.question.falseLabel ?? "Salah");
 const selectedOption = computed(() => "selectedOptionId" in props.response ? props.response.selectedOptionId : null);
 const selectedOptions = computed(() => "selectedOptionIds" in props.response ? props.response.selectedOptionIds : []);
 const statements = computed(() => new Map("statements" in props.response ? props.response.statements.map((item) => [item.statementId, item.value]) : []));
@@ -38,19 +40,19 @@ function mediaFor(usage: string, targetId?: string) {
 </script>
 
 <template>
-  <article class="question" :aria-label="question.type === 'TRUE_FALSE' ? 'Soal benar atau salah' : undefined" :aria-labelledby="question.type === 'TRUE_FALSE' ? undefined : `question-${question.questionId}`">
+  <article class="question" :aria-label="question.type === 'TRUE_FALSE' ? 'Soal pernyataan' : undefined" :aria-labelledby="question.type === 'TRUE_FALSE' ? undefined : `question-${question.questionId}`">
     <SafeQuestionContent class="stimulus" :html="question.stimulusHtml" :media="mediaFor('STIMULUS')" />
     <template v-if="question.type === 'TRUE_FALSE'">
       <fieldset class="true-false-answer-table">
-        <legend class="sr-only">Pilih Benar atau Salah untuk setiap pernyataan</legend>
+        <legend class="sr-only">Pilih {{ trueLabel }} atau {{ falseLabel }} untuk setiap pernyataan</legend>
         <div class="table-scroll">
           <table>
             <thead>
               <tr>
                 <th scope="col">No.</th>
                 <th scope="col">Pernyataan</th>
-                <th scope="col">Benar</th>
-                <th scope="col">Salah</th>
+                <th scope="col">{{ trueLabel }}</th>
+                <th scope="col">{{ falseLabel }}</th>
               </tr>
             </thead>
             <tbody>
@@ -58,15 +60,15 @@ function mediaFor(usage: string, targetId?: string) {
                 <th scope="row">{{ statement.position }}</th>
                 <td><SafeQuestionContent :html="statement.statementHtml" :media="mediaFor('STATEMENT', statement.id)" /></td>
                 <td class="truth-cell">
-                  <label class="truth-option" :aria-label="`Pernyataan ${statement.position}: Benar`">
+                  <label class="truth-option" :aria-label="`Pernyataan ${statement.position}: ${trueLabel}`">
                     <input type="radio" :name="`statement-${question.questionId}-${statement.id}`" :checked="statements.get(statement.id) === true" @change="setStatement(statement.id, true)" />
-                    <span class="sr-only">Benar</span>
+                    <span class="sr-only">{{ trueLabel }}</span>
                   </label>
                 </td>
                 <td class="truth-cell">
-                  <label class="truth-option" :aria-label="`Pernyataan ${statement.position}: Salah`">
+                  <label class="truth-option" :aria-label="`Pernyataan ${statement.position}: ${falseLabel}`">
                     <input type="radio" :name="`statement-${question.questionId}-${statement.id}`" :checked="statements.get(statement.id) === false" @change="setStatement(statement.id, false)" />
-                    <span class="sr-only">Salah</span>
+                    <span class="sr-only">{{ falseLabel }}</span>
                   </label>
                 </td>
               </tr>
@@ -86,5 +88,5 @@ function mediaFor(usage: string, targetId?: string) {
 </template>
 
 <style scoped>
-.question { font-size: 1.125rem; line-height: 1.65; }.stimulus { padding: 16px; margin-bottom: 20px; border-radius: 10px; background: var(--surface-elevated); }.question h2 { margin: 20px 0 10px; font-size: 1.25rem; }.prompt { margin-bottom: 16px; }.instruction { padding: 10px 12px; color: var(--info); background: var(--info-soft); border-radius: 8px; font-size: 1rem; }.options { display: grid; gap: 10px; padding: 0; border: 0; }.option-card { display: grid; grid-template-columns: auto 28px 1fr; align-items: start; gap: 10px; min-height: 56px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 10px; cursor: pointer; }.option-card.selected { border-color: var(--primary); background: var(--primary-soft); }.option-card input { width: 20px; height: 20px; margin: 2px 0; }.option-letter { font-weight: 700; }.true-false-answer-table { min-width: 0; padding: 0; margin: 0; border: 0; }.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }.true-false-answer-table table { width: 100%; min-width: 560px; border-spacing: 0; border-collapse: separate; background: var(--surface-elevated); }.true-false-answer-table th, .true-false-answer-table td { padding: 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }.true-false-answer-table thead th { color: var(--text); background: var(--primary-soft); font-weight: 700; }.true-false-answer-table tbody th { width: 54px; color: var(--subtle); text-align: center; font-variant-numeric: tabular-nums; }.true-false-answer-table th:nth-child(3), .true-false-answer-table th:nth-child(4), .truth-cell { width: 88px; text-align: center; }.true-false-answer-table th:last-child, .true-false-answer-table td:last-child { border-right: 0; }.true-false-answer-table tbody tr:last-child th, .true-false-answer-table tbody tr:last-child td { border-bottom: 0; }.truth-option { display: grid; place-items: center; width: 44px; min-height: 44px; margin: auto; cursor: pointer; }.truth-option input { width: 22px; height: 22px; margin: 0; accent-color: var(--primary); }.media-list { display: grid; gap: 12px; margin-bottom: 18px; }.media-list figure { margin: 0; }.media-list img { display: block; max-width: 100%; max-height: 420px; margin: auto; border-radius: 8px; object-fit: contain; }.media-list figcaption { color: var(--muted); font-size: .875rem; text-align: center; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.question { font-size: 1.125rem; line-height: 1.65; }.stimulus { padding: 16px; margin-bottom: 20px; border-radius: 10px; background: var(--surface-elevated); }.question h2 { margin: 20px 0 10px; font-size: 1.25rem; }.prompt { margin-bottom: 16px; }.instruction { padding: 10px 12px; color: var(--info); background: var(--info-soft); border-radius: 8px; font-size: 1rem; }.options { display: grid; gap: 10px; padding: 0; border: 0; }.option-card { display: grid; grid-template-columns: auto 28px 1fr; align-items: start; gap: 10px; min-height: 56px; padding: 12px; border: 1px solid var(--border-strong); border-radius: 10px; cursor: pointer; }.option-card.selected { border-color: var(--primary); background: var(--primary-soft); }.option-card input { width: 20px; height: 20px; margin: 2px 0; }.option-letter { font-weight: 700; }.true-false-answer-table { min-width: 0; padding: 0; margin: 0; border: 0; }.table-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }.true-false-answer-table table { width: 100%; min-width: 640px; border-spacing: 0; border-collapse: separate; background: var(--surface-elevated); }.true-false-answer-table th, .true-false-answer-table td { padding: 12px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); text-align: left; vertical-align: middle; }.true-false-answer-table thead th { color: var(--text); background: var(--primary-soft); font-weight: 700; }.true-false-answer-table tbody th { width: 54px; color: var(--subtle); text-align: center; font-variant-numeric: tabular-nums; }.true-false-answer-table th:nth-child(3), .true-false-answer-table th:nth-child(4), .truth-cell { width: 150px; text-align: center; }.true-false-answer-table th:last-child, .true-false-answer-table td:last-child { border-right: 0; }.true-false-answer-table tbody tr:last-child th, .true-false-answer-table tbody tr:last-child td { border-bottom: 0; }.truth-option { display: grid; place-items: center; width: 44px; min-height: 44px; margin: auto; cursor: pointer; }.truth-option input { width: 22px; height: 22px; margin: 0; accent-color: var(--primary); }.media-list { display: grid; gap: 12px; margin-bottom: 18px; }.media-list figure { margin: 0; }.media-list img { display: block; max-width: 100%; max-height: 420px; margin: auto; border-radius: 8px; object-fit: contain; }.media-list figcaption { color: var(--muted); font-size: .875rem; text-align: center; }.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 </style>

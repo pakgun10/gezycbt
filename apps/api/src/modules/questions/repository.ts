@@ -97,6 +97,8 @@ type RevisionRow = Record<string, unknown> & {
   stimulus_html: unknown;
   prompt_html: unknown;
   explanation_html: unknown;
+  true_label: unknown;
+  false_label: unknown;
   content_hash: unknown;
   published_at: unknown;
   created_at: unknown;
@@ -124,7 +126,8 @@ const REVISION_COLUMNS = `
          qb.subject_id, qb.owner_teacher_id, qb.name AS bank_name,
          qb.status AS bank_status, q.status AS question_status,
          qr.revision_no, qr.type, qr.status, qr.stimulus_html,
-         qr.prompt_html, qr.explanation_html, qr.content_hash,
+         qr.prompt_html, qr.explanation_html, qr.true_label,
+         qr.false_label, qr.content_hash,
          qr.published_at, qr.created_at, qr.updated_at
   FROM question_revisions qr
   JOIN questions q ON q.id = qr.question_id
@@ -213,14 +216,17 @@ export class SqlQuestionDraftRepository
       const revision = await connection.execute(
         `INSERT INTO question_revisions
            (question_id, revision_no, \`type\`, status, stimulus_html,
-            prompt_html, explanation_html, content_hash)
-         VALUES (?, 1, ?, 'DRAFT', ?, ?, ?, ?)`,
+            prompt_html, explanation_html, true_label, false_label,
+            content_hash)
+         VALUES (?, 1, ?, 'DRAFT', ?, ?, ?, ?, ?, ?)`,
         [
           questionId,
           content.type,
           content.stimulusHtml,
           content.promptHtml,
           content.explanationHtml,
+          content.trueLabel ?? null,
+          content.falseLabel ?? null,
           input.contentHash,
         ],
       );
@@ -251,14 +257,17 @@ export class SqlQuestionDraftRepository
         const revision = await connection.execute(
           `INSERT INTO question_revisions
              (question_id, revision_no, \`type\`, status, stimulus_html,
-              prompt_html, explanation_html, content_hash)
-           VALUES (?, 1, ?, 'DRAFT', ?, ?, ?, ?)`,
+              prompt_html, explanation_html, true_label, false_label,
+              content_hash)
+           VALUES (?, 1, ?, 'DRAFT', ?, ?, ?, ?, ?, ?)`,
           [
             formatId(question.insertId),
             content.type,
             content.stimulusHtml,
             content.promptHtml,
             content.explanationHtml,
+            content.trueLabel ?? null,
+            content.falseLabel ?? null,
             draft.contentHash,
           ],
         );
@@ -285,13 +294,16 @@ export class SqlQuestionDraftRepository
       await connection.execute(
         `UPDATE question_revisions
          SET \`type\` = ?, stimulus_html = ?, prompt_html = ?,
-             explanation_html = ?, content_hash = ?, updated_at = UTC_TIMESTAMP(6)
+             explanation_html = ?, true_label = ?, false_label = ?,
+             content_hash = ?, updated_at = UTC_TIMESTAMP(6)
          WHERE id = ? AND status = 'DRAFT'`,
         [
           content.type,
           content.stimulusHtml,
           content.promptHtml,
           content.explanationHtml,
+          content.trueLabel ?? null,
+          content.falseLabel ?? null,
           input.contentHash,
           id,
         ],
@@ -330,8 +342,9 @@ export class SqlQuestionDraftRepository
       const revision = await connection.execute(
         `INSERT INTO question_revisions
            (question_id, revision_no, \`type\`, status, stimulus_html,
-            prompt_html, explanation_html, content_hash)
-         VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?)`,
+            prompt_html, explanation_html, true_label, false_label,
+            content_hash)
+         VALUES (?, ?, ?, 'DRAFT', ?, ?, ?, ?, ?, ?)`,
         [
           source.questionId,
           latestRevisionNo + 1,
@@ -339,6 +352,8 @@ export class SqlQuestionDraftRepository
           content.stimulusHtml,
           content.promptHtml,
           content.explanationHtml,
+          content.trueLabel ?? null,
+          content.falseLabel ?? null,
           input.contentHash,
         ],
       );
@@ -630,6 +645,8 @@ async function readRevision(
     ),
     promptHtml: sanitizeNullableRichContent(row.prompt_html, 100_000),
     explanationHtml: sanitizeNullableRichContent(row.explanation_html, 100_000),
+    trueLabel: nullableText(row.true_label),
+    falseLabel: nullableText(row.false_label),
     options: optionRows.map((row) => {
       const option = mapOptionRow(row);
       return {

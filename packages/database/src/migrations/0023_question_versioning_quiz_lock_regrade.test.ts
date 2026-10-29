@@ -13,6 +13,6 @@ describe("question versioning, schedule lock, and regrade migration", () => {
     expect(schema).toContain("stable_key");
     expect(schema).toContain("structure_locked_by_session_id");
     expect(schema).toContain("CREATE TABLE exam_regrade_runs");
-    expect(migrations.at(-1)).toBe(questionVersioningQuizLockRegradeMigration);
+    expect(migrations).toContain(questionVersioningQuizLockRegradeMigration);
   });
 });

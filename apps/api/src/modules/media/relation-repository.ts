@@ -424,7 +424,8 @@ export class SqlMediaRelationRepository
   async refreshRevisionHash(questionRevisionId: Id): Promise<void> {
     await this.database.transaction(async (connection) => {
       const rows = await connection.query<Row>(
-        `SELECT id, \`type\`, stimulus_html, prompt_html, explanation_html
+        `SELECT id, \`type\`, stimulus_html, prompt_html, explanation_html,
+                true_label, false_label
          FROM question_revisions WHERE id = ? FOR UPDATE`,
         [questionRevisionId],
       );
@@ -467,6 +468,10 @@ export class SqlMediaRelationRepository
           revision.explanation_html === null
             ? null
             : sanitizeRichContent(String(revision.explanation_html), 100_000),
+        trueLabel:
+          revision.true_label == null ? null : String(revision.true_label),
+        falseLabel:
+          revision.false_label == null ? null : String(revision.false_label),
         options: optionRows.map((row) => ({
           ...(parseDatabaseId(row.id)
             ? { id: parseDatabaseId(row.id) as Id }

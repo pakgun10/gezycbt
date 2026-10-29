@@ -39,13 +39,37 @@ export interface TrueFalseStatementDraft {
   readonly correctValue: boolean;
 }
 
+export const DEFAULT_TRUE_LABEL = "Benar";
+export const DEFAULT_FALSE_LABEL = "Salah";
+export const MAX_TRUE_FALSE_LABEL_LENGTH = 50;
+
 export interface QuestionDraftContent {
   readonly type: QuestionType;
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  /**
+   * Display-only TRUE_FALSE column labels. NULL/undefined means the
+   * default pair; the boolean answer key and scoring are unchanged.
+   */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly QuestionOptionDraft[];
   readonly statements: readonly TrueFalseStatementDraft[];
+}
+
+/** Resolve the labels a participant actually sees for a question. */
+export function resolveTrueFalseLabels(content: {
+  readonly type: QuestionType;
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
+}): { readonly trueLabel: string | null; readonly falseLabel: string | null } {
+  if (content.type !== "TRUE_FALSE")
+    return { trueLabel: null, falseLabel: null };
+  return {
+    trueLabel: content.trueLabel ?? DEFAULT_TRUE_LABEL,
+    falseLabel: content.falseLabel ?? DEFAULT_FALSE_LABEL,
+  };
 }
 
 export interface QuestionDraft extends QuestionDraftContent {
@@ -167,14 +191,54 @@ export function validateQuestionContent(
     statements.map((statement) => statement.position),
     "statement",
   );
+  const trueLabel =
+    input.type === "TRUE_FALSE"
+      ? validateTrueFalseLabel(input.trueLabel, "trueLabel")
+      : null;
+  const falseLabel =
+    input.type === "TRUE_FALSE"
+      ? validateTrueFalseLabel(input.falseLabel, "falseLabel")
+      : null;
+  if (
+    trueLabel !== null &&
+    falseLabel !== null &&
+    trueLabel.toLocaleLowerCase() === falseLabel.toLocaleLowerCase()
+  ) {
+    throw new QuestionValidationError("True/false labels must be different");
+  }
   return {
     type: input.type,
     stimulusHtml,
     promptHtml,
     explanationHtml,
+    trueLabel,
+    falseLabel,
     options,
     statements,
   };
+}
+
+function validateTrueFalseLabel(
+  value: string | null | undefined,
+  field: string,
+): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== "string") {
+    throw new QuestionValidationError(`True/false label ${field} is invalid`);
+  }
+  const label = value.trim();
+  if (label.length === 0) return null;
+  if (label.length > MAX_TRUE_FALSE_LABEL_LENGTH) {
+    throw new QuestionValidationError(
+      `True/false label ${field} must be at most ${MAX_TRUE_FALSE_LABEL_LENGTH} characters`,
+    );
+  }
+  if (/[<>]/.test(label)) {
+    throw new QuestionValidationError(
+      `True/false label ${field} must be plain text`,
+    );
+  }
+  return label;
 }
 
 function validateOption(input: QuestionOptionDraft): QuestionOptionDraft {
