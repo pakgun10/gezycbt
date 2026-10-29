@@ -9,6 +9,8 @@ import { participantOutbox } from "../features/exam/outbox";
 defineProps<{
   readonly title?: string | undefined;
   readonly compact?: boolean;
+  /** Disembunyikan saat ujian berlangsung: keluar bisa menghapus jawaban yang belum tersinkron. */
+  readonly hideLogout?: boolean;
 }>();
 
 const api = new HttpParticipantApi();
@@ -44,7 +46,7 @@ async function logout(): Promise<void> {
     <span v-if="title" class="title">{{ title }}</span>
     <div class="header-actions">
       <ThemeToggle />
-      <button v-if="auth.user.value" class="logout-button" type="button" :disabled="loggingOut" @click="logout">
+      <button v-if="auth.user.value && !hideLogout" class="logout-button" type="button" :disabled="loggingOut" @click="logout">
         {{ loggingOut ? "Keluar…" : "Keluar" }}
       </button>
       <slot name="actions" />

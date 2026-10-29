@@ -3,6 +3,7 @@
     <RouteErrorBoundary>
       <RouterView />
     </RouteErrorBoundary>
+    <ConfirmHost />
     <AppFooter v-if="showFooter" />
   </div>
 </template>
@@ -11,6 +12,7 @@
 import { computed } from "vue";
 import { RouterView, useRoute } from "vue-router";
 import AppFooter from "./components/AppFooter.vue";
+import ConfirmHost from "./components/ConfirmHost.vue";
 import RouteErrorBoundary from "./components/RouteErrorBoundary.vue";
 
 const route = useRoute();

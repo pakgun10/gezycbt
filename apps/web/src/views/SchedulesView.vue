@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { requestConfirm } from "../lib/confirm";
 import { HttpStaffApi } from "../features/staff/api";
 import { ApiClientError } from "../lib/api";
 import type {
@@ -261,7 +262,7 @@ async function save(): Promise<void> {
 }
 async function remove(item: ScheduleSummary): Promise<void> {
   if (item.status !== "DRAFT") return;
-  if (!window.confirm(`Hapus draft jadwal “${item.title}”? Tindakan ini tidak dapat dibatalkan.`)) return;
+  if (!(await requestConfirm({ title: "Hapus draft jadwal?", message: `Hapus draft jadwal “${item.title}”? Tindakan ini tidak dapat dibatalkan.`, confirmLabel: "Hapus draft", danger: true }))) return;
   try {
     await api.deleteSchedule(item.id, item.updatedAt);
     await load();
@@ -276,9 +277,11 @@ async function remove(item: ScheduleSummary): Promise<void> {
 async function archive(item: ScheduleSummary): Promise<void> {
   if (item.status !== "CLOSED" || !isAdmin.value) return;
   if (
-    !window.confirm(
-      `Arsipkan jadwal “${item.title}”? Jadwal akan disembunyikan dari daftar utama. Hasil ujian dan audit tetap tersimpan.`,
-    )
+    !(await requestConfirm({
+      title: "Arsipkan jadwal?",
+      message: `Arsipkan jadwal “${item.title}”? Jadwal akan disembunyikan dari daftar utama. Hasil ujian dan audit tetap tersimpan.`,
+      confirmLabel: "Arsipkan",
+    }))
   )
     return;
   try {
@@ -309,7 +312,7 @@ async function rotate(item: ScheduleSummary): Promise<void> {
   }
 }
 async function transition(item: ScheduleSummary, action: "ready" | "open" | "close"): Promise<void> {
-  if (action === "close" && !window.confirm("Tutup jadwal? Session aktif akan difinalisasi bertahap.")) return;
+  if (action === "close" && !(await requestConfirm({ title: "Tutup jadwal?", message: "Session aktif akan difinalisasi bertahap.", confirmLabel: "Tutup jadwal", danger: true }))) return;
   try {
     await api.transitionSchedule(item.id, action, item.updatedAt, action === "close" ? "Ditutup dari halaman jadwal" : undefined);
     await load();

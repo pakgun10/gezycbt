@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
+import { useEscapeClose, useFocusTrap } from "../lib/dialog-a11y";
+import { requestConfirm } from "../lib/confirm";
 import { HttpStaffApi } from "../features/staff/api";
 import type { IntegrationAction, IntegrationClient, IntegrationClientDetail } from "../features/staff/types";
 import { formatDate, messageFrom } from "../features/staff/helpers";
@@ -101,11 +103,11 @@ function cancelCreate(): void {
   showCreate.value = false;
   error.value = "";
 }
-function toggleClient(): void {
+async function toggleClient(): Promise<void> {
   if (!selected.value) return;
   const client = selected.value.client;
   const next = client.status === "ACTIVE" ? "DISABLED" : "ACTIVE";
-  if (next === "DISABLED" && !window.confirm("Nonaktifkan client dan cabut semua credential aktif?")) return;
+  if (next === "DISABLED" && !(await requestConfirm({ title: "Nonaktifkan client?", message: "Nonaktifkan client dan cabut semua credential aktif?", confirmLabel: "Nonaktifkan", danger: true }))) return;
   requireReauth(async () => {
     saving.value = true;
     try {
@@ -128,8 +130,8 @@ function issueCredential(): void {
     } catch (cause) { error.value = messageFrom(cause, "Credential belum dapat dibuat."); } finally { saving.value = false; }
   });
 }
-function revokeCredential(id: string): void {
-  if (!selected.value || !window.confirm("Cabut credential ini sekarang?")) return;
+async function revokeCredential(id: string): Promise<void> {
+  if (!selected.value || !(await requestConfirm({ title: "Cabut credential?", message: "Cabut credential ini sekarang?", confirmLabel: "Cabut", danger: true }))) return;
   requireReauth(async () => {
     saving.value = true;
     try {
@@ -168,8 +170,8 @@ function createGrant(): void {
     } finally { saving.value = false; }
   });
 }
-function revokeGrant(id: string): void {
-  if (!selected.value || !window.confirm("Cabut grant ini? Agent akan kehilangan capability terkait pada request berikutnya.")) return;
+async function revokeGrant(id: string): Promise<void> {
+  if (!selected.value || !(await requestConfirm({ title: "Cabut grant?", message: "Cabut grant ini? Agent akan kehilangan capability terkait pada request berikutnya.", confirmLabel: "Cabut", danger: true }))) return;
   requireReauth(async () => {
     saving.value = true;
     try {
@@ -180,8 +182,8 @@ function revokeGrant(id: string): void {
   });
 }
 async function copyToken(): Promise<void> { if (revealedToken.value) await navigator.clipboard?.writeText(revealedToken.value); }
-function approveAction(action: IntegrationAction): void {
-  if (!window.confirm(`Setujui action ${action.operation} untuk target ${action.targetType} #${action.targetId}?\n\n${actionSummary(action)}\n\nPlan: ${action.planHash}`)) return;
+async function approveAction(action: IntegrationAction): Promise<void> {
+  if (!(await requestConfirm({ title: "Setujui action?", message: `Setujui action ${action.operation} untuk target ${action.targetType} #${action.targetId}?\n\n${actionSummary(action)}\n\nPlan: ${action.planHash}`, confirmLabel: "Setujui" }))) return;
   requireReauth(async () => {
     saving.value = true;
     try {
@@ -201,6 +203,16 @@ function actionSummary(action: IntegrationAction): string {
   return entries.length ? `Dampak: ${entries.join(" · ")}` : "Dampak: tersedia di plan.";
 }
 onMounted(() => { void load(); });
+
+const integrationDialogRef = ref<HTMLElement | null>(null);
+const integrationActive = computed(() => selected.value !== null && !showReauth.value);
+useEscapeClose(integrationActive, () => { selected.value = null; });
+useFocusTrap(integrationActive, integrationDialogRef);
+const reauthDialogRef = ref<HTMLElement | null>(null);
+const reauthActive = computed(() => showReauth.value);
+useEscapeClose(reauthActive, () => { showReauth.value = false; });
+useFocusTrap(reauthActive, reauthDialogRef);
+
 </script>
 
 <template>
@@ -209,8 +221,8 @@ onMounted(() => { void load(); });
   <section v-if="showCreate" class="card form-card"><h2>Integration client baru</h2><form class="integration-form-grid" @submit.prevent="createClient"><label class="field-wide">Nama<input v-model="clientForm.name" maxlength="120" required /></label><label>Platform<select v-model="clientForm.platformHint"><option value="HIVEKEEP">GEZY</option><option>HERMES</option><option>OTHER</option></select></label><label>Owner user ID<input v-model="clientForm.ownerUserId" inputmode="numeric" pattern="[0-9]+" required /></label><label class="field-wide">Deskripsi<textarea v-model="clientForm.description" maxlength="500" rows="3" /></label><div class="integration-form-actions"><button class="btn-secondary" type="button" :disabled="saving" @click="cancelCreate">Batal</button><button class="btn-primary" type="submit" :disabled="saving">{{ saving ? "Menyimpan…" : "Buat client" }}</button></div></form></section>
   <section v-if="pendingActions.length" class="card table-card"><div class="between"><div><h2>Menunggu persetujuan</h2><p class="muted">Action berisiko tinggi harus ditinjau sebelum dijalankan agent.</p></div><span class="badge badge-warning">{{ pendingActions.length }}</span></div><div class="table-scroll"><table><caption class="sr-only">Agent actions awaiting approval</caption><thead><tr><th>Operasi</th><th>Target dan dampak</th><th>Risiko</th><th>Berakhir</th><th>Aksi</th></tr></thead><tbody><tr v-for="action in pendingActions" :key="action.id"><td><strong>{{ action.operation }}</strong><small>Client #{{ action.clientId }} · plan {{ action.planHash.slice(0, 12) }}…</small></td><td>{{ action.targetType }} #{{ action.targetId }}<small>{{ actionSummary(action) }}</small></td><td><span class="badge badge-danger">{{ action.riskLevel }}</span></td><td>{{ formatDate(action.expiresAt) }}</td><td><button class="btn-primary" type="button" :disabled="saving" @click="approveAction(action)">Setujui</button></td></tr></tbody></table></div></section>
   <section class="card table-card"><div v-if="loading" class="table-state">Memuat integration client…</div><div v-else-if="clients.length === 0" class="table-state"><strong>Belum ada agent terhubung</strong><span class="muted">Buat client dari tombol di atas.</span></div><div v-else class="table-scroll"><table><caption class="sr-only">Integration clients</caption><thead><tr><th>Client</th><th>Owner</th><th>Status</th><th>Grant version</th><th>Aktivitas</th></tr></thead><tbody><tr v-for="client in clients" :key="client.id"><td><strong>{{ client.name }}</strong><small>{{ platformLabel(client.platformHint) }} · #{{ client.id }}</small></td><td>{{ client.ownerDisplayName }} · {{ client.ownerRole }}</td><td><span class="badge" :class="client.status === 'ACTIVE' ? 'badge-success' : 'badge-warning'">{{ client.status }}</span></td><td>{{ client.policyVersion }}</td><td><button class="btn-quiet" type="button" @click="openClient(client)">Kelola</button></td></tr></tbody></table></div></section>
-  <div v-if="selected" class="overlay" role="dialog" aria-modal="true" aria-labelledby="integration-detail-title"><aside class="drawer"><div class="between"><div><p class="eyebrow">{{ platformLabel(selected.client.platformHint) }} · #{{ selected.client.id }}</p><h2 id="integration-detail-title">{{ selected.client.name }}</h2></div><button class="btn-quiet" type="button" @click="selected = null">Tutup</button></div><p class="muted">Owner: {{ selected.client.ownerDisplayName }} ({{ selected.client.ownerRole }}) · policy version {{ selected.client.policyVersion }}</p><button class="btn-secondary" type="button" :disabled="saving" @click="toggleClient">{{ selected.client.status === 'ACTIVE' ? 'Kill switch · nonaktifkan' : 'Aktifkan client' }}</button><hr /><div class="between"><h3>Credential</h3><button class="btn-secondary" type="button" :disabled="saving || selected.client.status !== 'ACTIVE'" @click="issueCredential">Buat credential</button></div><p v-if="revealedToken" class="secret-box"><strong>Token plaintext (tampil sekali)</strong><code>{{ revealedToken }}</code><button class="btn-quiet" type="button" @click="copyToken">Salin</button></p><ul class="compact-list"><li v-for="credential in selected.credentials" :key="credential.id"><span><code>{{ credential.tokenPrefix }}…</code> · {{ credential.status }}<small>Dibuat {{ formatDate(credential.createdAt) }}</small></span><button v-if="credential.status === 'ACTIVE'" class="btn-quiet danger" type="button" @click="revokeCredential(credential.id)">Cabut</button></li></ul><hr /><div class="between"><div><h3>Grant</h3><p class="muted">Pilih satu atau beberapa capability.</p></div><button class="btn-secondary" type="button" :disabled="saving || selected.client.status !== 'ACTIVE'" @click="showGrant = !showGrant">Tambah grant</button></div><form v-if="showGrant" class="grant-form" @submit.prevent="createGrant"><div class="capability-picker"><fieldset v-for="group in capabilityGroups" :key="group.label"><legend>{{ group.label }}</legend><label v-for="item in group.items" :key="item[0]" class="capability-option" :class="{ disabled: activeGrantCapabilities.has(item[0]) }"><input v-model="selectedCapabilities" type="checkbox" :value="item[0]" :disabled="activeGrantCapabilities.has(item[0])" /><span><strong>{{ item[0] }}</strong><small>{{ item[1] }}{{ activeGrantCapabilities.has(item[0]) ? ' · sudah aktif' : '' }}</small></span></label></fieldset></div><label>Scope type<select v-model="grantForm.scopeType"><option>SCHOOL</option><option>SUBJECT</option><option>CLASS</option><option>QUESTION_BANK</option><option>EXAM</option><option>SCHEDULE</option><option>ACADEMIC_YEAR</option><option>OWNER</option></select></label><label>Scope IDs (koma, kosong untuk SCHOOL)<input v-model="grantForm.scopeIds" /></label><label><input v-model="grantForm.autoApproveR1" type="checkbox" /> Auto approve draft R1</label><button class="btn-primary" type="submit" :disabled="saving || selectedCapabilities.length === 0">{{ saving ? 'Menyimpan…' : `Simpan ${selectedCapabilities.length} grant` }}</button></form><ul class="compact-list"><li v-for="grant in selected.grants" :key="grant.id"><span><strong>{{ grant.capability }}</strong><small>{{ grant.scopeType }} {{ grant.scopeIds.join(', ') || 'seluruh sekolah' }} · v{{ grant.grantVersion }}</small></span><button v-if="grant.status === 'ACTIVE'" class="btn-quiet danger" type="button" @click="revokeGrant(grant.id)">Cabut</button></li></ul></aside></div>
-  <div v-if="showReauth" class="overlay center" role="dialog" aria-modal="true" aria-labelledby="reauth-title"><section class="modal card"><h2 id="reauth-title">Autentikasi ulang admin</h2><p class="muted">Operasi credential, grant, dan kill switch memerlukan verifikasi ulang.</p><form @submit.prevent="confirmReauth"><label>Password<input v-model="reauthPassword" type="password" autocomplete="current-password" required /></label><div class="editor-actions"><button class="btn-secondary" type="button" @click="showReauth = false">Batal</button><button class="btn-primary" type="submit" :disabled="saving">Verifikasi</button></div></form></section></div>
+  <div v-if="selected" ref="integrationDialogRef" class="overlay" role="dialog" aria-modal="true" aria-labelledby="integration-detail-title"><aside class="drawer"><div class="between"><div><p class="eyebrow">{{ platformLabel(selected.client.platformHint) }} · #{{ selected.client.id }}</p><h2 id="integration-detail-title">{{ selected.client.name }}</h2></div><button class="btn-quiet" type="button" @click="selected = null">Tutup</button></div><p class="muted">Owner: {{ selected.client.ownerDisplayName }} ({{ selected.client.ownerRole }}) · policy version {{ selected.client.policyVersion }}</p><button class="btn-secondary" type="button" :disabled="saving" @click="toggleClient">{{ selected.client.status === 'ACTIVE' ? 'Kill switch · nonaktifkan' : 'Aktifkan client' }}</button><hr /><div class="between"><h3>Credential</h3><button class="btn-secondary" type="button" :disabled="saving || selected.client.status !== 'ACTIVE'" @click="issueCredential">Buat credential</button></div><p v-if="revealedToken" class="secret-box"><strong>Token plaintext (tampil sekali)</strong><code>{{ revealedToken }}</code><button class="btn-quiet" type="button" @click="copyToken">Salin</button></p><ul class="compact-list"><li v-for="credential in selected.credentials" :key="credential.id"><span><code>{{ credential.tokenPrefix }}…</code> · {{ credential.status }}<small>Dibuat {{ formatDate(credential.createdAt) }}</small></span><button v-if="credential.status === 'ACTIVE'" class="btn-quiet danger" type="button" @click="revokeCredential(credential.id)">Cabut</button></li></ul><hr /><div class="between"><div><h3>Grant</h3><p class="muted">Pilih satu atau beberapa capability.</p></div><button class="btn-secondary" type="button" :disabled="saving || selected.client.status !== 'ACTIVE'" @click="showGrant = !showGrant">Tambah grant</button></div><form v-if="showGrant" class="grant-form" @submit.prevent="createGrant"><div class="capability-picker"><fieldset v-for="group in capabilityGroups" :key="group.label"><legend>{{ group.label }}</legend><label v-for="item in group.items" :key="item[0]" class="capability-option" :class="{ disabled: activeGrantCapabilities.has(item[0]) }"><input v-model="selectedCapabilities" type="checkbox" :value="item[0]" :disabled="activeGrantCapabilities.has(item[0])" /><span><strong>{{ item[0] }}</strong><small>{{ item[1] }}{{ activeGrantCapabilities.has(item[0]) ? ' · sudah aktif' : '' }}</small></span></label></fieldset></div><label>Scope type<select v-model="grantForm.scopeType"><option>SCHOOL</option><option>SUBJECT</option><option>CLASS</option><option>QUESTION_BANK</option><option>EXAM</option><option>SCHEDULE</option><option>ACADEMIC_YEAR</option><option>OWNER</option></select></label><label>Scope IDs (koma, kosong untuk SCHOOL)<input v-model="grantForm.scopeIds" /></label><label><input v-model="grantForm.autoApproveR1" type="checkbox" /> Auto approve draft R1</label><button class="btn-primary" type="submit" :disabled="saving || selectedCapabilities.length === 0">{{ saving ? 'Menyimpan…' : `Simpan ${selectedCapabilities.length} grant` }}</button></form><ul class="compact-list"><li v-for="grant in selected.grants" :key="grant.id"><span><strong>{{ grant.capability }}</strong><small>{{ grant.scopeType }} {{ grant.scopeIds.join(', ') || 'seluruh sekolah' }} · v{{ grant.grantVersion }}</small></span><button v-if="grant.status === 'ACTIVE'" class="btn-quiet danger" type="button" @click="revokeGrant(grant.id)">Cabut</button></li></ul></aside></div>
+  <div v-if="showReauth" ref="reauthDialogRef" class="overlay center" role="dialog" aria-modal="true" aria-labelledby="reauth-title"><section class="modal card"><h2 id="reauth-title">Autentikasi ulang admin</h2><p class="muted">Operasi credential, grant, dan kill switch memerlukan verifikasi ulang.</p><form @submit.prevent="confirmReauth"><label>Password<input v-model="reauthPassword" type="password" autocomplete="current-password" required /></label><div class="editor-actions"><button class="btn-secondary" type="button" @click="showReauth = false">Batal</button><button class="btn-primary" type="submit" :disabled="saving">Verifikasi</button></div></form></section></div>
 </template>
 
 <style scoped>

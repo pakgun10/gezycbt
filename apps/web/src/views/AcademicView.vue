@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
+import { requestConfirm } from "../lib/confirm";
 import { HttpStaffApi } from "../features/staff/api";
 import type {
   AcademicYear,
@@ -111,7 +112,7 @@ async function saveRoster(): Promise<void> {
   const removed = currentIds.some((id) => !isRosterSelected(id));
   if (
     removed &&
-    !window.confirm("Peserta yang dihapus tidak lagi mendapat ujian dari target kelas ini. Lanjutkan?")
+    !(await requestConfirm({ title: "Hapus peserta dari kelas?", message: "Peserta yang dihapus tidak lagi mendapat ujian dari target kelas ini.", confirmLabel: "Hapus peserta", danger: true }))
   )
     return;
   rosterSaving.value = true;
