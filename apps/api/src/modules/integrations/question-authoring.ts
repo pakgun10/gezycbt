@@ -52,6 +52,8 @@ export interface AgentQuestionView {
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly AgentOptionView[];
   readonly statements: readonly AgentStatementView[];
   readonly contentHash: string;
@@ -450,6 +452,8 @@ function presentQuestion(
     stimulusHtml: question.stimulusHtml,
     promptHtml: question.promptHtml,
     explanationHtml: question.explanationHtml,
+    trueLabel: question.trueLabel ?? null,
+    falseLabel: question.falseLabel ?? null,
     options: question.options.map((option) => ({
       ...(option.id ? { id: option.id } : {}),
       position: option.position,

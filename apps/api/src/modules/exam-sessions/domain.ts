@@ -5,6 +5,7 @@ import {
   parseUtcTimestamp,
   type UtcTimestamp,
 } from "@gezycbt/contracts";
+import { DEFAULT_FALSE_LABEL, DEFAULT_TRUE_LABEL } from "../questions/domain";
 import type { ParticipantQuestion } from "../questions/participant-presenter";
 import type { ScoringQuestionSnapshot, ScoringResponse } from "../scoring";
 
@@ -52,6 +53,9 @@ export interface RuntimeQuestionSource {
   readonly type: RuntimeQuestionType;
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
+  /** Raw stored labels; null means the default pair for TRUE_FALSE. */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly RuntimeOption[];
   readonly statements: readonly RuntimeStatement[];
   readonly media?: readonly ParticipantQuestion["media"][number][];
@@ -524,6 +528,14 @@ export function participantManifest(
       type: source.type,
       stimulusHtml: source.stimulusHtml,
       promptHtml: source.promptHtml,
+      trueLabel:
+        source.type === "TRUE_FALSE"
+          ? (source.trueLabel ?? DEFAULT_TRUE_LABEL)
+          : null,
+      falseLabel:
+        source.type === "TRUE_FALSE"
+          ? (source.falseLabel ?? DEFAULT_FALSE_LABEL)
+          : null,
       options,
       statements,
       media: source.media ?? [],

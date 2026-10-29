@@ -87,6 +87,12 @@ export interface QuestionRevisionResource
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  /**
+   * Display-only TRUE_FALSE column labels. NULL means the default pair
+   * ("Benar" / "Salah"); the boolean answer key is unchanged.
+   */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly contentHash: string;
   readonly options: readonly QuestionOptionResource[];
   readonly statements: readonly TrueFalseStatementResource[];
@@ -141,6 +147,13 @@ export interface ParticipantQuestionResource {
   readonly type: QuestionTypeContract;
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
+  /**
+   * Resolved TRUE_FALSE column labels for participants ("Benar"/"Salah"
+   * when the question stores none); null for choice questions. Labels
+   * never reveal the answer key.
+   */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly ParticipantQuestionOptionResource[];
   readonly statements: readonly ParticipantTrueFalseStatementResource[];
   readonly media: readonly Pick<
@@ -205,6 +218,9 @@ export interface QuestionContentRequest {
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  /** TRUE_FALSE only; ignored/null for choice questions. */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly QuestionOptionInput[];
   readonly statements: readonly TrueFalseStatementInput[];
 }

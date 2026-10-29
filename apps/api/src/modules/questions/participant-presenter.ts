@@ -1,6 +1,6 @@
 import type { Id } from "@gezycbt/contracts";
 import type { MediaAlignment, MediaUsage } from "../media/relation-domain";
-import type { QuestionDraft } from "./domain";
+import { type QuestionDraft, resolveTrueFalseLabels } from "./domain";
 
 export interface ParticipantQuestionOption {
   readonly id: Id;
@@ -35,6 +35,9 @@ export interface ParticipantQuestion {
   readonly type: QuestionDraft["type"];
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
+  /** Resolved TRUE_FALSE labels; null for choice questions. */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly ParticipantQuestionOption[];
   readonly statements: readonly ParticipantTrueFalseStatement[];
   readonly media: readonly ParticipantQuestionMedia[];
@@ -83,12 +86,15 @@ export function presentParticipantQuestion(
       "Choice participant question shape is invalid",
     );
   }
+  const labels = resolveTrueFalseLabels(source);
   return {
     questionId: source.questionId,
     questionRevisionId: source.id,
     type: source.type,
     stimulusHtml: source.stimulusHtml,
     promptHtml: source.promptHtml,
+    trueLabel: labels.trueLabel,
+    falseLabel: labels.falseLabel,
     options: source.options.map((option) => ({
       id: requiredChildId(option.id),
       position: option.position,

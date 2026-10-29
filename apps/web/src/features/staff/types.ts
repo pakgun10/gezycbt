@@ -173,6 +173,9 @@ export interface QuestionDraft {
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
   readonly explanationHtml: string | null;
+  /** TRUE_FALSE only; null/undefined means the default Benar/Salah pair. */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly {
     readonly id?: string;
     readonly position: number;

@@ -55,6 +55,33 @@ describe("question API contracts", () => {
         ],
       }),
     ).toBe(true);
+    expect(
+      check.Check({
+        type: "TRUE_FALSE",
+        stimulusHtml: "Stimulus",
+        promptHtml: null,
+        explanationHtml: null,
+        trueLabel: "Memungkinkan",
+        falseLabel: "Tidak Memungkinkan",
+        options: [],
+        statements: [
+          { position: 1, statementHtml: "Satu", correctValue: true },
+          { position: 2, statementHtml: "Dua", correctValue: false },
+          { position: 3, statementHtml: "Tiga", correctValue: true },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      check.Check({
+        type: "TRUE_FALSE",
+        stimulusHtml: "Stimulus",
+        promptHtml: null,
+        explanationHtml: null,
+        trueLabel: "x".repeat(51),
+        options: [],
+        statements: [],
+      }),
+    ).toBe(false);
   });
 
   test("rejects cross-type children and malformed IDs", () => {

@@ -103,11 +103,16 @@ const choiceContentProperties = (
 const choiceContentSchema = (type: "SINGLE_CHOICE" | "MULTIPLE_RESPONSE") =>
   t.Object(choiceContentProperties(type), { additionalProperties: false });
 
+const trueFalseLabelSchema = t.Optional(
+  t.Union([t.Null(), t.String({ minLength: 1, maxLength: 50 })]),
+);
 const trueFalseContentProperties = {
   type: t.Literal("TRUE_FALSE"),
   stimulusHtml: htmlSchema,
   promptHtml: t.Null(),
   explanationHtml: nullableHtmlSchema,
+  trueLabel: trueFalseLabelSchema,
+  falseLabel: trueFalseLabelSchema,
   options: emptyArraySchema,
   statements: t.Array(trueFalseStatementInputSchema, { maxItems: 3 }),
 };
@@ -317,6 +322,8 @@ const questionRevisionResourceSchema = t.Object(
     stimulusHtml: htmlSchema,
     promptHtml: nullableHtmlSchema,
     explanationHtml: nullableHtmlSchema,
+    trueLabel: trueFalseLabelSchema,
+    falseLabel: trueFalseLabelSchema,
     contentHash: t.String({
       pattern: HEX_SHA256_PATTERN,
       minLength: 64,
@@ -406,6 +413,8 @@ const participantQuestionResourceSchema = t.Object(
     type: questionTypeSchema,
     stimulusHtml: htmlSchema,
     promptHtml: nullableHtmlSchema,
+    trueLabel: trueFalseLabelSchema,
+    falseLabel: trueFalseLabelSchema,
     options: t.Array(participantOptionSchema, { maxItems: 10 }),
     statements: t.Array(participantStatementSchema, { maxItems: 3 }),
     media: t.Array(participantMediaSchema, { maxItems: 100 }),

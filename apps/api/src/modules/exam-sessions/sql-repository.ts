@@ -1393,7 +1393,7 @@ async function readQuestionSource(
   revisionId: Id,
 ): Promise<RuntimeQuestionSource> {
   const rows = await connection.query<Row>(
-    "SELECT qr.id, qr.question_id, qr.type, qr.stimulus_html, qr.prompt_html FROM question_revisions qr WHERE qr.id = ? AND qr.status = 'PUBLISHED' LIMIT 1",
+    "SELECT qr.id, qr.question_id, qr.type, qr.stimulus_html, qr.prompt_html, qr.true_label, qr.false_label FROM question_revisions qr WHERE qr.id = ? AND qr.status = 'PUBLISHED' LIMIT 1",
     [revisionId],
   );
   if (!rows[0])
@@ -1434,6 +1434,8 @@ async function readQuestionSource(
       row.prompt_html === null
         ? null
         : sanitizeRichContent(String(row.prompt_html), 100_000),
+    trueLabel: row.true_label == null ? null : String(row.true_label),
+    falseLabel: row.false_label == null ? null : String(row.false_label),
     options: options.map((item) => ({
       id: dbId(item.id),
       position: Number(item.position),

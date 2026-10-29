@@ -2405,6 +2405,8 @@ function questionContentPayload(payload: Record<string, unknown>): {
   stimulusHtml: string;
   promptHtml: string | null;
   explanationHtml: string | null;
+  trueLabel: string | null;
+  falseLabel: string | null;
   options: readonly {
     position: number;
     contentHtml: string;
@@ -2455,6 +2457,8 @@ function questionContentPayload(payload: Record<string, unknown>): {
     stimulusHtml: stringField(payload.stimulusHtml, "stimulusHtml"),
     promptHtml: nullableString(payload.promptHtml, "promptHtml"),
     explanationHtml: nullableString(payload.explanationHtml, "explanationHtml"),
+    trueLabel: nullableString(payload.trueLabel, "trueLabel"),
+    falseLabel: nullableString(payload.falseLabel, "falseLabel"),
     options,
     statements,
   };

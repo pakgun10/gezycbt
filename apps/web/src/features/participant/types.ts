@@ -97,6 +97,9 @@ export interface ParticipantQuestion {
   readonly type: ParticipantQuestionType;
   readonly stimulusHtml: string;
   readonly promptHtml: string | null;
+  /** Resolved TRUE_FALSE labels; null for choice questions. */
+  readonly trueLabel?: string | null;
+  readonly falseLabel?: string | null;
   readonly options: readonly ParticipantQuestionOption[];
   readonly statements: readonly ParticipantStatement[];
   readonly media: readonly ParticipantQuestionMedia[];
